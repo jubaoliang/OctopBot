@@ -1,0 +1,63 @@
+# OctopBot — Agent Instructions
+
+Official mobile client for [TencentCloud/Octop](https://github.com/TencentCloud/Octop), a self-hosted AI assistant platform. It replaces the earlier separate client project; this repo is the product's mobile app. Built with Expo SDK 58 + React Native + TypeScript (strict) + expo-router, with every native/platform capability isolated behind wrapper modules so a HarmonyOS target can later be added via per-module shims.
+
+## Platform strategy
+
+- **iOS and Android are the primary platforms.** Build them to production quality with the best available Expo/RN solutions — polish (Liquid Glass navigation, streaming chat UX, animations, accessibility) is the priority. **HarmonyOS is an additional target and must never degrade iOS/Android decisions.** When the best iOS/Android choice conflicts with HarmonyOS compatibility, iOS/Android wins; note the divergence in the relevant `src/platform/` wrapper for the future shim.
+- **HarmonyOS plan (fast-follow, same JS codebase):** use the community [expo-harmony](https://github.com/renbaoshuo/expo-harmony) toolkit — it ports Expo modules (including expo-router) to RNOH, with autolinking, CNG, and a debug→HAP toolchain. It pins an (Expo SDK ↔ RNOH) version pair that lags the latest SDK (SDK 55 + RNOH 0.84 today, SDK 57 + RNOH 0.86 pending), so when HarmonyOS work starts: check its supported pair and align the app's Expo SDK to it. Expo has no official HarmonyOS support; this toolkit is the path.
+- **Wrapper hygiene (cheap insurance, not a cage):** Expo/native capabilities (secure storage, image, splash, glass effect, haptics, linking, …) are accessed through interfaces in `src/platform/` rather than imported directly in screens/components. This keeps future shims mechanical without limiting iOS/Android implementation choices.
+- Prefer RN-core APIs (e.g. WebSocket) and libraries with `@react-native-ohos/*` ports **when quality is equal**; otherwise pick the best library for iOS/Android and wrap it.
+- Business core (API clients, chat WebSocket, state, i18n, utils) stays pure TypeScript — no `react-native` imports.
+- **expo-router on HarmonyOS:** a port exists in expo-harmony, so routing should carry over; if the port lags our SDK at integration time, fall back to re-expressing routes in react-navigation. Keep route files thin (exports + wiring) either way.
+
+**Status: foundation built, UI pending design.** Done: git repo (`.zcode/` ignored), strict toolchain (lint/typecheck/test/format all green), the pure-TS core (`src/core/` — API clients, chat WebSocket, contract types, 24 Jest tests), the API contract pinned in `docs/api-contract.md`. The stock template screens in `src/app/` are placeholders — screens, theme tokens, and i18n strings are built from the Ardot design file.
+
+## Layout & commands
+
+- `src/core/` — pure TypeScript (no `react-native` imports): `api/` (http client, contract types, auth/agents/threads/knowledge/cron modules), `chat/` (ChatSocket with heartbeat + reconnect). `src/platform/` — capability interfaces (secure storage). `src/app/` — expo-router file routes; `src/components/` for shared UI; `assets/` for images/fonts.
+- Scripts: `npm start` / `npm run ios` / `npm run android` / `npm run web`, `npm run lint` (eslint, strict), `npm run typecheck`, `npm test` (jest), `npm run format` (prettier), `npm run reset-project` (template helper — never run casually).
+- Import aliases (tsconfig paths): `@/*` → `src/*`, `@/assets/*` → `assets/*`. Use them; no deep relative imports.
+
+## Design source of truth
+
+- Design file (Ardot): https://ardot.tencent.com/file/745886345003849 — read via the `ardot` MCP server.
+- Screen scope follows the design file. Design tokens (color/typography/spacing) come from the Ardot file, not ad-hoc values.
+
+## Hard requirements
+
+1. **iOS bottom navigation uses Apple's Liquid Glass style** (iOS 26 design language). Use `expo-glass-effect` on iOS 26+; fall back to an expo-blur-based approximation on older iOS. Android keeps standard Material bottom navigation per the design.
+2. **Strict linting is a gate, not a suggestion.** typescript-eslint (strict-type-checked) + `eslint-config-expo` + prettier. `npm run lint` and `npx tsc --noEmit` must pass before any work is considered done.
+3. **No information leakage — guarantee, not guideline.** Nothing user- or machine-identifying may land in any artifact: document, spec, code, comment, commit message, README, config, log line, test fixture, screenshot, or design export. This covers:
+   - **Secrets**: API keys, tokens, passwords, credentials, connection strings, private keys — never hardcoded, never in commits, never echoed into logs or error messages. Use environment variables or a git-ignored local config (e.g. `.env.local`); reference secrets by name, not value. Test fixtures and docs use placeholders (`<token>`, `sk-…`). If a secret ever reaches a commit: rotate it first, then purge history.
+   - **Absolute paths**: no `/Users/…`, `/home/…`, `C:\…`, machine names, or internal URLs. Use repo-relative paths, `~`/`$HOME`, or placeholders (`<repo-root>`).
+   - **Personal data**: names, emails, handles, hardware/OS details, personal workflows, and any user-uploaded content that could identify a person.
+   - The app itself follows the same rule at runtime: server base URL and credentials are user-entered and stored in secure storage — never hardcoded, never logged.
+
+## API target
+
+The contract is pinned in `docs/api-contract.md` (Octop **1.0.3b4**, upstream `develop` branch) and mirrored by the types in `src/core/api/types.ts`. When the server releases a new version, re-derive from upstream and update both. The server base URL is user-configured at runtime (self-hosted); never hardcode one.
+
+## Conventions
+
+- TypeScript strict everywhere; no `any` unless justified in a comment explaining why.
+- File-based routing via expo-router under `src/app/`.
+- i18n: zh + en, no hardcoded UI strings.
+- Unit tests (Jest) for parsers/formatters/API clients; E2E via Maestro — see the Testing section. Features are not done until their E2E flow passes.
+- **Commits follow Conventional Commits**, enforced by the commit-msg hook (commitlint + `@commitlint/config-conventional`). Author interactive commits with `npm run commit` (commitizen); `pre-commit` runs lint-staged (eslint --fix + prettier on staged files). Hooks are installed by husky via the `prepare` script — they self-heal on every `npm install`.
+
+## Testing
+
+- **Unit (Jest)**: parsers, formatters, API clients, chat socket, i18n, date/encoding edge cases. Every new pure-TS module in `src/core/` ships with tests in a co-located `__tests__/` directory; `npm test` stays green.
+- **E2E (Maestro, [docs.maestro.dev](https://docs.maestro.dev/))**: flows live in `.maestro/` as YAML, one file per user journey, named after it (`login.yaml`, `chat-smoke.yaml`, `knowledge-browse.yaml`). Run with `maestro test .maestro/`. E2E is the proof of correctness — drive the real app on an iOS simulator and an Android emulator against a real Octop instance; unit tests only pin what E2E can't reach cheaply.
+- **E2E runs against the dev client** (`dev.octop.octopbot`), built with `npx expo run:ios` / `run:android` — not Expo Go (deep links into Expo Go are unreliable for automation).
+- **iOS 27 simulator AX bug:** React Native content is missing from the XCUITest accessibility tree (upstream [react-native#57282](https://github.com/facebook/react-native/issues/57282)), so Maestro assertions fail on installed iOS 27.x runtimes even though the app renders. **Android is the E2E baseline** until the upstream fix lands; re-check iOS when RN/Xcode updates arrive.
+- On machines where `xcode-select` points at Command Line Tools, export `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` before `simctl`, `xcodebuild`, or `maestro` (Xcode 26's Device Hub manages simulators in the UI; the CLI path is unchanged).
+- Minimum flow set before any release: first-launch + login, chat round-trip (send → stream → render → stop), thread management, knowledge browsing, settings + locale switch.
+- Maestro targets iOS/Android only. When HarmonyOS lands, its E2E needs an RNOH-side tool — do not assume `.maestro/` flows transfer.
+- Maestro CLI (v2.10+) is a machine prerequisite: `brew install maestro` or the official install script if missing.
+
+## Gotchas
+
+- The `ardot` MCP server (design access) requires Tencent SSO on first use; it only connects at session start.
+- Reanimated 4 + React Compiler are enabled — animation code must follow worklet rules; don't disable the compiler to work around errors.

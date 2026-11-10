@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native builds
+ios/
+android/
+*.orig.*
+
+# ZCode session artifacts
+.zcode/
+
+# Environment & secrets
+.env
+.env.*
+
+# Tests & coverage
+coverage/
+
+# Misc
+*.log
+.DS_Store
+
+# Editor
+.vscode/
