@@ -11,7 +11,7 @@ Official mobile client for [TencentCloud/Octop](https://github.com/TencentCloud/
 - Business core (API clients, chat WebSocket, state, i18n, utils) stays pure TypeScript — no `react-native` imports.
 - **expo-router on HarmonyOS:** a port exists in expo-harmony, so routing should carry over; if the port lags our SDK at integration time, fall back to re-expressing routes in react-navigation. Keep route files thin (exports + wiring) either way.
 
-**Status: foundation built, UI pending design.** Done: git repo (`.zcode/` ignored), strict toolchain (lint/typecheck/test/format all green), the pure-TS core (`src/core/` — API clients, chat WebSocket, contract types, 24 Jest tests), the API contract pinned in `docs/api-contract.md`. The stock template screens in `src/app/` are placeholders — screens, theme tokens, and i18n strings are built from the Ardot design file.
+**Status: design UI live, API wiring next.** Done: strict toolchain (all gates green), pure-TS core (`src/core/`), API contract pinned in `docs/api-contract.md`, and the design UI built from the Ardot file — chat home, thread view, drawer, 4-tab bar, semantic light/dark tokens + accent palettes (`src/theme/`), i18n zh/en, SVG icon pipeline (`assets/icons/`, currentColor). Verified on the Android emulator: `maestro test .maestro/smoke.yaml` 15/15 (twice). Next: wire the chat WebSocket to the thread screen, auth flow, drawer task tree from the API. iOS simulator E2E stays blocked on the upstream AX bug (see Testing).
 
 ## Layout & commands
 
