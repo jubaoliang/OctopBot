@@ -1,18 +1,24 @@
-# Smoke: app boots, Home renders, Explore tab is reachable.
-# Runs against the dev client (dev.octop.octopbot) built with
-# `npx expo run:ios` / `npx expo run:android`, Metro on :8081.
-# Note: selectors are exact-match; the template title contains a non-breaking
-# space ("Welcome to\xa0Expo"), so anchor on plain exact strings.
+# Smoke: design UI — chat home, thread view, drawer.
+# Dev client dev.octop.octopbot with Metro on :8081 (adb reverse tcp:8081).
+# Selectors are exact-match Chinese strings from the Ardot design file.
 appId: dev.octop.octopbot
 ---
 - launchApp
 - extendedWaitUntil:
-    visible: 'GET STARTED'
-    timeout: 120000
-- assertVisible: 'Try editing'
-- assertVisible: 'Fresh start'
-- tapOn: 'Explore'
-- assertVisible: 'Expo documentation'
-- assertVisible: 'File-based routing'
-- tapOn: 'Home'
-- assertVisible: 'GET STARTED'
+    visible: '嗨！你专属的智能伙伴来啦'
+    timeout: 180000
+- assertVisible: '检查容器状态与资源占用'
+- assertVisible: '写运维脚本'
+# Suggestion pill → thread screen
+- tapOn: '检查容器状态与资源占用'
+- assertVisible: '帮我打开腾讯云官网'
+- assertVisible: '查看浏览器'
+# Back home via tab, then open the drawer
+- tapOn: '对话'
+- assertVisible: '嗨！你专属的智能伙伴来啦'
+- tapOn: 'menu'
+- assertVisible: '任务'
+- assertVisible: '通用技能'
+- assertVisible: '系统医生'
+- tapOn: 'close menu'
+- assertVisible: '嗨！你专属的智能伙伴来啦'
