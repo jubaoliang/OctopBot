@@ -27,7 +27,9 @@ interface TabBarState {
 /** Vertical space the floating bar occupies — screens pad content by this. */
 export function useTabBarFootprint(): number {
   const insets = useSafeAreaInsets();
-  return Math.max(insets.bottom, 12) + 4 + PILL_HEIGHT + 12;
+  // 24pt of breathing room between content (e.g. the composer) and the
+  // floating pill — the pill's shadow needs clearance to read as floating.
+  return Math.max(insets.bottom, 12) + 4 + PILL_HEIGHT + 24;
 }
 
 /**

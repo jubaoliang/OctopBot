@@ -2,8 +2,13 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useEffect, useState, type ReactNode } from 'react';
 import Animated, {
   Easing,
+  FadeIn,
+  FadeInDown,
+  FadeOut,
+  FadeOutUp,
   useAnimatedStyle,
   useSharedValue,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +25,26 @@ import {
 } from '@/components/icons';
 import { useI18n } from '@/i18n/I18nProvider';
 import { useTokens } from '@/theme';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+/** Chevron with a spring rotation driven by the expand state. */
+function Chevron({ expanded, color }: { expanded: boolean; color: string }) {
+  const rotate = useSharedValue(expanded ? 0 : -90);
+  // Apple-style spring (duration + dampingRatio), driven from an effect —
+  // never as a side effect of render.
+  useEffect(() => {
+    rotate.value = withSpring(expanded ? 0 : -90, { duration: 200, dampingRatio: 0.8 });
+  }, [expanded, rotate]);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotate.value}deg` }],
+  }));
+  return (
+    <Animated.View style={style}>
+      <IconChevronDown width={16} height={16} color={color} />
+    </Animated.View>
+  );
+}
 
 export interface DrawerThread {
   threadId: string;
@@ -150,7 +175,7 @@ export function AppDrawer({
             </View>
 
             {groups.map(group => {
-              const expanded = group.expanded !== collapsed[group.name];
+              const expanded = collapsed[group.name] ?? group.expanded;
               return (
                 <View key={group.agentId} style={styles.groupWrap}>
                   <Pressable
@@ -161,27 +186,27 @@ export function AppDrawer({
                       expanded ? { backgroundColor: t.overlaySubtle } : null,
                     ]}
                     onPress={() => {
-                      setCollapsed(prev => ({ ...prev, [group.name]: expanded }));
-                      onGroupPress(group);
+                      setCollapsed(prev => ({ ...prev, [group.name]: !expanded }));
+                      if (!expanded) {
+                        onGroupPress(group);
+                      }
                     }}
                   >
                     <PersonGlyph color={t.textBody} />
                     <Text style={[styles.groupName, { color: t.textBody }]} numberOfLines={1}>
                       {group.name}
                     </Text>
-                    <Animated.View
-                      style={{ transform: [{ rotate: expanded ? '0deg' : '-90deg' }] }}
-                    >
-                      <IconChevronDown width={16} height={16} color={t.textTertiary} />
-                    </Animated.View>
+                    <Chevron expanded={expanded} color={t.textTertiary} />
                   </Pressable>
                   {expanded
-                    ? group.items.map(item => (
-                        <Pressable
+                    ? group.items.map((item, index) => (
+                        <AnimatedPressable
                           key={item.threadId}
                           accessibilityRole="button"
                           accessibilityLabel={item.title}
-                          style={({ pressed }) => [
+                          entering={FadeInDown.delay(index * 20).duration(180)}
+                          exiting={FadeOutUp.duration(120)}
+                          style={({ pressed }: { pressed: boolean }) => [
                             styles.childRow,
                             pressed ? { opacity: 0.6 } : null,
                           ]}
@@ -190,11 +215,17 @@ export function AppDrawer({
                           <Text style={[styles.childName, { color: t.textBody }]} numberOfLines={1}>
                             {item.title}
                           </Text>
-                        </Pressable>
+                        </AnimatedPressable>
                       ))
                     : null}
                   {expanded && group.threadsLoaded && group.items.length === 0 ? (
-                    <Text style={[styles.childEmpty, { color: t.textTertiary }]}>—</Text>
+                    <Animated.Text
+                      entering={FadeIn.duration(150)}
+                      exiting={FadeOut.duration(100)}
+                      style={[styles.childEmpty, { color: t.textTertiary }]}
+                    >
+                      —
+                    </Animated.Text>
                   ) : null}
                 </View>
               );
