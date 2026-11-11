@@ -32,8 +32,10 @@ function realFetch(url: string, init?: RequestInit): Promise<Response> {
         res.on('end', () => {
           const buffer = Buffer.concat(chunks);
           const text = buffer.toString('utf8');
+          // 204/304 forbid bodies; Node's Response rejects them otherwise.
+          const bodyless = res.statusCode === 204 || res.statusCode === 304;
           resolve(
-            new Response(text, {
+            new Response(bodyless ? null : text, {
               status: res.statusCode ?? 0,
               headers: Object.fromEntries(
                 Object.entries(res.headers).map(([k, v]) => [
@@ -88,6 +90,9 @@ scenario('integration: multi-expert chat scenario', () => {
   let token = '';
   let http: HttpClient;
   const createdAgentIds: string[] = [];
+  // Unique per run — killed runs can leave same-named experts behind.
+  const runTag = `${Date.now()}`;
+  const expertNames = [`scenario-ops-${runTag}`, `scenario-writer-${runTag}`];
 
   beforeAll(async () => {
     const bootstrap = new HttpClient({
@@ -108,6 +113,13 @@ scenario('integration: multi-expert chat scenario', () => {
       },
       onUnauthorized: () => undefined,
     });
+    const sweepApi = new AgentsApi(http);
+    const existing = await sweepApi.list().catch(() => []);
+    for (const agent of existing) {
+      if (agent.name.startsWith('scenario-')) {
+        await sweepApi.deleteAgentQuietly(agent.agent_id);
+      }
+    }
   });
 
   afterAll(async () => {
@@ -118,15 +130,15 @@ scenario('integration: multi-expert chat scenario', () => {
 
   it('creates two experts', async () => {
     const api = new AgentsApi(http);
-    for (const name of ['scenario-ops', 'scenario-writer']) {
+    for (const name of expertNames) {
       const agent = await api.create({ name, description: 'integration scenario expert' });
       expect(agent.agent_id).toBeTruthy();
       createdAgentIds.push(agent.agent_id);
     }
     const agents = await api.list();
     const names = agents.map(a => a.name);
-    expect(names).toContain('scenario-ops');
-    expect(names).toContain('scenario-writer');
+    expect(names).toContain(expertNames[0]);
+    expect(names).toContain(expertNames[1]);
   });
 
   for (const expertIndex of [0, 1]) {
@@ -211,12 +223,14 @@ scenario('integration: multi-expert chat scenario', () => {
           frames.push(frame);
           if (frame.type === 'done' || frame.type === 'error') {
             clearTimeout(timer);
-            socket.close();
+            // Settle first: close() synchronously emits status 'closed',
+            // which must not race the resolution below.
             if (frame.type === 'error') {
               reject(new Error(`server error frame: ${frame.message}`));
             } else {
               resolve(frames);
             }
+            socket.close();
           }
         },
         onStatus: status => {
