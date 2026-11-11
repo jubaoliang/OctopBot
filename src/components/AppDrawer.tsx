@@ -170,88 +170,90 @@ export function AppDrawer({
             />
           </View>
 
-          <View style={styles.tasksSection}>
-            <View style={styles.tasksHeader}>
-              <View style={styles.tasksHeaderLeft}>
-                <Text style={[styles.tasksTitle, { color: t.textTertiary }]}>
-                  {strings.drawer.tasks}
-                </Text>
-                <IconChevronDown width={16} height={16} color={t.textTertiary} />
-              </View>
-              <IconTaskWindow width={16} height={16} color={t.textTertiary} />
-            </View>
-
-            {groups.map(group => {
-              const expanded = collapsed[group.name] ?? group.expanded;
-              return (
-                <View key={group.agentId}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={group.name}
-                    style={[
-                      styles.groupRow,
-                      expanded ? { backgroundColor: t.overlaySubtle, paddingTop: 8 } : null,
-                    ]}
-                    onPress={() => {
-                      setCollapsed(prev => ({ ...prev, [group.name]: !expanded }));
-                      if (!expanded) {
-                        onGroupPress(group);
-                      }
-                    }}
-                  >
-                    <AgentAvatar
-                      name={group.name}
-                      iconName={group.iconName}
-                      color={group.color}
-                      size={20}
-                      fallbackTextSecondary={t.textBody}
-                    />
-                    <Text
-                      style={[styles.groupName, { color: t.textBody }]}
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                    >
-                      {group.name}
-                    </Text>
-                    <Chevron expanded={expanded} color={t.textTertiary} />
-                  </Pressable>
-                  {expanded
-                    ? group.items.map((item, index) => (
-                        <AnimatedPressable
-                          key={item.threadId}
-                          accessibilityRole="button"
-                          accessibilityLabel={item.title}
-                          entering={FadeInDown.delay(index * 20).duration(180)}
-                          exiting={FadeOutUp.duration(120)}
-                          style={({ pressed }: { pressed: boolean }) => [
-                            styles.childRow,
-                            pressed ? { opacity: 0.6 } : null,
-                          ]}
-                          onPress={() => onThreadPress(group, item)}
-                        >
-                          <Text
-                            style={[styles.childName, { color: t.textBody }]}
-                            numberOfLines={1}
-                            ellipsizeMode="tail"
-                          >
-                            {item.title}
-                          </Text>
-                        </AnimatedPressable>
-                      ))
-                    : null}
-                  {expanded && group.threadsLoaded && group.items.length === 0 ? (
-                    <Animated.Text
-                      entering={FadeIn.duration(150)}
-                      exiting={FadeOut.duration(100)}
-                      style={[styles.childEmpty, { color: t.textTertiary }]}
-                    >
-                      —
-                    </Animated.Text>
-                  ) : null}
+          {groups.length > 0 ? (
+            <View style={styles.tasksSection}>
+              <View style={styles.tasksHeader}>
+                <View style={styles.tasksHeaderLeft}>
+                  <Text style={[styles.tasksTitle, { color: t.textTertiary }]}>
+                    {strings.drawer.tasks}
+                  </Text>
+                  <IconChevronDown width={16} height={16} color={t.textTertiary} />
                 </View>
-              );
-            })}
-          </View>
+                <IconTaskWindow width={16} height={16} color={t.textTertiary} />
+              </View>
+
+              {groups.map(group => {
+                const expanded = collapsed[group.name] ?? group.expanded;
+                return (
+                  <View key={group.agentId}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={group.name}
+                      style={[
+                        styles.groupRow,
+                        expanded ? { backgroundColor: t.overlaySubtle, paddingTop: 8 } : null,
+                      ]}
+                      onPress={() => {
+                        setCollapsed(prev => ({ ...prev, [group.name]: !expanded }));
+                        if (!expanded) {
+                          onGroupPress(group);
+                        }
+                      }}
+                    >
+                      <AgentAvatar
+                        name={group.name}
+                        iconName={group.iconName}
+                        color={group.color}
+                        size={20}
+                        fallbackTextSecondary={t.textBody}
+                      />
+                      <Text
+                        style={[styles.groupName, { color: t.textBody }]}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                      >
+                        {group.name}
+                      </Text>
+                      <Chevron expanded={expanded} color={t.textTertiary} />
+                    </Pressable>
+                    {expanded
+                      ? group.items.map((item, index) => (
+                          <AnimatedPressable
+                            key={item.threadId}
+                            accessibilityRole="button"
+                            accessibilityLabel={item.title}
+                            entering={FadeInDown.delay(index * 20).duration(180)}
+                            exiting={FadeOutUp.duration(120)}
+                            style={({ pressed }: { pressed: boolean }) => [
+                              styles.childRow,
+                              pressed ? { opacity: 0.6 } : null,
+                            ]}
+                            onPress={() => onThreadPress(group, item)}
+                          >
+                            <Text
+                              style={[styles.childName, { color: t.textBody }]}
+                              numberOfLines={1}
+                              ellipsizeMode="tail"
+                            >
+                              {item.title}
+                            </Text>
+                          </AnimatedPressable>
+                        ))
+                      : null}
+                    {expanded && group.threadsLoaded && group.items.length === 0 ? (
+                      <Animated.Text
+                        entering={FadeIn.duration(150)}
+                        exiting={FadeOut.duration(100)}
+                        style={[styles.childEmpty, { color: t.textTertiary }]}
+                      >
+                        —
+                      </Animated.Text>
+                    ) : null}
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
         </ScrollView>
       </Animated.View>
     </Animated.View>

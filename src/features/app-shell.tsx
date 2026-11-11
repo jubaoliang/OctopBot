@@ -35,31 +35,46 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [groups, setGroups] = useState<DrawerTaskGroup[]>([]);
 
-  // Live agent tree for the drawer; threads load per group on first expand.
+  // Live agent tree for the drawer: experts with at least one thread,
+  // fetched in parallel — experts without conversations stay out of the
+  // task tree entirely (design shows only populated groups).
   const reload = useCallback(() => {
     if (!ready || !user) {
       return;
     }
-    void fetchAgents(httpClient)
-      .then(agents => {
-        setGroups(prev =>
-          agents.map(a => {
-            const existing = prev.find(g => g.agentId === a.agent_id);
-            return {
-              name: a.name,
-              agentId: a.agent_id,
-              items: existing?.items ?? [],
-              expanded: existing?.expanded ?? false,
-              threadsLoaded: existing?.threadsLoaded ?? false,
-              iconName: a.icon_name,
-              color: a.color,
-            };
-          }),
+    void (async () => {
+      try {
+        const agents = await fetchAgents(httpClient);
+        const threadsApi = new ThreadsApi(httpClient);
+        const populated = await Promise.all(
+          agents.map(async a => ({
+            agent: a,
+            threads: await threadsApi.list(a.agent_id).catch(() => []),
+          })),
         );
-      })
-      .catch(() => {
+        setGroups(prev =>
+          populated
+            .filter(({ threads }) => threads.length > 0)
+            .map(({ agent, threads }) => {
+              const existing = prev.find(g => g.agentId === agent.agent_id);
+              return {
+                name: agent.name,
+                agentId: agent.agent_id,
+                items: threads.map(t => ({
+                  threadId: t.thread_id,
+                  title: t.title?.trim() || '新对话',
+                })),
+                expanded: existing?.expanded ?? false,
+                threadsLoaded: true,
+                iconName: agent.icon_name,
+                color: agent.color,
+              };
+            }),
+        );
+      } catch {
         // Drawer keeps the previous tree on refresh failures.
-      });
+      }
+    })();
   }, [ready, user, httpClient]);
 
   useEffect(() => {
@@ -71,6 +86,8 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       if (group.threadsLoaded) {
         return;
       }
+      // Threads normally arrive pre-loaded with the tree; this is the
+      // fallback refresh path for a group that missed the batch.
       void new ThreadsApi(httpClient)
         .list(group.agentId)
         .then(threads => {
