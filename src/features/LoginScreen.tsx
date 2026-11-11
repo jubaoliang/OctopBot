@@ -90,6 +90,7 @@ export function LoginScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="url"
+              testID="login-url"
               placeholder="https://octop.example.com"
               placeholderTextColor={tokens.textPlaceholder}
               style={[styles.field, fieldStyle]}
@@ -101,6 +102,7 @@ export function LoginScreen() {
             <TextInput
               value={username}
               onChangeText={setUsername}
+              testID="login-username"
               autoCapitalize="none"
               autoCorrect={false}
               style={[styles.field, fieldStyle]}
@@ -112,6 +114,7 @@ export function LoginScreen() {
             <TextInput
               value={password}
               onChangeText={setPassword}
+              testID="login-password"
               secureTextEntry
               onSubmitEditing={submit}
               style={[styles.field, fieldStyle]}
@@ -119,6 +122,7 @@ export function LoginScreen() {
 
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel="login-submit"
               disabled={busy}
               onPress={submit}
               style={[styles.signIn, { backgroundColor: tokens.accent, opacity: busy ? 0.6 : 1 }]}

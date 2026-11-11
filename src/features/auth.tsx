@@ -120,6 +120,7 @@ export function AuthProvider({
             if (seededUrl && seededToken) {
               storedBase = seededUrl;
               storedToken = seededToken;
+              tokenRef.current = seededToken;
               await Promise.all([
                 storage.set(BASE_URL_KEY, seededUrl),
                 storage.set(TOKEN_KEY, seededToken),
@@ -213,6 +214,10 @@ export function AuthProvider({
         storage.set(BASE_URL_KEY, base),
         storage.set(TOKEN_KEY, result.access_token),
       ]);
+      // Ref BEFORE state: child effects (app-shell reload) run before this
+      // provider's token-sync effect in the same commit — the first
+      // authenticated request must already carry the fresh token.
+      tokenRef.current = result.access_token;
       setBaseUrl(base);
       setToken(result.access_token);
       setUser(result.user);
