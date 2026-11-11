@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 
 import { AppHeader } from '@/components/AppHeader';
 import { useTabBarFootprint } from '@/components/DesignTabBar';
+import { AgentAvatar } from '@/components/AgentAvatar';
 import { IconArrowRight } from '@/components/icons';
 import type { AgentSummary } from '@/core/api/types';
 import { fetchAgents, useAuth } from '@/features/auth';
@@ -77,11 +78,13 @@ export default function ExpertsScreen() {
                 })
               }
             >
-              <View style={[styles.avatar, { backgroundColor: tokens.overlaySubtle }]}>
-                <Text style={[styles.avatarText, { color: tokens.textSecondary }]}>
-                  {agent.name.slice(0, 1)}
-                </Text>
-              </View>
+              <AgentAvatar
+                name={agent.name}
+                iconName={agent.icon_name}
+                color={agent.color}
+                size={44}
+                fallbackTextSecondary={tokens.textSecondary}
+              />
               <View style={styles.meta}>
                 <Text style={[styles.name, { color: tokens.textPrimary }]} numberOfLines={1}>
                   {agent.name}

@@ -12,7 +12,6 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Circle, Path, Svg } from 'react-native-svg';
 
 import {
   IconChevronDown,
@@ -23,6 +22,7 @@ import {
   MenuExperts,
   MenuTokens,
 } from '@/components/icons';
+import { AgentAvatar } from '@/components/AgentAvatar';
 import { useI18n } from '@/i18n/I18nProvider';
 import { useTokens } from '@/theme';
 
@@ -58,6 +58,9 @@ export interface DrawerTaskGroup {
   expanded: boolean;
   /** True once this group's threads have been fetched. */
   threadsLoaded?: boolean;
+  /** Server-side expert identity (lucide icon name + brand color). */
+  iconName?: string | null;
+  color?: string | null;
 }
 
 interface AppDrawerProps {
@@ -192,7 +195,13 @@ export function AppDrawer({
                       }
                     }}
                   >
-                    <PersonGlyph color={t.textBody} />
+                    <AgentAvatar
+                      name={group.name}
+                      iconName={group.iconName}
+                      color={group.color}
+                      size={32}
+                      fallbackTextSecondary={t.textBody}
+                    />
                     <Text style={[styles.groupName, { color: t.textBody }]} numberOfLines={1}>
                       {group.name}
                     </Text>
@@ -257,17 +266,6 @@ function NavRow({
       {icon}
       <Text style={[styles.navLabel, { color: t.textBody }]}>{label}</Text>
     </Pressable>
-  );
-}
-
-/** 20px person-in-circle glyph (design's generic identity icon). */
-function PersonGlyph({ color }: { color: string }) {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 20 20">
-      <Circle cx="10" cy="10" r="9" stroke={color} strokeWidth="1.5" fill="none" />
-      <Circle cx="10" cy="8" r="3" stroke={color} strokeWidth="1.5" fill="none" />
-      <Path d="M4.5 16a6 6 0 0 1 11 0" stroke={color} strokeWidth="1.5" fill="none" />
-    </Svg>
   );
 }
 

@@ -51,6 +51,8 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
               items: existing?.items ?? [],
               expanded: existing?.expanded ?? false,
               threadsLoaded: existing?.threadsLoaded ?? false,
+              iconName: a.icon_name,
+              color: a.color,
             };
           }),
         );
