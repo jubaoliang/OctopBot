@@ -106,7 +106,6 @@ export function AuthProvider({
         // octopbot://dev-session?url=<base>&token=<jwt> (cold launch).
         if (__DEV__) {
           const initialUrl = await Linking.getInitialURL();
-          console.log('[auth] initial url:', initialUrl);
           if (initialUrl?.startsWith('octopbot://dev-session')) {
             // Manual parse — the URL global is not guaranteed in every engine.
             const query = initialUrl.slice(initialUrl.indexOf('?') + 1);
@@ -116,7 +115,6 @@ export function AuthProvider({
             };
             const seededUrl = param('url');
             const seededToken = param('token');
-            console.log('[auth] seed:', Boolean(seededUrl), Boolean(seededToken));
             if (seededUrl && seededToken) {
               storedBase = seededUrl;
               storedToken = seededToken;
@@ -234,6 +232,47 @@ export function AuthProvider({
     },
     [httpClient, storage],
   );
+
+  // Warm-launch seeds: the cold-start path reads getInitialURL, but an
+  // intent delivered while the app is running arrives as a `url` event.
+  useEffect(() => {
+    if (!__DEV__) {
+      return;
+    }
+    const sub = Linking.addEventListener('url', ({ url: initialUrl }) => {
+      if (!initialUrl.startsWith('octopbot://dev-session')) {
+        return;
+      }
+      const query = initialUrl.slice(initialUrl.indexOf('?') + 1);
+      const param = (key: string) => {
+        const hit = query.split('&').find(p => p.startsWith(`${key}=`));
+        return hit ? decodeURIComponent(hit.slice(key.length + 1)) : null;
+      };
+      const seededUrl = param('url');
+      const seededToken = param('token');
+      if (seededUrl && seededToken) {
+        tokenRef.current = seededToken;
+        setBaseUrl(seededUrl);
+        setToken(seededToken);
+        void Promise.all([
+          storage.set(BASE_URL_KEY, seededUrl),
+          storage.set(TOKEN_KEY, seededToken),
+        ]).then(() => {
+          const restoreClient = new HttpClient({
+            baseUrl: seededUrl,
+            getToken: () => Promise.resolve(seededToken),
+            onTokenRenewed: persistToken,
+            onUnauthorized: dropSession,
+          });
+          new AuthApi(restoreClient)
+            .me()
+            .then(me => setUser(me))
+            .catch(() => undefined);
+        });
+      }
+    });
+    return () => sub.remove();
+  }, [storage, persistToken, dropSession]);
 
   const value = useMemo<AuthContextValue>(
     () => ({ ready, baseUrl, token, user, login, logout, httpClient }),

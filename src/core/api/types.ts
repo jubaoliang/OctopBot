@@ -36,6 +36,13 @@ export interface MfaChallenge {
 
 // ---------------------------------------------------------------------------
 // Agents, teams, experts
+
+/** Quick prompt payload from the welcome endpoint: plain strings per locale,
+ * or a {zh,en} pair depending on server shape. */
+export type QuickPrompts = string[] | { zh?: string[]; en?: string[] } | null;
+
+// ---------------------------------------------------------------------------
+// Agents, teams, experts
 // ---------------------------------------------------------------------------
 
 export type AgentKind = 'expert' | 'team';

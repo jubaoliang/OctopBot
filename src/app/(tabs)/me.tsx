@@ -94,16 +94,6 @@ export default function MeScreen() {
             ))}
           </View>
 
-          <Text style={[styles.section, { color: tokens.textTertiary }]}>{strings.me.server}</Text>
-          <View style={[styles.serverRow, { backgroundColor: tokens.surface }]}>
-            <Text style={[styles.serverLabel, { color: tokens.textTertiary }]}>
-              {strings.me.server}
-            </Text>
-            <Text style={[styles.serverUrl, { color: tokens.textBody }]} numberOfLines={1}>
-              {baseUrl ?? '—'}
-            </Text>
-          </View>
-
           <Pressable
             accessibilityRole="button"
             style={({ pressed }) => [
@@ -114,6 +104,15 @@ export default function MeScreen() {
           >
             <Text style={[styles.logoutText, { color: tokens.danger }]}>{strings.me.logout}</Text>
           </Pressable>
+
+          {/* Secondary footer — deliberately quiet, like legal links. */}
+          <Text
+            style={[styles.serverFootnote, { color: tokens.textTertiary }]}
+            numberOfLines={1}
+            ellipsizeMode="middle"
+          >
+            {strings.me.connectedTo.replace('{url}', baseUrl ?? '—')}
+          </Text>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -155,18 +154,11 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
   },
-  serverRow: {
-    borderRadius: 12,
-    padding: 14,
-    gap: 4,
-  },
-  serverLabel: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  serverUrl: {
-    fontSize: 15,
-    lineHeight: 22,
+  serverFootnote: {
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: 'center',
+    marginTop: 20,
   },
   logoutButton: {
     borderRadius: 12,

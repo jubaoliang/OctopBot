@@ -28,6 +28,7 @@ export interface ThemeTokens {
   accent: string;
   accentSoft: string;
   danger: string;
+  dangerSoft: string;
   shadow: string;
 }
 
@@ -90,6 +91,7 @@ export const lightTokens: ThemeTokens = {
   accent: '#2F82D1', // overridden by the active palette
   accentSoft: 'rgba(47,130,209,0.12)',
   danger: '#E5484D',
+  dangerSoft: 'rgba(229,72,77,0.12)',
   shadow: 'rgba(0,0,0,0.05)',
 };
 
@@ -109,6 +111,7 @@ export const darkTokens: ThemeTokens = {
   accent: '#5B9FDC',
   accentSoft: 'rgba(91,159,220,0.16)',
   danger: '#F06A6E',
+  dangerSoft: 'rgba(240,106,110,0.16)',
   shadow: 'rgba(0,0,0,0.40)',
 };
 

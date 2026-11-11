@@ -6,6 +6,7 @@ import { ActivityIndicator, View, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AppDrawer } from '@/components/AppDrawer';
+import { registerLastAgentStore } from '@/app/(tabs)/chat/index';
 import { AuthProvider, useAuth } from '@/features/auth';
 import { LoginScreen } from '@/features/LoginScreen';
 import { AppShellProvider, useAppShell } from '@/features/app-shell';
@@ -88,6 +89,12 @@ const styles = {
 } as const;
 
 export default function RootLayout() {
+  // One-time registration: the chat home persists the last-used expert id
+  // through the same secure storage the rest of the session state uses.
+  registerLastAgentStore(
+    () => expoSecureStorage.get('chat.lastAgentId'),
+    id => expoSecureStorage.set('chat.lastAgentId', id),
+  );
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider storage={expoSecureStorage}>

@@ -30,6 +30,14 @@ export class AgentsApi {
     return this.http.post(`/api/agents/${agentId}/read`);
   }
 
+  /** Per-expert welcome payload: greeting + locale-aware quick prompts. */
+  welcome(agentId: string): Promise<{
+    welcome_message?: { zh?: string; en?: string } | null;
+    quick_prompts?: unknown;
+  }> {
+    return this.http.get(`/api/agents/${agentId}/chat/welcome`);
+  }
+
   create(body: { name: string; description?: string }): Promise<AgentSummary> {
     return this.http.post('/api/agents', body);
   }
