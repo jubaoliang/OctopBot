@@ -1,5 +1,5 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -48,6 +48,7 @@ export function AppDrawer({ visible, onClose, onNavigate, groups }: AppDrawerPro
   const { t: strings } = useI18n();
   const insets = useSafeAreaInsets();
   const progress = useSharedValue(0);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     progress.value = withTiming(visible ? 1 : 0, {
@@ -120,31 +121,40 @@ export function AppDrawer({ visible, onClose, onNavigate, groups }: AppDrawerPro
               <IconTaskWindow width={16} height={16} color={t.textTertiary} />
             </View>
 
-            {groups.map(group => (
-              <View key={group.name}>
-                <View
-                  style={[
-                    styles.groupRow,
-                    group.expanded ? { backgroundColor: t.overlaySubtle } : null,
-                  ]}
-                >
-                  <PersonGlyph color={t.textBody} />
-                  <Text style={[styles.groupName, { color: t.textBody }]} numberOfLines={1}>
-                    {group.name}
-                  </Text>
-                  <IconChevronDown width={16} height={16} color={t.textTertiary} />
+            {groups.map(group => {
+              const expanded = group.expanded !== collapsed[group.name];
+              return (
+                <View key={group.name}>
+                  <Pressable
+                    accessibilityRole="button"
+                    style={[
+                      styles.groupRow,
+                      expanded ? { backgroundColor: t.overlaySubtle } : null,
+                    ]}
+                    onPress={() => setCollapsed(prev => ({ ...prev, [group.name]: expanded }))}
+                  >
+                    <PersonGlyph color={t.textBody} />
+                    <Text style={[styles.groupName, { color: t.textBody }]} numberOfLines={1}>
+                      {group.name}
+                    </Text>
+                    <Animated.View
+                      style={{ transform: [{ rotate: expanded ? '0deg' : '-90deg' }] }}
+                    >
+                      <IconChevronDown width={16} height={16} color={t.textTertiary} />
+                    </Animated.View>
+                  </Pressable>
+                  {expanded
+                    ? group.items.map((item, index) => (
+                        <Pressable key={`${group.name}-${index}`} style={styles.childRow}>
+                          <Text style={[styles.childName, { color: t.textBody }]} numberOfLines={1}>
+                            {item}
+                          </Text>
+                        </Pressable>
+                      ))
+                    : null}
                 </View>
-                {group.expanded
-                  ? group.items.map((item, index) => (
-                      <Pressable key={`${group.name}-${index}`} style={styles.childRow}>
-                        <Text style={[styles.childName, { color: t.textBody }]} numberOfLines={1}>
-                          {item}
-                        </Text>
-                      </Pressable>
-                    ))
-                  : null}
-              </View>
-            ))}
+              );
+            })}
           </View>
         </ScrollView>
       </Animated.View>

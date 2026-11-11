@@ -130,9 +130,8 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 96,
-    paddingBottom: 32,
-    justifyContent: 'space-between',
+    paddingTop: 88,
+    paddingBottom: 24,
   },
   brand: {
     alignItems: 'center',
@@ -153,7 +152,7 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: 12,
-    marginTop: 48,
+    marginTop: 40,
   },
   label: {
     fontSize: 13,

@@ -16,6 +16,7 @@ import { HttpClient } from '@/core/api/http';
 import { normalizeBaseUrl } from '@/core/api/urls';
 import type { AgentSummary, OctopUser } from '@/core/api/types';
 import { AgentsApi } from '@/core/api/agents';
+import { Linking } from 'react-native';
 import { StorageKeys, type SecureStorage } from '@/platform/secure-storage';
 
 interface AuthContextValue {
@@ -101,6 +102,24 @@ export function AuthProvider({
           storage.get(BASE_URL_KEY),
           storage.get(TOKEN_KEY),
         ]);
+        // Dev builds only: E2E can seed a session via
+        // octopbot://dev-session?url=<base>&token=<jwt> (cold launch).
+        if (__DEV__) {
+          const initialUrl = await Linking.getInitialURL();
+          if (initialUrl?.startsWith('octopbot://dev-session')) {
+            const query = new URL(initialUrl).searchParams;
+            const seededUrl = query.get('url');
+            const seededToken = query.get('token');
+            if (seededUrl && seededToken) {
+              storedBase = seededUrl;
+              storedToken = seededToken;
+              await Promise.all([
+                storage.set(BASE_URL_KEY, seededUrl),
+                storage.set(TOKEN_KEY, seededToken),
+              ]);
+            }
+          }
+        }
       } catch {
         // Keychain/keystore unavailable: fall through to the login gate.
       }

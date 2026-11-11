@@ -29,9 +29,11 @@ export default function ThreadScreen() {
   const { t: strings } = useI18n();
   const { openDrawer } = useAppShell();
   const { baseUrl, token, httpClient, user } = useAuth();
-  // Route param carries the initial prompt text (from a suggestion pill);
-  // the real server thread id is minted lazily on first send.
-  const { threadId: initialText } = useLocalSearchParams<{ threadId: string }>();
+  // Route params: threadId doubles as the initial prompt text from a
+  // suggestion pill ('new' = no prompt, e.g. entering from the experts
+  // roster); agent selects the expert; title overrides the header.
+  const params = useLocalSearchParams<{ threadId: string; agent?: string; title?: string }>();
+  const initialText = params.threadId === 'new' ? null : params.threadId;
   const tabBarFootprint = useTabBarFootprint();
 
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -48,8 +50,8 @@ export default function ThreadScreen() {
   useEffect(() => {
     tokenRef.current = token;
   }, [token]);
-  // The default expert on a fresh server install.
-  const agentId = 'main';
+  // Defaults to the default expert on a fresh server install.
+  const agentId = params.agent ?? 'main';
 
   const handleFrame = useCallback((frame: ServerFrame) => {
     switch (frame.type) {
@@ -117,25 +119,26 @@ export default function ThreadScreen() {
       },
     });
     socketRef.current = socket;
-    void socket.connect().catch(() => {
-      if (!disposed) {
-        setConnection('closed');
-      }
-    });
 
     // Threads are created lazily on first send — visiting the screen never
-    // leaves empty orphan threads behind on the server.
+    // leaves empty orphan threads behind on the server. Connection first,
+    // then thread, then send: the socket must be open before subscribe or
+    // the first turn is silently dropped.
     const ensureThread = async (): Promise<string | null> => {
-      if (threadRef.current) {
-        return threadRef.current;
-      }
       try {
+        await socket.connect();
+        if (disposed) {
+          return null;
+        }
+        if (threadRef.current) {
+          return threadRef.current;
+        }
         const created = await new ThreadsApi(httpClientRef.current).create(agentId);
         if (disposed) {
           return null;
         }
         threadRef.current = created.thread_id;
-        socketRef.current?.subscribe(created.thread_id);
+        socket.subscribe(created.thread_id);
         return created.thread_id;
       } catch {
         if (!disposed) {
@@ -146,7 +149,7 @@ export default function ThreadScreen() {
     };
     ensureThreadRef.current = ensureThread;
 
-    if (initialText && initialText !== 'demo-thread') {
+    if (initialText) {
       void (async () => {
         // Async continuation keeps setState out of the effect body.
         setTurns([{ role: 'user', text: initialText }]);
@@ -193,7 +196,7 @@ export default function ThreadScreen() {
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
       <View style={[styles.safe, { paddingBottom: tabBarFootprint }]}>
         <AppHeader
-          title={initialText ?? strings.chat.agentName}
+          title={params.title ?? initialText ?? strings.chat.agentName}
           subtitle={headerSubtitle}
           onMenu={openDrawer}
         />
@@ -222,6 +225,9 @@ export default function ThreadScreen() {
             <Text style={[styles.assistantText, { color: tokens.textTertiary }]}>
               {connection === 'open' ? strings.chat.waiting : strings.chat.connecting}
             </Text>
+          ) : null}
+          {streaming && (turns.length === 0 || turns[turns.length - 1].role === 'user') ? (
+            <Text style={[styles.assistantText, { color: tokens.textTertiary }]}>···</Text>
           ) : null}
         </ScrollView>
         <View style={styles.inputWrap}>

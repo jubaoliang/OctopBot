@@ -99,10 +99,12 @@ describe('ChatSocket', () => {
 
   it('builds a wss URL with the token and reaches open', async () => {
     const { socket, statuses } = makeSocket();
-    await socket.connect();
+    const connecting = socket.connect();
+    await Promise.resolve();
     const first = FakeSocket.created[0];
     expect(first.url).toBe('wss://octop.example.com/api/agents/a1/chat/ws?token=jwt-token');
     first.open();
+    await connecting;
     expect(statuses.at(-1)?.status).toBe('open');
     socket.close();
   });
@@ -116,16 +118,21 @@ describe('ChatSocket', () => {
       onStatus: () => undefined,
       socketFactory: url => new FakeSocket(url) as unknown as WebSocket,
     });
-    await socket.connect();
+    const connecting = socket.connect();
+    await Promise.resolve();
+    FakeSocket.created[0].open();
+    await connecting;
     expect(FakeSocket.created[0].url.startsWith('ws://192.168.1.10:8088/')).toBe(true);
     socket.close();
   });
 
   it('delivers parsed frames and forwards sendUserTurn as JSON', async () => {
     const { socket, frames } = makeSocket();
-    await socket.connect();
+    const connecting = socket.connect();
+    await Promise.resolve();
     const first = FakeSocket.created[0];
     first.open();
+    await connecting;
 
     first.serverMessage({ type: 'token', content: 'hello' });
     expect(frames).toHaveLength(1);
@@ -144,9 +151,11 @@ describe('ChatSocket', () => {
   it('re-subscribes the active thread after reconnect', async () => {
     jest.useFakeTimers();
     const { socket } = makeSocket();
-    await socket.connect();
+    const connecting = socket.connect();
+    await Promise.resolve();
     const first = FakeSocket.created[0];
     first.open();
+    await connecting;
     socket.subscribe('t-1');
     expect(JSON.parse(first.sent[0])).toMatchObject({ type: 'subscribe', thread_id: 't-1' });
 
@@ -162,7 +171,10 @@ describe('ChatSocket', () => {
 
   it('marks unauthorized on close 4001 and does not reconnect', async () => {
     const { socket, statuses } = makeSocket();
-    await socket.connect();
+    const connecting = socket.connect();
+    await Promise.resolve();
+    FakeSocket.created[0].open();
+    await connecting;
     FakeSocket.created[0].serverClose(4001);
     expect(statuses.at(-1)).toMatchObject({ status: 'unauthorized' });
     expect(FakeSocket.created).toHaveLength(1);
@@ -170,8 +182,22 @@ describe('ChatSocket', () => {
 
   it('stops entirely after an explicit close', async () => {
     const { socket } = makeSocket();
-    await socket.connect();
+    const connecting = socket.connect();
+    await Promise.resolve();
+    FakeSocket.created[0].open();
+    await connecting;
     socket.close();
+    expect(FakeSocket.created).toHaveLength(1);
+  });
+
+  it('rejects connect and stays terminal when the handshake is refused', async () => {
+    const { socket, statuses } = makeSocket();
+    const connecting = socket.connect();
+    await Promise.resolve();
+    // Handshake rejection: close fires without any open (generic 1006).
+    FakeSocket.created[0].serverClose(1006);
+    await expect(connecting).rejects.toThrow('connection refused');
+    expect(statuses.at(-1)).toMatchObject({ status: 'closed' });
     expect(FakeSocket.created).toHaveLength(1);
   });
 });

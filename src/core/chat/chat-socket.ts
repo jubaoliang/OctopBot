@@ -35,6 +35,8 @@ export class ChatSocket {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private state: ChatConnectionStatus = 'idle';
   private subscribedThread: string | null = null;
+  private everOpened = false;
+  private connectPromise: Promise<void> | null = null;
 
   constructor(options: ChatSocketOptions) {
     this.options = {
@@ -48,28 +50,51 @@ export class ChatSocket {
     return this.state;
   }
 
-  async connect(): Promise<void> {
-    if (this.state === 'open' || this.state === 'connecting') {
-      return;
+  /**
+   * Opens the socket. The promise settles on open, or rejects if the
+   * handshake is rejected / the socket dies before opening. Concurrent
+   * callers share one attempt; call again after a failure.
+   */
+  connect(): Promise<void> {
+    if (this.state === 'open') {
+      return Promise.resolve();
     }
+    if (this.connectPromise) {
+      return this.connectPromise;
+    }
+    this.connectPromise = this.openSocket();
+    return this.connectPromise;
+  }
+
+  private async openSocket(): Promise<void> {
     this.setStatus('connecting');
     const token = await this.options.tokenFactory();
     if (!token) {
+      this.connectPromise = null;
       this.setStatus('unauthorized');
-      return;
+      throw new Error('no access token');
     }
     const url = this.wsUrl(this.options.baseUrl, this.options.path, token);
     const factory = this.options.socketFactory ?? ((u: string) => new WebSocket(u));
     const socket = factory(url);
     this.socket = socket;
 
+    let settleOpen: () => void = () => undefined;
+    let settleFail: (reason: Error) => void = () => undefined;
+    const handshake = new Promise<void>((resolve, reject) => {
+      settleOpen = resolve;
+      settleFail = reject;
+    });
+
     socket.addEventListener('open', () => {
+      this.everOpened = true;
       this.attempt = 0;
       this.setStatus('open');
       this.startHeartbeat();
       if (this.subscribedThread) {
         this.rawSend({ type: 'subscribe', thread_id: this.subscribedThread });
       }
+      settleOpen();
     });
 
     socket.addEventListener('message', event => {
@@ -82,7 +107,21 @@ export class ChatSocket {
     socket.addEventListener('close', event => {
       this.stopHeartbeat();
       this.socket = null;
+      this.connectPromise = null;
       if (this.state === 'closed') {
+        return;
+      }
+      if (!this.everOpened) {
+        // Handshake rejected (auth/agent/agent-not-found surface as HTTP
+        // rejections, the close code is a generic 1006) — retrying the same
+        // URL cannot succeed, so fail the attempt terminally.
+        const reason = event.code === AUTH_CLOSE_CODE ? 'token rejected' : 'connection refused';
+        if (event.code === AUTH_CLOSE_CODE) {
+          this.setStatus('unauthorized', reason);
+        } else {
+          this.setStatus('closed', reason);
+        }
+        settleFail(new Error(reason));
         return;
       }
       if (event.code === AUTH_CLOSE_CODE) {
@@ -101,6 +140,8 @@ export class ChatSocket {
     socket.addEventListener('error', () => {
       // The close event follows with the actionable code; nothing to do here.
     });
+
+    await handshake;
   }
 
   /** Sends a user turn; returns false when the socket is not open. */
@@ -123,6 +164,7 @@ export class ChatSocket {
   }
 
   close(): void {
+    this.connectPromise = null;
     this.setStatus('closed');
     this.stopHeartbeat();
     if (this.reconnectTimer !== null) {

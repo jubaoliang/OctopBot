@@ -67,7 +67,11 @@ export function DesignTabBar({
               key={route.key}
               accessibilityRole="tab"
               accessibilityState={{ selected: isActive }}
-              style={[styles.item, isActive ? { backgroundColor: t.accentSoft } : null]}
+              style={({ pressed }) => [
+                styles.item,
+                isActive ? { backgroundColor: t.accentSoft } : null,
+                pressed ? { opacity: 0.6 } : null,
+              ]}
               onPress={() => {
                 // Re-tapping the active tab pops its stack to the tab root.
                 if (isActive) {
