@@ -92,7 +92,13 @@ export function AppDrawer({
         onPress={onClose}
         accessibilityLabel="close menu"
       />
-      <Animated.View style={[styles.panel, { backgroundColor: t.bg }, panelStyle]}>
+      <Animated.View
+        style={[
+          styles.panel,
+          { backgroundColor: t.bg, borderRightColor: t.borderSubtle },
+          panelStyle,
+        ]}
+      >
         <ScrollView
           contentContainerStyle={[
             styles.panelContent,
@@ -238,6 +244,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: PANEL_WIDTH,
+    borderRightWidth: StyleSheet.hairlineWidth,
   },
   panelContent: {
     paddingTop: 40,
@@ -266,6 +273,7 @@ const styles = StyleSheet.create({
   tasksSection: {
     marginTop: 24,
     gap: 12,
+    paddingHorizontal: 12,
   },
   tasksHeader: {
     flexDirection: 'row',
