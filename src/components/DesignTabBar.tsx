@@ -4,14 +4,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TabAutomation, TabChat, TabExperts, TabMe } from '@/components/icons';
 import { useI18n } from '@/i18n/I18nProvider';
+import { useAppShell } from '@/features/app-shell';
 import { GlassSurface } from '@/platform/glass';
 import { useTokens } from '@/theme';
 
+// All tab glyphs live in 24×24 design frames — render the boxes uniformly;
+// each SVG centers its own glyph exactly like the design frames.
 const TAB_ICONS = {
-  chat: { Icon: TabChat, w: 22, h: 20 },
-  experts: { Icon: TabExperts, w: 21, h: 23 },
-  automation: { Icon: TabAutomation, w: 18, h: 18 },
-  me: { Icon: TabMe, w: 16, h: 21 },
+  chat: { Icon: TabChat, w: 24, h: 24 },
+  experts: { Icon: TabExperts, w: 24, h: 24 },
+  automation: { Icon: TabAutomation, w: 24, h: 24 },
+  me: { Icon: TabMe, w: 24, h: 24 },
 } as const;
 
 const PILL_HEIGHT = 60;
@@ -43,7 +46,14 @@ export function DesignTabBar({
   const { t: strings } = useI18n();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { drawerOpen } = useAppShell();
   const bottomOffset = Math.max(insets.bottom, 12) + 4;
+
+  // Native glass layers above the drawer overlay; hide the bar while the
+  // drawer covers the screen so it never floats over drawer content.
+  if (drawerOpen) {
+    return null;
+  }
 
   return (
     <View pointerEvents="box-none" style={styles.host}>

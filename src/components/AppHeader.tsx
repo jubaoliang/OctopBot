@@ -24,6 +24,7 @@ export function AppHeader({ title, subtitle, onMenu, onMore }: AppHeaderProps) {
         accessibilityRole="button"
         accessibilityLabel="menu"
         onPress={onMenu}
+        hitSlop={12}
         style={styles.iconButton}
       >
         <IconHamburger width={20} height={20} color={t.textBody} />
@@ -48,6 +49,7 @@ export function AppHeader({ title, subtitle, onMenu, onMore }: AppHeaderProps) {
         accessibilityRole="button"
         accessibilityLabel="more"
         onPress={onMore}
+        hitSlop={12}
         style={styles.iconButton}
       >
         <IconKebab width={20} height={20} color={t.textBody} />

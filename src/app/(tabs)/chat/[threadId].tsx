@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
@@ -122,43 +122,69 @@ export default function ThreadScreen() {
   // Defaults to the default expert on a fresh server install.
   const agentId = params.agent ?? 'main';
 
-  const handleFrame = useCallback((frame: ServerFrame) => {
-    switch (frame.type) {
-      case 'token': {
-        // The forward-compat union member also matches 'token'; narrow it.
-        const delta = (frame as { content?: unknown }).content;
-        if (typeof delta === 'string') {
-          setStreaming(true);
-          setTurns(prev => appendAssistant(prev, delta));
-        }
-        break;
-      }
-      case 'reasoning':
-        setThinkingCount(c => c + 1);
-        break;
-      case 'tool_call_chunk':
-        setToolCount(c => c + 1);
-        break;
-      case 'turn.started':
-        setStreaming(true);
-        break;
-      case 'turn.ended':
-      case 'done':
-        setStreaming(false);
-        break;
-      case 'error': {
-        const message = (frame as { message?: unknown }).message;
-        setStreaming(false);
-        setTurns(prev => [
-          ...prev,
-          { role: 'assistant', text: typeof message === 'string' ? message : 'error' },
-        ]);
-        break;
-      }
-      default:
-        break;
+  // Streamed tokens buffer in a ref and flush ~8x/s — per-token renders
+  // re-render the whole screen (incl. full markdown re-parse) at model
+  // speed and visibly jank scrolling/animations.
+  const pendingTokensRef = useRef('');
+  const flushTokens = useCallback(() => {
+    const delta = pendingTokensRef.current;
+    if (delta) {
+      pendingTokensRef.current = '';
+      setTurns(prev => appendAssistant(prev, delta));
     }
   }, []);
+
+  // Flush cadence while the screen is mounted; a final flush on unmount.
+  useEffect(() => {
+    const timer = setInterval(() => flushTokens(), 120);
+    return () => {
+      clearInterval(timer);
+      flushTokens();
+    };
+  }, [flushTokens]);
+
+  const handleFrame = useCallback(
+    (frame: ServerFrame) => {
+      switch (frame.type) {
+        case 'token': {
+          // The forward-compat union member also matches 'token'; narrow it.
+          const delta = (frame as { content?: unknown }).content;
+          if (typeof delta === 'string') {
+            setStreaming(true);
+            pendingTokensRef.current += delta;
+          }
+          break;
+        }
+        case 'reasoning':
+          setThinkingCount(c => c + 1);
+          break;
+        case 'tool_call_chunk':
+          setToolCount(c => c + 1);
+          break;
+        case 'turn.started':
+          setStreaming(true);
+          break;
+        case 'turn.ended':
+        case 'done':
+          flushTokens();
+          setStreaming(false);
+          break;
+        case 'error': {
+          const message = (frame as { message?: unknown }).message;
+          flushTokens();
+          setStreaming(false);
+          setTurns(prev => [
+            ...prev,
+            { role: 'assistant', text: typeof message === 'string' ? message : 'error' },
+          ]);
+          break;
+        }
+        default:
+          break;
+      }
+    },
+    [flushTokens],
+  );
 
   // httpClient flows through a ref: identity changes (logout, URL switch)
   // must not rip the live socket; the effect keys on session identity.
@@ -300,15 +326,14 @@ export default function ThreadScreen() {
         >
           {turns.map((turn, index) =>
             turn.role === 'user' ? (
-              <UserBubble key={`u-${index}`} text={turn.text} />
+              <UserTurnItem key={`u-${index}`} turn={turn} />
             ) : (
-              <View key={`a-${index}`} style={styles.assistantBlock}>
-                <Markdown style={mdStyles}>
-                  {streaming && index === turns.length - 1
-                    ? `${balanceStreamingMarkdown(turn.text)} ▍`
-                    : turn.text}
-                </Markdown>
-              </View>
+              <AssistantTurnItem
+                key={`a-${index}`}
+                turn={turn}
+                streaming={streaming && index === turns.length - 1}
+                mdStyles={mdStyles}
+              />
             ),
           )}
           {toolCount + thinkingCount > 0 ? (
@@ -330,6 +355,30 @@ export default function ThreadScreen() {
     </View>
   );
 }
+
+// Completed turns keep their object identity across flushes, so these
+// memoized items skip re-rendering while the streaming tail updates.
+const UserTurnItem = memo(function UserTurnItem({ turn }: { turn: Turn }) {
+  return <UserBubble text={turn.text} />;
+});
+
+const AssistantTurnItem = memo(function AssistantTurnItem({
+  turn,
+  streaming,
+  mdStyles,
+}: {
+  turn: Turn;
+  streaming: boolean;
+  mdStyles: Record<string, object>;
+}) {
+  return (
+    <View style={styles.assistantBlock}>
+      <Markdown style={mdStyles}>
+        {streaming ? `${balanceStreamingMarkdown(turn.text)} ▍` : turn.text}
+      </Markdown>
+    </View>
+  );
+});
 
 function appendAssistant(prev: Turn[], delta: string): Turn[] {
   if (prev.length === 0 || prev[prev.length - 1].role !== 'assistant') {

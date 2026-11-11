@@ -12,7 +12,7 @@ import { Circle, Path, Svg } from 'react-native-svg';
 import {
   IconChevronDown,
   IconTaskWindow,
-  LogoDrawer,
+  LogoHeader,
   MenuAutomation,
   MenuChat,
   MenuExperts,
@@ -104,12 +104,15 @@ export function AppDrawer({
             styles.panelContent,
             // The design's 40pt top padding assumes a flat status bar;
             // clear the notch/Dynamic Island on notched devices.
-            { paddingTop: Math.max(40, insets.top + 8) },
+            {
+              paddingTop: Math.max(40, insets.top + 8),
+              paddingBottom: Math.max(20, insets.bottom + 16),
+            },
           ]}
           bounces={false}
         >
           <View style={styles.logoRow}>
-            <LogoDrawer width={62} height={21} color={t.textBody} />
+            <LogoHeader width={62} height={21} color={t.textBody} />
           </View>
 
           <View style={styles.menuList}>
