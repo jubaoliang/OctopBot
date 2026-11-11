@@ -85,9 +85,13 @@ export function DesignTabBar({
                 pressed ? { opacity: 0.6 } : null,
               ]}
               onPress={() => {
-                // Re-tapping the active tab pops its stack to the tab root.
+                // Re-tapping the active tab pops its stack to the tab root;
+                // at the root there is nothing to pop and an unguarded
+                // goBack() throws the unhandled GO_BACK navigator error.
                 if (isActive) {
-                  router.back();
+                  if (router.canGoBack()) {
+                    router.back();
+                  }
                 } else {
                   navigateToTab(route.key);
                 }

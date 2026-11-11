@@ -1,4 +1,14 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
 
@@ -49,79 +59,84 @@ export function LoginScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: tokens.bg }}>
-      <ScrollView
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.brand}>
-          <Image
-            source={require('@/assets/images/mascot.png')}
-            style={styles.logo}
-            resizeMode="contain"
-          />
-          <Text style={[styles.brandName, { color: tokens.textPrimary }]}>Octop</Text>
-          <Text style={[styles.tagline, { color: tokens.textSecondary }]}>
-            {strings.login.tagline}
-          </Text>
-        </View>
-
-        <View style={styles.form}>
-          <Text style={[styles.label, { color: tokens.textSecondary }]}>
-            {strings.login.serverUrl}
-          </Text>
-          <TextInput
-            value={url}
-            onChangeText={setUrl}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            placeholder="https://octop.example.com"
-            placeholderTextColor={tokens.textPlaceholder}
-            style={[styles.field, fieldStyle]}
-          />
-
-          <Text style={[styles.label, { color: tokens.textSecondary }]}>
-            {strings.login.username}
-          </Text>
-          <TextInput
-            value={username}
-            onChangeText={setUsername}
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={[styles.field, fieldStyle]}
-          />
-
-          <Text style={[styles.label, { color: tokens.textSecondary }]}>
-            {strings.login.password}
-          </Text>
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            onSubmitEditing={submit}
-            style={[styles.field, fieldStyle]}
-          />
-
-          <Pressable
-            accessibilityRole="button"
-            disabled={busy}
-            onPress={submit}
-            style={[styles.signIn, { backgroundColor: tokens.accent, opacity: busy ? 0.6 : 1 }]}
-          >
-            <Text style={[styles.signInText, { color: tokens.textInverse }]}>
-              {busy ? strings.login.signingIn : strings.login.signIn}
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.brand}>
+            <Image
+              source={require('@/assets/images/mascot.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+            <Text style={[styles.brandName, { color: tokens.textPrimary }]}>Octop</Text>
+            <Text style={[styles.tagline, { color: tokens.textSecondary }]}>
+              {strings.login.tagline}
             </Text>
-          </Pressable>
+          </View>
 
-          {error ? <Text style={[styles.error, { color: tokens.danger }]}>{error}</Text> : null}
+          <View style={styles.form}>
+            <Text style={[styles.label, { color: tokens.textSecondary }]}>
+              {strings.login.serverUrl}
+            </Text>
+            <TextInput
+              value={url}
+              onChangeText={setUrl}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              placeholder="https://octop.example.com"
+              placeholderTextColor={tokens.textPlaceholder}
+              style={[styles.field, fieldStyle]}
+            />
 
-          <Text style={[styles.note, { color: tokens.textTertiary }]}>{strings.login.note}</Text>
-        </View>
-        <Text style={[styles.footer, { color: tokens.textTertiary }]}>
-          {locale === 'zh' ? 'Octop 移动客户端' : 'Octop mobile client'}
-        </Text>
-      </ScrollView>
+            <Text style={[styles.label, { color: tokens.textSecondary }]}>
+              {strings.login.username}
+            </Text>
+            <TextInput
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={[styles.field, fieldStyle]}
+            />
+
+            <Text style={[styles.label, { color: tokens.textSecondary }]}>
+              {strings.login.password}
+            </Text>
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              onSubmitEditing={submit}
+              style={[styles.field, fieldStyle]}
+            />
+
+            <Pressable
+              accessibilityRole="button"
+              disabled={busy}
+              onPress={submit}
+              style={[styles.signIn, { backgroundColor: tokens.accent, opacity: busy ? 0.6 : 1 }]}
+            >
+              <Text style={[styles.signInText, { color: tokens.textInverse }]}>
+                {busy ? strings.login.signingIn : strings.login.signIn}
+              </Text>
+            </Pressable>
+
+            {error ? <Text style={[styles.error, { color: tokens.danger }]}>{error}</Text> : null}
+
+            <Text style={[styles.note, { color: tokens.textTertiary }]}>{strings.login.note}</Text>
+          </View>
+          <Text style={[styles.footer, { color: tokens.textTertiary }]}>
+            {locale === 'zh' ? 'Octop 移动客户端' : 'Octop mobile client'}
+          </Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 
@@ -314,44 +314,49 @@ export default function ThreadScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
       <SafeAreaView edges={['top']} style={[styles.safe, { paddingBottom: tabBarFootprint }]}>
-        <AppHeader
-          title={params.title ?? initialText ?? strings.chat.agentName}
-          subtitle={headerSubtitle}
-          onMenu={openDrawer}
-        />
-        <ScrollView
-          ref={scrollRef}
-          onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
-          style={styles.scroll}
-          contentContainerStyle={styles.content}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
         >
-          {turns.map((turn, index) =>
-            turn.role === 'user' ? (
-              <UserTurnItem key={`u-${index}`} turn={turn} />
-            ) : (
-              <AssistantTurnItem
-                key={`a-${index}`}
-                turn={turn}
-                streaming={streaming && index === turns.length - 1}
-                mdStyles={mdStyles}
-              />
-            ),
-          )}
-          {toolCount + thinkingCount > 0 ? (
-            <ProcessCard tools={toolCount} thinking={thinkingCount} />
-          ) : null}
-          {turns.length === 0 ? (
-            <Text style={[styles.hintText, { color: tokens.textTertiary }]}>
-              {connection === 'open' ? strings.chat.waiting : strings.chat.connecting}
-            </Text>
-          ) : null}
-          {streaming && (turns.length === 0 || turns[turns.length - 1].role === 'user') ? (
-            <Text style={[styles.hintText, { color: tokens.textTertiary }]}>···</Text>
-          ) : null}
-        </ScrollView>
-        <View style={styles.inputWrap}>
-          <ChatInput onSend={send} />
-        </View>
+          <AppHeader
+            title={params.title ?? initialText ?? strings.chat.agentName}
+            subtitle={headerSubtitle}
+            onMenu={openDrawer}
+          />
+          <ScrollView
+            ref={scrollRef}
+            onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+            style={styles.scroll}
+            contentContainerStyle={styles.content}
+          >
+            {turns.map((turn, index) =>
+              turn.role === 'user' ? (
+                <UserTurnItem key={`u-${index}`} turn={turn} />
+              ) : (
+                <AssistantTurnItem
+                  key={`a-${index}`}
+                  turn={turn}
+                  streaming={streaming && index === turns.length - 1}
+                  mdStyles={mdStyles}
+                />
+              ),
+            )}
+            {toolCount + thinkingCount > 0 ? (
+              <ProcessCard tools={toolCount} thinking={thinkingCount} />
+            ) : null}
+            {turns.length === 0 ? (
+              <Text style={[styles.hintText, { color: tokens.textTertiary }]}>
+                {connection === 'open' ? strings.chat.waiting : strings.chat.connecting}
+              </Text>
+            ) : null}
+            {streaming && (turns.length === 0 || turns[turns.length - 1].role === 'user') ? (
+              <Text style={[styles.hintText, { color: tokens.textTertiary }]}>···</Text>
+            ) : null}
+          </ScrollView>
+          <View style={styles.inputWrap}>
+            <ChatInput onSend={send} />
+          </View>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );

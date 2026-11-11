@@ -1,4 +1,4 @@
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
@@ -24,31 +24,36 @@ export default function ChatHomeScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
       <SafeAreaView edges={['top']} style={[styles.safe, { paddingBottom: tabBarFootprint }]}>
-        <AppHeader onMenu={openDrawer} />
-        <View style={styles.body}>
-          <View style={styles.spacerTop} />
-          <Image
-            source={require('@/assets/images/mascot.png')}
-            style={styles.mascot}
-            resizeMode="contain"
-          />
-          <Text style={[styles.greeting, { color: tokens.textPrimary }]}>
-            {strings.chatHome.greeting}
-          </Text>
-          <View style={styles.pills}>
-            {strings.chatHome.suggestions.map(label => (
-              <SuggestionPill
-                key={label}
-                label={label}
-                onPress={() => router.push('/chat/demo-thread')}
-              />
-            ))}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <AppHeader onMenu={openDrawer} />
+          <View style={styles.body}>
+            <View style={styles.spacerTop} />
+            <Image
+              source={require('@/assets/images/mascot.png')}
+              style={styles.mascot}
+              resizeMode="contain"
+            />
+            <Text style={[styles.greeting, { color: tokens.textPrimary }]}>
+              {strings.chatHome.greeting}
+            </Text>
+            <View style={styles.pills}>
+              {strings.chatHome.suggestions.map(label => (
+                <SuggestionPill
+                  key={label}
+                  label={label}
+                  onPress={() => router.push('/chat/demo-thread')}
+                />
+              ))}
+            </View>
+            <View style={styles.spacerBottom} />
           </View>
-          <View style={styles.spacerBottom} />
-        </View>
-        <View style={styles.inputWrap}>
-          <ChatInput />
-        </View>
+          <View style={styles.inputWrap}>
+            <ChatInput />
+          </View>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );

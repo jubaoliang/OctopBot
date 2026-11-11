@@ -106,10 +106,17 @@ export function AuthProvider({
         // octopbot://dev-session?url=<base>&token=<jwt> (cold launch).
         if (__DEV__) {
           const initialUrl = await Linking.getInitialURL();
+          console.log('[auth] initial url:', initialUrl);
           if (initialUrl?.startsWith('octopbot://dev-session')) {
-            const query = new URL(initialUrl).searchParams;
-            const seededUrl = query.get('url');
-            const seededToken = query.get('token');
+            // Manual parse — the URL global is not guaranteed in every engine.
+            const query = initialUrl.slice(initialUrl.indexOf('?') + 1);
+            const param = (key: string) => {
+              const hit = query.split('&').find(p => p.startsWith(`${key}=`));
+              return hit ? decodeURIComponent(hit.slice(key.length + 1)) : null;
+            };
+            const seededUrl = param('url');
+            const seededToken = param('token');
+            console.log('[auth] seed:', Boolean(seededUrl), Boolean(seededToken));
             if (seededUrl && seededToken) {
               storedBase = seededUrl;
               storedToken = seededToken;
