@@ -7,6 +7,8 @@ import { useTabBarFootprint } from '@/components/DesignTabBar';
 import { ChatInput } from '@/components/ChatInput';
 import { ProcessCard, UserBubble } from '@/components/ChatPieces';
 import { readableText, ThreadsApi } from '@/core/api/threads';
+import { balanceStreamingMarkdown } from '@/utils/streaming-markdown';
+import Markdown from 'react-native-markdown-display';
 import type { ServerFrame } from '@/core/api/types';
 import { ChatSocket, type ChatConnectionStatus } from '@/core/chat/chat-socket';
 import { useAppShell } from '@/features/app-shell';
@@ -51,6 +53,67 @@ export default function ThreadScreen() {
   const threadRef = useRef<string | null>(null);
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const ensureThreadRef = useRef<(() => Promise<string | null>) | null>(null);
+
+  // Markdown typography from the token system — no hardcoded colors.
+  const mdStyles = useMemo(
+    () => ({
+      body: { color: tokens.textBody, fontSize: 15, lineHeight: 23, fontWeight: '400' as const },
+      strong: { color: tokens.textPrimary, fontWeight: '600' as const },
+      em: { color: tokens.textBody },
+      link: { color: tokens.accent },
+      bullet_text_icon: { color: tokens.textSecondary },
+      code_inline: {
+        color: tokens.textBody,
+        backgroundColor: tokens.overlaySubtle,
+        borderRadius: 4,
+        paddingHorizontal: 6,
+        paddingVertical: 1,
+        fontFamily: undefined,
+      },
+      fence: {
+        backgroundColor: tokens.overlaySubtle,
+        borderRadius: 8,
+        padding: 10,
+        marginVertical: 6,
+      },
+      fence_text: {
+        color: tokens.textBody,
+        fontSize: 13,
+        lineHeight: 19,
+      },
+      blockquote: {
+        backgroundColor: tokens.overlaySubtle,
+        borderLeftColor: tokens.borderStrong,
+        borderLeftWidth: 3,
+        borderRadius: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+      },
+      blockquote_text: { color: tokens.textSecondary },
+      heading1: {
+        color: tokens.textPrimary,
+        fontSize: 20,
+        lineHeight: 28,
+        fontWeight: '600' as const,
+      },
+      heading2: {
+        color: tokens.textPrimary,
+        fontSize: 17,
+        lineHeight: 25,
+        fontWeight: '600' as const,
+      },
+      heading3: {
+        color: tokens.textPrimary,
+        fontSize: 15,
+        lineHeight: 23,
+        fontWeight: '600' as const,
+      },
+      hr: { backgroundColor: tokens.borderSubtle, height: 1 },
+      table_border: { borderColor: tokens.borderSubtle },
+      table_text: { color: tokens.textBody },
+    }),
+    [tokens],
+  );
   // Fresh token for the socket factory; sliding renewals land here.
   const tokenRef = useRef<string | null>(token);
   useEffect(() => {
@@ -239,24 +302,25 @@ export default function ThreadScreen() {
             turn.role === 'user' ? (
               <UserBubble key={`u-${index}`} text={turn.text} />
             ) : (
-              <Text key={`a-${index}`} style={[styles.assistantText, { color: tokens.textBody }]}>
-                {turn.text}
-                {streaming && index === turns.length - 1 ? (
-                  <Text style={{ color: tokens.textTertiary }}> ▍</Text>
-                ) : null}
-              </Text>
+              <View key={`a-${index}`} style={styles.assistantBlock}>
+                <Markdown style={mdStyles}>
+                  {streaming && index === turns.length - 1
+                    ? `${balanceStreamingMarkdown(turn.text)} ▍`
+                    : turn.text}
+                </Markdown>
+              </View>
             ),
           )}
           {toolCount + thinkingCount > 0 ? (
             <ProcessCard tools={toolCount} thinking={thinkingCount} />
           ) : null}
           {turns.length === 0 ? (
-            <Text style={[styles.assistantText, { color: tokens.textTertiary }]}>
+            <Text style={[styles.hintText, { color: tokens.textTertiary }]}>
               {connection === 'open' ? strings.chat.waiting : strings.chat.connecting}
             </Text>
           ) : null}
           {streaming && (turns.length === 0 || turns[turns.length - 1].role === 'user') ? (
-            <Text style={[styles.assistantText, { color: tokens.textTertiary }]}>···</Text>
+            <Text style={[styles.hintText, { color: tokens.textTertiary }]}>···</Text>
           ) : null}
         </ScrollView>
         <View style={styles.inputWrap}>
@@ -286,10 +350,12 @@ const styles = StyleSheet.create({
     gap: 20,
     paddingBottom: 24,
   },
-  assistantText: {
-    fontSize: 15,
-    lineHeight: 23,
-    fontWeight: '400',
+  assistantBlock: {
+    alignSelf: 'stretch',
+  },
+  hintText: {
+    fontSize: 14,
+    lineHeight: 22,
   },
   inputWrap: { paddingHorizontal: 16 },
 });
