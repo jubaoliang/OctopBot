@@ -1,56 +1,95 @@
-# Welcome to your Expo app 👋
+<div align="center">
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+<img src="docs/design/screenshots/chat-home.png" alt="OctopBot chat home" width="220" />
 
-## Get started
+# OctopBot
 
-1. Install dependencies
+**The official mobile client for [Octop](https://github.com/TencentCloud/Octop)** — the self-hosted, multi-user AI assistant platform.
 
-   ```bash
-   npm install
-   ```
+English | [简体中文](README.zh-CN.md)
 
-2. Start the app
+</div>
 
-   ```bash
-   npx expo start
-   ```
+---
 
-In the output, you'll find options to open the app in a
+## Features
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- **Streaming chat** — real-time replies over WebSocket with live Markdown rendering (bold, lists, code blocks), tool-call summaries, and a streaming cursor that survives mid-turn markdown.
+- **Multi-expert roster** — every agent on your server with its own icon and brand color; start a conversation with any expert in one tap.
+- **Conversation history** — threads grouped per expert in the side drawer; open any past conversation and it replays in place.
+- **Automation** — cron jobs per expert with instant enable/disable toggles.
+- **Native platform feel** — Liquid Glass tab bar on iOS 26+, standard Material navigation on Android, safe-area aware everywhere.
+- **Theming** — light/dark modes plus a set of accent palettes; the default follows the design language: pure monochrome ink.
+- **Bilingual** — full Chinese and English UI.
 
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## Platform status
 
-## Get a fresh project
+| Platform  | Status                                                                                                                         |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| iOS       | ✅ Active development                                                                                                          |
+| Android   | ✅ Active development                                                                                                          |
+| HarmonyOS | 🔜 Fast-follow on the same JS codebase via [expo-harmony](https://github.com/renbaoshuo/expo-harmony) (community RNOH toolkit) |
 
-When you're ready, run:
+## Getting started
+
+Prerequisites: Node 20+, npm, and either Xcode (iOS Simulator) or Android Studio (emulator).
 
 ```bash
-npm run reset-project
+git clone https://github.com/jubaoliang/OctopBot.git
+cd OctopBot
+npm install
+
+# Build and run the dev client (first run compiles the native project)
+npm run ios        # or: npm run android
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+The app talks to **your own Octop server**: on the login screen enter the server URL (for example `https://octop.example.com`) plus your username and password. Nothing is hardcoded and no credentials are bundled — the base URL and session token live in the device secure store only.
 
-### Other setup steps
+## Scripts
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+| Command                           | Purpose                       |
+| --------------------------------- | ----------------------------- |
+| `npm start`                       | Start Metro                   |
+| `npm run ios` / `npm run android` | Build + launch the dev client |
+| `npm run lint`                    | ESLint (strict, type-checked) |
+| `npm run typecheck`               | TypeScript, no emit           |
+| `npm test`                        | Jest unit suite               |
+| `npm run format`                  | Prettier                      |
 
-## Learn more
+## Testing
 
-To learn more about developing your project with Expo, look at the following resources:
+- **Unit** (`npm test`): parsers, formatters, API clients, chat socket contract — 48+ tests.
+- **Integration** (opt-in): a multi-expert, multi-thread scenario that runs the app's own API/WebSocket clients against a real Octop server:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+  ```bash
+  OCTOP_E2E_URL=https://octop.example.com \
+  OCTOP_E2E_USER=alice \
+  OCTOP_E2E_PW=secret \
+  npx jest integration.scenario
+  ```
 
-## Join the community
+- **E2E** ([Maestro](https://docs.maestro.dev/)): flows in `.maestro/`, run with `maestro test .maestro/` against the dev client.
 
-Join our community of developers creating universal apps.
+## Project structure
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```
+src/
+  app/          # expo-router screens
+  components/   # shared UI (tab bar, drawer, markdown bubbles, avatars)
+  core/         # pure TypeScript: API clients, chat WebSocket, types
+  features/     # auth, app shell
+  platform/     # per-platform capability wrappers (glass, secure storage)
+  i18n/         # zh / en strings
+  theme/        # tokens, palettes, provider
+  utils/        # streaming markdown balancer and friends
+```
+
+`src/core` contains no `react-native` imports — the business core is portable to any JS runtime, which is also the path for the future HarmonyOS shell.
+
+## Contributing
+
+Conventional Commits, enforced gates (`lint`, `typecheck`, `test` must pass), and one logical change per PR. Interactive commit authoring: `npm run commit`.
+
+## License
+
+[MIT](LICENSE)
