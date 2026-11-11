@@ -1,6 +1,7 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppHeader } from '@/components/AppHeader';
+import { useTabBarFootprint } from '@/components/DesignTabBar';
 import { useAppShell } from '@/features/app-shell';
 import { useI18n, localeNames, type Locale } from '@/i18n/I18nProvider';
 import { palettes, useTheme } from '@/theme';
@@ -17,9 +18,10 @@ export default function MeScreen() {
   const { openDrawer } = useAppShell();
   const { t: strings } = useI18n();
 
+  const tabBarFootprint = useTabBarFootprint();
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <View style={styles.safe}>
+      <View style={[styles.safe, { paddingBottom: tabBarFootprint }]}>
         <AppHeader onMenu={openDrawer} />
         <ScrollView contentContainerStyle={styles.content}>
           <Text style={[styles.section, { color: tokens.textTertiary }]}>

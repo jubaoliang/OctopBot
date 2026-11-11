@@ -2,6 +2,7 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { AppHeader } from '@/components/AppHeader';
+import { useTabBarFootprint } from '@/components/DesignTabBar';
 import { ChatInput } from '@/components/ChatInput';
 import { SuggestionPill } from '@/components/ChatPieces';
 import { useAppShell } from '@/features/app-shell';
@@ -18,9 +19,10 @@ export default function ChatHomeScreen() {
   const { openDrawer } = useAppShell();
   const router = useRouter();
 
+  const tabBarFootprint = useTabBarFootprint();
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <View style={styles.safe}>
+      <View style={[styles.safe, { paddingBottom: tabBarFootprint }]}>
         <AppHeader onMenu={openDrawer} />
         <View style={styles.body}>
           <View style={styles.spacerTop} />

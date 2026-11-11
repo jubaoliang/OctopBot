@@ -29,4 +29,17 @@ export class AgentsApi {
   markRead(agentId: string): Promise<void> {
     return this.http.post(`/api/agents/${agentId}/read`);
   }
+
+  create(body: { name: string; description?: string }): Promise<AgentSummary> {
+    return this.http.post('/api/agents', body);
+  }
+
+  /** DELETE without throwing — cleanup paths tolerate missing agents. */
+  async deleteAgentQuietly(agentId: string): Promise<void> {
+    try {
+      await this.http.delete(`/api/agents/${agentId}`);
+    } catch {
+      // cleanup only
+    }
+  }
 }

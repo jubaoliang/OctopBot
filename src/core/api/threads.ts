@@ -99,4 +99,13 @@ export class ThreadsApi {
   cancel(agentId: string, threadId: string): Promise<{ thread_id: string; cancelled: boolean }> {
     return this.http.post(`/api/agents/${agentId}/threads/${threadId}/cancel`);
   }
+
+  /** DELETE without throwing — cleanup paths tolerate missing threads. */
+  async removeQuietly(agentId: string, threadId: string): Promise<void> {
+    try {
+      await this.http.delete(`/api/agents/${agentId}/threads/${threadId}`);
+    } catch {
+      // cleanup only
+    }
+  }
 }

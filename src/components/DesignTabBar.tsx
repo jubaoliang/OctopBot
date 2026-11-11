@@ -4,12 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TabAutomation, TabChat, TabExperts, TabMe } from '@/components/icons';
 import { useI18n } from '@/i18n/I18nProvider';
+import { GlassSurface } from '@/platform/glass';
 import { useTokens } from '@/theme';
-
-interface TabBarState {
-  index: number;
-  routes: { key: string; name: string }[];
-}
 
 const TAB_ICONS = {
   chat: { Icon: TabChat, w: 22, h: 20 },
@@ -18,10 +14,23 @@ const TAB_ICONS = {
   me: { Icon: TabMe, w: 16, h: 21 },
 } as const;
 
+const PILL_HEIGHT = 60;
+
+interface TabBarState {
+  index: number;
+  routes: { key: string; name: string }[];
+}
+
+/** Vertical space the floating bar occupies — screens pad content by this. */
+export function useTabBarFootprint(): number {
+  const insets = useSafeAreaInsets();
+  return Math.max(insets.bottom, 12) + 4 + PILL_HEIGHT + 12;
+}
+
 /**
- * Design tab bar wired to the navigator: 24px icon over a 10/20 label —
- * active = full-opacity Semibold, inactive = 30% Medium. Props are
- * structural so the bar stays decoupled from navigator internals.
+ * Floating glass tab bar (hard requirement #1): Liquid Glass on iOS 26+
+ * via the platform wrapper, blur approximation below, opaque surface on
+ * Android per the Ardot design. Active item tints with the accent palette.
  */
 export function DesignTabBar({
   state,
@@ -34,66 +43,83 @@ export function DesignTabBar({
   const { t: strings } = useI18n();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const bottomOffset = Math.max(insets.bottom, 12) + 4;
 
   return (
-    <View
-      style={[styles.tabBar, { backgroundColor: t.bg, paddingBottom: Math.max(insets.bottom, 34) }]}
-    >
-      {state.routes.map((route, index) => {
-        // The chat tab is the group's index route — normalize to its label.
-        const name = (route.name === 'index' ? 'chat' : route.name) as keyof typeof TAB_ICONS;
-        const meta = TAB_ICONS[name] ?? TAB_ICONS.chat;
-        const label = strings.tabs[name];
-        const isActive = state.index === index;
-        const color = isActive ? t.textPrimary : t.textPlaceholder;
+    <View pointerEvents="box-none" style={styles.host}>
+      <GlassSurface
+        variant="regular"
+        style={[
+          styles.pill,
+          { marginBottom: bottomOffset, shadowColor: t.shadow, borderColor: t.borderSubtle },
+        ]}
+      >
+        {state.routes.map((route, index) => {
+          // The chat tab hosts its own stack; route name maps to the label key.
+          const name = (route.name === 'chat' ? 'chat' : route.name) as keyof typeof TAB_ICONS;
+          const meta = TAB_ICONS[name] ?? TAB_ICONS.chat;
+          const label = strings.tabs[name];
+          const isActive = state.index === index;
+          const fg = isActive ? t.accent : t.textPlaceholder;
 
-        return (
-          <Pressable
-            key={route.key}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: isActive }}
-            style={styles.tab}
-            onPress={() => {
-              // Re-tapping the active tab pops its stack to the tab root.
-              if (isActive) {
-                router.back();
-              } else {
-                navigateToTab(route.key);
-              }
-            }}
-          >
-            <View style={styles.iconBox}>
-              <meta.Icon width={meta.w} height={meta.h} color={color} />
-            </View>
-            <Text
-              style={[
-                styles.label,
-                {
-                  color: isActive ? t.textBody : t.textPlaceholder,
-                  fontWeight: isActive ? '600' : '500',
-                },
-              ]}
+          return (
+            <Pressable
+              key={route.key}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isActive }}
+              style={[styles.item, isActive ? { backgroundColor: t.accentSoft } : null]}
+              onPress={() => {
+                // Re-tapping the active tab pops its stack to the tab root.
+                if (isActive) {
+                  router.back();
+                } else {
+                  navigateToTab(route.key);
+                }
+              }}
             >
-              {label}
-            </Text>
-          </Pressable>
-        );
-      })}
+              <View style={styles.iconBox}>
+                <meta.Icon width={meta.w} height={meta.h} color={fg} />
+              </View>
+              <Text style={[styles.label, { color: fg, fontWeight: isActive ? '600' : '500' }]}>
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </GlassSurface>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    paddingLeft: 35,
-    paddingRight: 36,
-    gap: 64,
+  host: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
-  tab: {
+  pill: {
+    marginHorizontal: 16,
+    minHeight: PILL_HEIGHT,
+    borderRadius: 30,
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    // Soft float shadow; on Android elevation picks the color up.
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  item: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    borderRadius: 24,
+    paddingVertical: 8,
   },
   iconBox: {
     width: 24,
@@ -103,6 +129,6 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 10,
-    lineHeight: 20,
+    lineHeight: 14,
   },
 });

@@ -6,6 +6,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Circle, Path, Svg } from 'react-native-svg';
 
 import {
@@ -33,7 +34,6 @@ interface AppDrawerProps {
   onNavigate: (route: 'chat' | 'experts' | 'automation') => void;
   /** Task tree = agent groups with their threads (API-backed once wired). */
   groups: DrawerTaskGroup[];
-  userName?: string;
 }
 
 const PANEL_WIDTH = 313;
@@ -43,9 +43,10 @@ const PANEL_WIDTH = 313;
  * logo, nav rows (active = 4% overlay pill), 任务 section with agent
  * groups (40px indented children), profile row at the end.
  */
-export function AppDrawer({ visible, onClose, onNavigate, groups, userName }: AppDrawerProps) {
+export function AppDrawer({ visible, onClose, onNavigate, groups }: AppDrawerProps) {
   const t = useTokens();
   const { t: strings } = useI18n();
+  const insets = useSafeAreaInsets();
   const progress = useSharedValue(0);
 
   useEffect(() => {
@@ -55,26 +56,32 @@ export function AppDrawer({ visible, onClose, onNavigate, groups, userName }: Ap
     });
   }, [visible, progress]);
 
+  // The parent mounts this component only while open, so no display
+  // toggling here — opacity alone drives the fade.
   const scrimStyle = useAnimatedStyle(() => ({
     opacity: progress.value,
-    display: progress.value === 0 ? 'none' : 'flex',
   }));
   const panelStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: -PANEL_WIDTH * (1 - progress.value) }],
   }));
 
   return (
-    <Animated.View
-      pointerEvents={visible ? 'auto' : 'none'}
-      style={[StyleSheet.absoluteFill, scrimStyle, { backgroundColor: t.scrim }]}
-    >
+    <Animated.View style={[StyleSheet.absoluteFill, scrimStyle, { backgroundColor: t.scrim }]}>
       <Pressable
         style={StyleSheet.absoluteFill}
         onPress={onClose}
         accessibilityLabel="close menu"
       />
       <Animated.View style={[styles.panel, { backgroundColor: t.bg }, panelStyle]}>
-        <ScrollView contentContainerStyle={styles.panelContent} bounces={false}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.panelContent,
+            // The design's 40pt top padding assumes a flat status bar;
+            // clear the notch/Dynamic Island on notched devices.
+            { paddingTop: Math.max(40, insets.top + 8) },
+          ]}
+          bounces={false}
+        >
           <View style={styles.logoRow}>
             <LogoDrawer width={62} height={21} color={t.textBody} />
           </View>
@@ -138,18 +145,6 @@ export function AppDrawer({ visible, onClose, onNavigate, groups, userName }: Ap
                   : null}
               </View>
             ))}
-          </View>
-
-          <View
-            style={[styles.profileRow, { backgroundColor: t.surface, borderColor: t.borderStrong }]}
-          >
-            <View style={[styles.avatar, { backgroundColor: t.overlaySubtle }]}>
-              <PersonGlyph color={t.textSecondary} />
-            </View>
-            <Text style={[styles.profileName, { color: t.textBody }]} numberOfLines={1}>
-              {userName ?? strings.drawer.profile}
-            </Text>
-            <IconChevronDown width={16} height={16} color={t.textTertiary} />
           </View>
         </ScrollView>
       </Animated.View>
@@ -268,29 +263,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     fontWeight: '400',
-  },
-  profileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    width: 209,
-    marginTop: 20,
-    marginLeft: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 32,
-    padding: 8,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileName: {
-    flex: 1,
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '500',
   },
 });

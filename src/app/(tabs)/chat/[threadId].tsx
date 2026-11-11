@@ -1,103 +1,260 @@
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
 import { AppHeader } from '@/components/AppHeader';
+import { useTabBarFootprint } from '@/components/DesignTabBar';
 import { ChatInput } from '@/components/ChatInput';
-import { CodeChip, LinkRow, ProcessCard, UserBubble } from '@/components/ChatPieces';
+import { ProcessCard, UserBubble } from '@/components/ChatPieces';
+import { ThreadsApi } from '@/core/api/threads';
+import type { ServerFrame } from '@/core/api/types';
+import { ChatSocket, type ChatConnectionStatus } from '@/core/chat/chat-socket';
 import { useAppShell } from '@/features/app-shell';
+import { useAuth } from '@/features/auth';
 import { useI18n } from '@/i18n/I18nProvider';
 import { useTheme } from '@/theme';
 
+interface Turn {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
 /**
- * 主聊天 (design 2:299) — thread view with user bubble, process summary,
- * tool artifacts, assistant paragraphs, inline code chip, accent link.
- * Demo content mirrors the design frame until the chat socket is wired.
+ * 主聊天 — a real chat turn over the WebSocket contract: create thread,
+ * subscribe, stream tokens/reasoning/tool frames into bubbles, send
+ * follow-ups from the composer.
  */
 export default function ThreadScreen() {
   const { tokens } = useTheme();
   const { t: strings } = useI18n();
   const { openDrawer } = useAppShell();
-  const { threadId } = useLocalSearchParams<{ threadId: string }>();
+  const { baseUrl, token, httpClient, user } = useAuth();
+  // Route param carries the initial prompt text (from a suggestion pill);
+  // the real server thread id is minted lazily on first send.
+  const { threadId: initialText } = useLocalSearchParams<{ threadId: string }>();
+  const tabBarFootprint = useTabBarFootprint();
+
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [toolCount, setToolCount] = useState(0);
+  const [thinkingCount, setThinkingCount] = useState(0);
+  const [streaming, setStreaming] = useState(false);
+  const [connection, setConnection] = useState<ChatConnectionStatus>('idle');
+  const socketRef = useRef<ChatSocket | null>(null);
+  const threadRef = useRef<string | null>(null);
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const ensureThreadRef = useRef<(() => Promise<string | null>) | null>(null);
+  // Fresh token for the socket factory; sliding renewals land here.
+  const tokenRef = useRef<string | null>(token);
+  useEffect(() => {
+    tokenRef.current = token;
+  }, [token]);
+  // The default expert on a fresh server install.
+  const agentId = 'main';
+
+  const handleFrame = useCallback((frame: ServerFrame) => {
+    switch (frame.type) {
+      case 'token': {
+        // The forward-compat union member also matches 'token'; narrow it.
+        const delta = (frame as { content?: unknown }).content;
+        if (typeof delta === 'string') {
+          setStreaming(true);
+          setTurns(prev => appendAssistant(prev, delta));
+        }
+        break;
+      }
+      case 'reasoning':
+        setThinkingCount(c => c + 1);
+        break;
+      case 'tool_call_chunk':
+        setToolCount(c => c + 1);
+        break;
+      case 'turn.started':
+        setStreaming(true);
+        break;
+      case 'turn.ended':
+      case 'done':
+        setStreaming(false);
+        break;
+      case 'error': {
+        const message = (frame as { message?: unknown }).message;
+        setStreaming(false);
+        setTurns(prev => [
+          ...prev,
+          { role: 'assistant', text: typeof message === 'string' ? message : 'error' },
+        ]);
+        break;
+      }
+      default:
+        break;
+    }
+  }, []);
+
+  // httpClient flows through a ref: identity changes (logout, URL switch)
+  // must not rip the live socket; the effect keys on session identity.
+  const httpClientRef = useRef(httpClient);
+  useEffect(() => {
+    httpClientRef.current = httpClient;
+  }, [httpClient]);
+
+  useEffect(() => {
+    if (!baseUrl || !user) {
+      return;
+    }
+    let disposed = false;
+    const socket = new ChatSocket({
+      baseUrl,
+      path: `/api/agents/${agentId}/chat/ws`,
+      tokenFactory: () => Promise.resolve(tokenRef.current),
+      onFrame: frame => {
+        if (!disposed) {
+          handleFrame(frame);
+        }
+      },
+      onStatus: status => {
+        if (!disposed) {
+          setConnection(status);
+        }
+      },
+    });
+    socketRef.current = socket;
+    void socket.connect().catch(() => {
+      if (!disposed) {
+        setConnection('closed');
+      }
+    });
+
+    // Threads are created lazily on first send — visiting the screen never
+    // leaves empty orphan threads behind on the server.
+    const ensureThread = async (): Promise<string | null> => {
+      if (threadRef.current) {
+        return threadRef.current;
+      }
+      try {
+        const created = await new ThreadsApi(httpClientRef.current).create(agentId);
+        if (disposed) {
+          return null;
+        }
+        threadRef.current = created.thread_id;
+        socketRef.current?.subscribe(created.thread_id);
+        return created.thread_id;
+      } catch {
+        if (!disposed) {
+          setConnection('closed');
+        }
+        return null;
+      }
+    };
+    ensureThreadRef.current = ensureThread;
+
+    if (initialText && initialText !== 'demo-thread') {
+      void (async () => {
+        // Async continuation keeps setState out of the effect body.
+        setTurns([{ role: 'user', text: initialText }]);
+        const threadId = await ensureThread();
+        if (threadId && !disposed) {
+          socket.sendUserTurn({ text: initialText, thread_id: threadId });
+        }
+      })();
+    }
+
+    return () => {
+      disposed = true;
+      socket.close();
+      socketRef.current = null;
+      ensureThreadRef.current = null;
+    };
+  }, [baseUrl, user, initialText, handleFrame]);
+
+  const send = (text: string) => {
+    if (connection !== 'open') {
+      return;
+    }
+    setTurns(prev => [...prev, { role: 'user', text }]);
+    void (async () => {
+      const threadId = await ensureThreadRef.current?.();
+      if (threadId) {
+        socketRef.current?.sendUserTurn({ text, thread_id: threadId });
+      }
+    })();
+  };
+
+  const headerSubtitle = useMemo(() => {
+    if (connection === 'reconnecting') {
+      return strings.chat.reconnecting;
+    }
+    if (connection === 'unauthorized' || connection === 'closed') {
+      return strings.chat.disconnected;
+    }
+    return user?.username ?? strings.chat.agentName;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connection, user?.username]);
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <View style={styles.safe}>
-        <AppHeader title={threadId} subtitle={strings.chat.agentName} onMenu={openDrawer} />
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-          <UserBubble text="帮我打开腾讯云官网" />
-          <ProcessCard tools={6} thinking={7} />
-          <View style={styles.artifactRow}>
-            {/* Design placeholders — real tool artifacts render here once wired. */}
-            <View style={[styles.artifactPlaceholder, { backgroundColor: tokens.overlaySubtle }]} />
-            <View style={[styles.artifactPlaceholder, { backgroundColor: tokens.overlaySubtle }]} />
-          </View>
-          <View style={styles.assistant}>
-            <Text style={[styles.assistantText, { color: tokens.textBody }]}>
-              已经帮你打开了腾讯云相关的页面，不过看起来它自动跳转到了一个活动页面（“在云端秒级部署
-              OpenClaw全能助手”）。
-            </Text>
-            <View style={styles.inlineRow}>
-              <Text style={[styles.assistantText, { color: tokens.textBody }]}>
-                这个可能是浏览器的默认跳转。你可以直接在浏览器地址栏输入
+      <View style={[styles.safe, { paddingBottom: tabBarFootprint }]}>
+        <AppHeader
+          title={initialText ?? strings.chat.agentName}
+          subtitle={headerSubtitle}
+          onMenu={openDrawer}
+        />
+        <ScrollView
+          ref={scrollRef}
+          onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+        >
+          {turns.map((turn, index) =>
+            turn.role === 'user' ? (
+              <UserBubble key={`u-${index}`} text={turn.text} />
+            ) : (
+              <Text key={`a-${index}`} style={[styles.assistantText, { color: tokens.textBody }]}>
+                {turn.text}
+                {streaming && index === turns.length - 1 ? (
+                  <Text style={{ color: tokens.textTertiary }}> ▍</Text>
+                ) : null}
               </Text>
-              <CodeChip text="cloud.tencent.com" />
-            </View>
-            <Text style={[styles.assistantText, { color: tokens.textBody }]}>
-              {strings.chat.askMore}
+            ),
+          )}
+          {toolCount + thinkingCount > 0 ? (
+            <ProcessCard tools={toolCount} thinking={thinkingCount} />
+          ) : null}
+          {turns.length === 0 ? (
+            <Text style={[styles.assistantText, { color: tokens.textTertiary }]}>
+              {connection === 'open' ? strings.chat.waiting : strings.chat.connecting}
             </Text>
-            <LinkRow label={strings.chat.viewBrowser} />
-          </View>
+          ) : null}
         </ScrollView>
         <View style={styles.inputWrap}>
-          <ChatInput />
+          <ChatInput onSend={send} />
         </View>
       </View>
     </View>
   );
 }
 
+function appendAssistant(prev: Turn[], delta: string): Turn[] {
+  if (prev.length === 0 || prev[prev.length - 1].role !== 'assistant') {
+    return [...prev, { role: 'assistant', text: delta }];
+  }
+  const next = prev.slice();
+  next[next.length - 1] = { role: 'assistant', text: next[next.length - 1].text + delta };
+  return next;
+}
+
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  safe: {
-    flex: 1,
-    paddingTop: 47,
-  },
-  scroll: {
-    flex: 1,
-  },
+  screen: { flex: 1 },
+  safe: { flex: 1, paddingTop: 47 },
+  scroll: { flex: 1 },
   content: {
     paddingHorizontal: 16,
     paddingTop: 33,
-    gap: 24,
+    gap: 20,
     paddingBottom: 24,
-  },
-  artifactRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  artifactPlaceholder: {
-    width: 240,
-    height: 138,
-    borderRadius: 8,
-  },
-  assistant: {
-    gap: 16,
-    alignItems: 'flex-start',
   },
   assistantText: {
     fontSize: 15,
     lineHeight: 23,
     fontWeight: '400',
   },
-  inlineRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 4,
-  },
-  inputWrap: {
-    paddingHorizontal: 16,
-  },
+  inputWrap: { paddingHorizontal: 16 },
 });

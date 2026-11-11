@@ -14,6 +14,14 @@ export interface Palette {
 
 export const palettes: Palette[] = [
   {
+    // The design file is monochrome — ink is the default and the
+    // constitution; colored palettes are opt-in preferences only.
+    id: 'ink',
+    name: 'Ink',
+    accent: { light: '#111827', dark: '#F3F4F6' },
+    accentSoft: { light: 'rgba(0,0,0,0.04)', dark: 'rgba(255,255,255,0.06)' },
+  },
+  {
     id: 'octop-blue',
     name: 'Octop Blue',
     accent: { light: '#2F82D1', dark: '#5B9FDC' },
@@ -51,7 +59,7 @@ export const palettes: Palette[] = [
   },
 ] as const;
 
-export const defaultPaletteId = 'octop-blue';
+export const defaultPaletteId = 'ink';
 
 export function resolveTokens(mode: ThemeMode, paletteId: string): ThemeTokens {
   const base = mode === 'dark' ? darkTokens : lightTokens;

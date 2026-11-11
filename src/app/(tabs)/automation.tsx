@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { AppHeader } from '@/components/AppHeader';
+import { useTabBarFootprint } from '@/components/DesignTabBar';
 import { useAppShell } from '@/features/app-shell';
 import { useI18n } from '@/i18n/I18nProvider';
 import { useTheme } from '@/theme';
@@ -11,9 +12,10 @@ export default function AutomationScreen() {
   const { t: strings } = useI18n();
   const { openDrawer } = useAppShell();
 
+  const tabBarFootprint = useTabBarFootprint();
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <View style={styles.safe}>
+      <View style={[styles.safe, { paddingBottom: tabBarFootprint }]}>
         <AppHeader onMenu={openDrawer} />
         <View style={styles.center}>
           <Text style={[styles.hint, { color: tokens.textTertiary }]}>
