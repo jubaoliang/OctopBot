@@ -1,15 +1,29 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Appearance } from 'react-native';
 
 import type { ThemeMode, ThemeTokens } from './tokens';
 import { defaultPaletteId, resolveTokens } from './palettes';
 import type { SecureStorage } from '@/platform/secure-storage';
 
+/** User preference — `system` follows the OS until explicitly overridden. */
+export type UserThemeMode = 'system' | ThemeMode;
+
 export interface ThemeContextValue {
-  mode: ThemeMode;
+  /** The user's preference, including `system`. */
+  mode: UserThemeMode;
+  /** The resolved light/dark after applying `system`. */
+  resolvedMode: ThemeMode;
   paletteId: string;
   tokens: ThemeTokens;
-  setMode: (mode: ThemeMode) => void;
+  setMode: (mode: UserThemeMode) => void;
   setPaletteId: (id: string) => void;
 }
 
@@ -22,9 +36,13 @@ function systemMode(): ThemeMode {
   return Appearance.getColorScheme() === 'dark' ? 'dark' : 'light';
 }
 
+function isUserMode(value: unknown): value is UserThemeMode {
+  return value === 'system' || value === 'light' || value === 'dark';
+}
+
 /**
- * Theme provider: light/dark mode + accent palette, persisted through the
- * platform secure-storage wrapper. Follows the system until overridden.
+ * Theme provider: light/dark/system + accent palette, persisted through the
+ * platform secure-storage wrapper. `system` follows the OS setting live.
  */
 export function ThemeProvider({
   children,
@@ -33,59 +51,71 @@ export function ThemeProvider({
   children: ReactNode;
   storage: SecureStorage;
 }) {
-  const [mode, setModeState] = useState<ThemeMode>(() => systemMode());
+  const [mode, setModeState] = useState<UserThemeMode>('system');
   const [paletteId, setPaletteIdState] = useState<string>(defaultPaletteId);
-  const [hydrated, setHydrated] = useState(false);
+  const [, setHydrated] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [storedMode, storedPalette] = await Promise.all([
-        storage.get(MODE_KEY),
-        storage.get(PALETTE_KEY),
-      ]);
-      if (cancelled) {
-        return;
+      try {
+        const [storedMode, storedPalette] = await Promise.all([
+          storage.get(MODE_KEY),
+          storage.get(PALETTE_KEY),
+        ]);
+        if (cancelled) {
+          return;
+        }
+        if (isUserMode(storedMode)) {
+          setModeState(storedMode);
+        }
+        if (storedPalette) {
+          setPaletteIdState(storedPalette);
+        }
+      } catch {
+        // Secure storage unavailable — defaults are fine.
+      } finally {
+        if (!cancelled) {
+          setHydrated(true);
+        }
       }
-      if (storedMode === 'light' || storedMode === 'dark') {
-        setModeState(storedMode);
-      }
-      if (storedPalette) {
-        setPaletteIdState(storedPalette);
-      }
-      setHydrated(true);
     })();
     return () => {
       cancelled = true;
     };
   }, [storage]);
 
+  const setMode = useCallback(
+    (next: UserThemeMode) => {
+      setModeState(next);
+      void storage.set(MODE_KEY, next);
+    },
+    [storage],
+  );
+
+  const setPaletteId = useCallback(
+    (next: string) => {
+      setPaletteIdState(next);
+      void storage.set(PALETTE_KEY, next);
+    },
+    [storage],
+  );
+
+  // OS scheme flips only affect the resolved theme while preference is system.
+  const [systemScheme, setSystemScheme] = useState<ThemeMode>(() => systemMode());
   useEffect(() => {
-    if (!hydrated) {
-      return;
-    }
     const subscription = Appearance.addChangeListener(() => {
-      setModeState(systemMode());
+      setSystemScheme(systemMode());
     });
     return () => subscription.remove();
-  }, [hydrated]);
+  }, []);
+
+  const resolvedMode: ThemeMode = mode === 'system' ? systemScheme : mode;
 
   const value = useMemo<ThemeContextValue>(() => {
-    const tokens = resolveTokens(mode, paletteId);
-    return {
-      mode,
-      paletteId,
-      tokens,
-      setMode: next => {
-        setModeState(next);
-        void storage.set(MODE_KEY, next);
-      },
-      setPaletteId: next => {
-        setPaletteIdState(next);
-        void storage.set(PALETTE_KEY, next);
-      },
-    };
-  }, [mode, paletteId, storage]);
+    const tokens = resolveTokens(resolvedMode, paletteId);
+    return { mode, resolvedMode, paletteId, tokens, setMode, setPaletteId };
+  }, [mode, resolvedMode, paletteId, setMode, setPaletteId]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

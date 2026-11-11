@@ -10,6 +10,7 @@ import { CronApi } from '@/core/api/knowledge';
 import type { AgentSummary, CronJob } from '@/core/api/types';
 import { useAuth } from '@/features/auth';
 import { useAppShell } from '@/features/app-shell';
+import { useI18n } from '@/i18n/I18nProvider';
 import { useTokens } from '@/theme';
 
 interface AgentCrons {
@@ -23,6 +24,7 @@ interface AgentCrons {
  */
 export default function AutomationScreen() {
   const tokens = useTokens();
+  const { t: strings } = useI18n();
   const { openDrawer } = useAppShell();
   const { httpClient, user, ready } = useAuth();
   const tabBarFootprint = useTabBarFootprint();
@@ -43,7 +45,8 @@ export default function AutomationScreen() {
             jobs: await new CronApi(httpClient).list(agent.agent_id).catch(() => []),
           })),
         );
-        setSections(withJobs);
+        // Experts without jobs stay out — no empty dash placeholders.
+        setSections(withJobs.filter(s => s.jobs.length > 0));
       } catch {
         // Keep the previous list on refresh failures.
       } finally {
@@ -135,13 +138,17 @@ export default function AutomationScreen() {
                   />
                 </View>
               ))}
-              {jobs.length === 0 ? (
-                <Text style={[styles.empty, { color: tokens.textTertiary }]}>—</Text>
-              ) : null}
             </View>
           ))}
           {loaded && sections.length === 0 ? (
-            <Text style={[styles.empty, { color: tokens.textTertiary }]}>—</Text>
+            <View style={styles.emptyState}>
+              <Text style={[styles.emptyTitle, { color: tokens.textSecondary }]}>
+                {strings.automation.emptyTitle}
+              </Text>
+              <Text style={[styles.emptyHint, { color: tokens.textTertiary }]}>
+                {strings.automation.emptyHint}
+              </Text>
+            </View>
           ) : null}
         </ScrollView>
       </SafeAreaView>
@@ -190,9 +197,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
   },
-  empty: {
-    textAlign: 'center',
-    marginTop: 12,
+  emptyState: {
+    alignItems: 'center',
+    marginTop: 96,
+    gap: 8,
+    paddingHorizontal: 32,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '500',
+  },
+  emptyHint: {
     fontSize: 14,
+    lineHeight: 22,
+    textAlign: 'center',
   },
 });

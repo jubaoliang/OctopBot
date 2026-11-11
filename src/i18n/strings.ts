@@ -26,7 +26,9 @@ const zh = {
     appearance: '外观',
     modeLight: '浅色',
     modeDark: '深色',
+    modeSystem: '跟随系统',
     palette: '主题色',
+    server: '服务器',
     logout: '退出登录',
     notLoggedIn: '未登录',
   },
@@ -46,6 +48,10 @@ const zh = {
       setup: '服务器尚未完成初始化，请先在网页端完成安装向导',
       unknown: '登录失败，请稍后重试',
     },
+  },
+  automation: {
+    emptyTitle: '暂无自动化任务',
+    emptyHint: '在专家的对话中创建定时任务后，会显示在这里',
   },
   common: { pendingDesign: '该页面待设计' },
 };
@@ -83,7 +89,9 @@ const en: Dict = {
     appearance: 'Appearance',
     modeLight: 'Light',
     modeDark: 'Dark',
+    modeSystem: 'Follow system',
     palette: 'Accent color',
+    server: 'Server',
     logout: 'Sign out',
     notLoggedIn: 'Not signed in',
   },
@@ -103,6 +111,10 @@ const en: Dict = {
       setup: 'The server is not initialized yet — finish setup in the web console',
       unknown: 'Sign-in failed, please retry',
     },
+  },
+  automation: {
+    emptyTitle: 'No automated tasks yet',
+    emptyHint: 'Create a scheduled task in an expert chat and it will show up here',
   },
   common: { pendingDesign: 'Screen design pending' },
 };

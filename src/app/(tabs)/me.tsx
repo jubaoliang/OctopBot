@@ -3,23 +3,33 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppHeader } from '@/components/AppHeader';
 import { useTabBarFootprint } from '@/components/DesignTabBar';
+import { useAuth } from '@/features/auth';
 import { useAppShell } from '@/features/app-shell';
 import { useI18n, localeNames, type Locale } from '@/i18n/I18nProvider';
-import { palettes, useTheme } from '@/theme';
-import type { ThemeMode } from '@/theme';
+import { palettes, useTheme, useTokens } from '@/theme';
+import type { UserThemeMode } from '@/theme/ThemeProvider';
 
 /**
- * 我的 tab — appearance controls (mode + accent palette + locale), using
- * the design's row language. Functional requirement: dark mode + palettes.
+ * 我的 — appearance (theme mode incl. system-follow, accent palette),
+ * language, current server, and sign-out. All rows use the design's
+ * token system; nothing is hardcoded.
  */
 export default function MeScreen() {
-  const { tokens } = useTheme();
+  const tokens = useTokens();
   const { mode, setMode, paletteId, setPaletteId } = useTheme();
   const { locale, setLocale } = useI18n();
   const { openDrawer } = useAppShell();
+  const { baseUrl, logout } = useAuth();
   const { t: strings } = useI18n();
 
   const tabBarFootprint = useTabBarFootprint();
+
+  const themeModes: { id: UserThemeMode; label: string }[] = [
+    { id: 'light', label: strings.me.modeLight },
+    { id: 'dark', label: strings.me.modeDark },
+    { id: 'system', label: strings.me.modeSystem },
+  ];
+
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
       <SafeAreaView edges={['top']} style={[styles.safe, { paddingBottom: tabBarFootprint }]}>
@@ -30,20 +40,24 @@ export default function MeScreen() {
           </Text>
 
           <View style={styles.modeRow}>
-            {(['light', 'dark'] as ThemeMode[]).map(m => (
-              <Pressable
-                key={m}
-                style={[
-                  styles.modeButton,
-                  { backgroundColor: mode === m ? tokens.overlaySubtle : 'transparent' },
-                ]}
-                onPress={() => setMode(m)}
-              >
-                <Text style={[styles.modeLabel, { color: tokens.textBody }]}>
-                  {m === 'light' ? strings.me.modeLight : strings.me.modeDark}
-                </Text>
-              </Pressable>
-            ))}
+            {themeModes.map(({ id, label }) => {
+              const active = mode === id;
+              return (
+                <Pressable
+                  key={id}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
+                  style={({ pressed }) => [
+                    styles.modeButton,
+                    { backgroundColor: active ? tokens.overlaySubtle : 'transparent' },
+                    pressed && !active ? { opacity: 0.6 } : null,
+                  ]}
+                  onPress={() => setMode(id)}
+                >
+                  <Text style={[styles.modeLabel, { color: tokens.textBody }]}>{label}</Text>
+                </Pressable>
+              );
+            })}
           </View>
 
           <Text style={[styles.section, { color: tokens.textTertiary }]}>{strings.me.palette}</Text>
@@ -68,9 +82,10 @@ export default function MeScreen() {
             {(Object.keys(localeNames) as Locale[]).map(l => (
               <Pressable
                 key={l}
-                style={[
+                style={({ pressed }) => [
                   styles.modeButton,
                   { backgroundColor: locale === l ? tokens.overlaySubtle : 'transparent' },
+                  pressed && locale !== l ? { opacity: 0.6 } : null,
                 ]}
                 onPress={() => setLocale(l)}
               >
@@ -78,6 +93,27 @@ export default function MeScreen() {
               </Pressable>
             ))}
           </View>
+
+          <Text style={[styles.section, { color: tokens.textTertiary }]}>{strings.me.server}</Text>
+          <View style={[styles.serverRow, { backgroundColor: tokens.surface }]}>
+            <Text style={[styles.serverLabel, { color: tokens.textTertiary }]}>
+              {strings.me.server}
+            </Text>
+            <Text style={[styles.serverUrl, { color: tokens.textBody }]} numberOfLines={1}>
+              {baseUrl ?? '—'}
+            </Text>
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.logoutButton,
+              { backgroundColor: tokens.surface, opacity: pressed ? 0.6 : 1 },
+            ]}
+            onPress={() => void logout()}
+          >
+            <Text style={[styles.logoutText, { color: tokens.danger }]}>{strings.me.logout}</Text>
+          </Pressable>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -86,7 +122,7 @@ export default function MeScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  safe: { flex: 1, paddingTop: 0 },
+  safe: { flex: 1 },
   content: {
     padding: 16,
     gap: 12,
@@ -104,9 +140,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
   },
   modeLabel: {
     fontSize: 16,
@@ -121,5 +154,29 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
+  },
+  serverRow: {
+    borderRadius: 12,
+    padding: 14,
+    gap: 4,
+  },
+  serverLabel: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  serverUrl: {
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  logoutButton: {
+    borderRadius: 12,
+    alignItems: 'center',
+    paddingVertical: 14,
+    marginTop: 8,
+  },
+  logoutText: {
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '500',
   },
 });

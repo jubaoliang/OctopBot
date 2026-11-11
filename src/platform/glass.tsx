@@ -34,7 +34,7 @@ function supportsLiquidGlass(): boolean {
  * - Android: opaque surface per the Ardot design (Material stays standard).
  */
 export function GlassSurface({ children, style, variant = 'regular' }: GlassSurfaceProps) {
-  const { mode, tokens } = useTheme();
+  const { resolvedMode: mode, tokens } = useTheme();
 
   // Android per the design (Material, opaque surface); also covers web and
   // any future platform where neither glass implementation applies.
