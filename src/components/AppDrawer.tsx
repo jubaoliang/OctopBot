@@ -224,14 +224,13 @@ export function AppDrawer({
                             accessibilityLabel={item.title}
                             entering={FadeInDown.delay(index * 20).duration(180)}
                             exiting={FadeOutUp.duration(120)}
-                            style={({ pressed }: { pressed: boolean }) => [
-                              styles.childRow,
-                              pressed ? { opacity: 0.6 } : null,
-                            ]}
+                            style={({ pressed }: { pressed: boolean }) =>
+                              pressed ? styles.childPressed : undefined
+                            }
                             onPress={() => onThreadPress(group, item)}
                           >
                             <Text
-                              style={[styles.childName, { color: t.textBody }]}
+                              style={[styles.childRow, styles.childName, { color: t.textBody }]}
                               numberOfLines={1}
                               ellipsizeMode="tail"
                             >
@@ -358,13 +357,15 @@ const styles = StyleSheet.create({
   },
   childRow: {
     // Design: full-width row (289) with pad (40,8,0,8), plain 16/24 text.
+    // Padding lives on the Text below — guaranteed to render even when the
+    // animated wrapper drops function styles.
     alignSelf: 'stretch',
     borderRadius: 8,
-    paddingLeft: 40,
-    paddingRight: 12,
-    paddingVertical: 8,
     minHeight: 40,
     justifyContent: 'center',
+  },
+  childPressed: {
+    opacity: 0.6,
   },
   childEmpty: {
     paddingLeft: 40,
@@ -373,6 +374,9 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   childName: {
+    paddingLeft: 40,
+    paddingRight: 12,
+    paddingVertical: 8,
     fontSize: 16,
     lineHeight: 24,
     fontWeight: '400',
