@@ -1,95 +1,108 @@
 <div align="center">
 
-<img src="docs/design/screenshots/chat-home.png" alt="OctopBot 聊天首页" width="220" />
+<img src="docs/design/screenshots/chat-home.png" alt="聊天首页" width="200" />
+<img src="docs/design/screenshots/main-chat.png" alt="流式对话" width="200" />
+<img src="docs/design/screenshots/sidebar-1.png" alt="任务树抽屉" width="200" />
 
 # OctopBot
 
-**[Octop](https://github.com/TencentCloud/Octop) 官方移动客户端** —— 自托管的多用户 AI 助手平台。
+**[Octop](https://github.com/TencentCloud/Octop) 官方移动客户端** —— 更聪明的自托管 AI 助手：多用户、多智能体。
 
 [English](README.md) | 简体中文
+
+_预览图为设计稿帧；UI 完成最终打磨后替换为真机截图。_
 
 </div>
 
 ---
 
-## 功能特性
+## ✨ 亮点
 
-- **流式对话** —— WebSocket 实时流式回复，Markdown 实时渲染（加粗、列表、代码块），工具调用摘要，流式光标在残缺 Markdown 中依然稳定。
-- **多专家名册** —— 展示服务器上的每一个专家，带各自的图标与品牌色；一键开启对话。
-- **会话历史** —— 按专家分组的线程树收纳在侧边抽屉；打开任意历史会话即可原位回放。
-- **自动化** —— 按专家管理 cron 任务，开关即时生效。
-- **原生平台质感** —— iOS 26+ 液态玻璃（Liquid Glass）底部导航，Android 标准 Material 导航，全面适配安全区。
-- **主题系统** —— 亮/暗模式与多套强调色；默认遵循设计语言：纯黑白墨色。
-- **双语界面** —— 完整的中文与英文。
+- **以对话为核心的伴侣端** —— 连接你自托管的 Octop 服务器，与每一个专家实时流式对话，服务器在哪，对话就在哪。
+- **契约先行** —— 应用只使用服务端公开文档化的 HTTP + WebSocket API（版本锁定于 [`docs/api-contract.md`](docs/api-contract.md)）；不抓页面、不碰私有端点。
+- **可移植内核** —— 全部业务逻辑（API 客户端、聊天 Socket、状态）为纯 TypeScript，零 `react-native` 导入，随时可扩展到更多平台。
+- **纯自托管** —— 无云端后端、无遥测、不内置任何凭据：服务器地址与会话只保存在设备安全存储中。
 
-## 平台状态
+## 🤔 功能特性
 
-| 平台      | 状态                                                                                                                 |
-| --------- | -------------------------------------------------------------------------------------------------------------------- |
-| iOS       | ✅ 积极开发中                                                                                                        |
-| Android   | ✅ 积极开发中                                                                                                        |
-| HarmonyOS | 🔜 计划通过 [expo-harmony](https://github.com/renbaoshuo/expo-harmony)（社区 RNOH 工具链）在同一份 JS 代码上快速跟进 |
+| 领域   | 内容                                                                                          |
+| ------ | --------------------------------------------------------------------------------------------- |
+| 对话   | WebSocket 实时流式回复，Markdown 实时渲染（代码块、列表、引用），工具调用摘要，生成中途可停止 |
+| 专家   | 完整名册，每个专家带图标与品牌色；一键开启对话                                                |
+| 历史   | 会话按专家分组收纳于抽屉；打开即原位回放                                                      |
+| 自动化 | 按专家管理 cron 任务，开关即时生效                                                            |
+| 主题   | 亮/暗模式 + 多套强调色；默认遵循设计语言：纯黑白墨色                                          |
+| 平台   | iOS 26+ 液态玻璃标签栏，Android Material 导航，全面适配安全区                                 |
+| i18n   | 完整中英文界面                                                                                |
 
-## 快速开始
+## 🧭 路线图
 
-环境要求：Node 20+、npm，以及 Xcode（iOS 模拟器）或 Android Studio（模拟器）。
+- ✅ 已交付：流式对话、专家名册、会话历史、cron 自动化、双语界面、主题系统
+- 🔨 进行中：消息操作（复制 / 重新生成）、知识库浏览、Release 构建
+- 🔜 计划中：推送通知（主动关怀）、专家市场安装、基于 [expo-harmony](https://github.com/renbaoshuo/expo-harmony) 在同一份 JS 代码上支持 HarmonyOS
+
+## 🚀 快速开始
+
+**1. 运行一个 Octop 服务器**（如果还没有）—— 参见 [Octop 快速开始](https://github.com/TencentCloud/Octop#-quick-start)：安装、`octop init`、`octop run`。
+
+**2. 构建并启动应用**（Node 20+，Xcode 或 Android Studio）：
 
 ```bash
 git clone https://github.com/jubaoliang/OctopBot.git
 cd OctopBot
 npm install
-
-# 构建并运行开发客户端（首次运行会编译原生工程）
-npm run ios        # 或：npm run android
+npm run ios        # 或：npm run android —— 首次运行会编译原生工程
 ```
 
-应用连接**你自己的 Octop 服务器**：在登录页输入服务器地址（例如 `https://octop.example.com`）与用户名、密码。不内置任何地址与凭据 —— 服务器地址与会话令牌只保存在设备安全存储中。
+**3. 登录** —— 输入服务器地址（例如 `https://octop.example.com`）、用户名与密码。支持局域网 HTTP 服务器（首次有明文提示）；证书校验永不跳过。
 
-## 常用脚本
+## 🏗️ 技术栈
 
-| 命令                              | 用途                     |
-| --------------------------------- | ------------------------ |
-| `npm start`                       | 启动 Metro               |
-| `npm run ios` / `npm run android` | 构建 + 启动开发客户端    |
-| `npm run lint`                    | ESLint（严格、类型感知） |
-| `npm run typecheck`               | TypeScript 检查          |
-| `npm test`                        | Jest 单元测试            |
-| `npm run format`                  | Prettier 格式化          |
+| 层       | 技术                                                                                      |
+| -------- | ----------------------------------------------------------------------------------------- |
+| 框架     | Expo SDK 58、React Native 0.88、expo-router                                               |
+| 语言     | TypeScript 6（strict）、React Compiler                                                    |
+| 动效     | Reanimated 4 + worklets、Gesture Handler                                                  |
+| 原生能力 | expo-glass-effect（iOS 26 液态玻璃）、expo-blur 回退、expo-secure-store                   |
+| 后端契约 | REST + WebSocket，见 [`docs/api-contract.md`](docs/api-contract.md)（服务端 Octop 1.0.x） |
+| 测试     | Jest + jest-expo、Maestro E2E                                                             |
+| 质量门禁 | ESLint（严格、类型感知）、Prettier、commitlint + Conventional Commits                     |
 
-## 测试
+## 🧪 测试
 
-- **单元测试**（`npm test`）：解析器、格式化器、API 客户端、聊天 Socket 契约 —— 48+ 用例。
-- **集成测试**（可选）：多专家 × 多会话场景，用应用自身的 API/WebSocket 客户端直连真实 Octop 服务器：
+- **单元测试**（`npm test`）—— 解析器、格式化器、API 客户端、聊天 Socket 握手契约。
+- **集成测试**（可选）—— 面向真实服务器的多专家 × 多会话场景，用应用自身的客户端端到端跑通：
 
   ```bash
   OCTOP_E2E_URL=https://octop.example.com \
-  OCTOP_E2E_USER=alice \
-  OCTOP_E2E_PW=secret \
+  OCTOP_E2E_USER=alice OCTOP_E2E_PW=secret \
   npx jest integration.scenario
   ```
 
-- **端到端**（[Maestro](https://docs.maestro.dev/)）：用例位于 `.maestro/`，`maestro test .maestro/` 针对开发客户端运行。
+- **端到端**（[Maestro](https://docs.maestro.dev/)）—— 用户旅程用例位于 `.maestro/`：`maestro test .maestro/`。
 
-## 项目结构
+## 📁 项目结构
 
 ```
 src/
   app/          # expo-router 页面
-  components/   # 共享 UI（标签栏、抽屉、Markdown 气泡、头像）
-  core/         # 纯 TypeScript：API 客户端、聊天 WebSocket、类型
+  components/   # 共享 UI（玻璃标签栏、抽屉、Markdown 消息、头像）
+  core/         # 纯 TS：API 客户端、聊天 WebSocket、契约类型
   features/     # 认证、应用外壳
   platform/     # 平台能力封装（玻璃效果、安全存储）
-  i18n/         # 中英文案
-  theme/        # 设计令牌、色板、主题提供者
-  utils/        # 流式 Markdown 平衡器等工具
+  i18n/ theme/  # 中英文案；设计令牌、色板
+docs/           # 锁定的 API 契约 + 设计快照
+.maestro/       # E2E 用例
 ```
 
-`src/core` 不包含任何 `react-native` 导入 —— 业务核心可移植到任意 JS 运行时，这也是未来 HarmonyOS 外壳的通路。
+## 🔒 安全与隐私
 
-## 参与贡献
+应用只是**你的**服务器的瘦客户端：无遥测、无分析、无第三方网络调用。会话令牌与服务器地址保存在操作系统安全存储（Keychain / Keystore）中，请求永不记录凭据，令牌滑动续期全程透明。同样的纪律适用于本仓库：代码、文档与提交中不包含任何密钥、个人数据或机器标识信息。
 
-遵循 Conventional Commits；`lint`、`typecheck`、`test` 三道门禁必须全部通过；每个 PR 只做一件事。交互式提交：`npm run commit`。
+## 🤝 参与贡献
 
-## 许可证
+遵循 Conventional Commits；`lint`、`typecheck`、`test` 三道门禁必须通过；每个 PR 只做一件事。交互式提交：`npm run commit`。服务端功能讨论请加入 [Octop 社区](https://github.com/TencentCloud/Octop#-community)。
+
+## 📄 许可证
 
 [MIT](LICENSE)

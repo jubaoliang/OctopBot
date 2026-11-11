@@ -1,95 +1,108 @@
 <div align="center">
 
-<img src="docs/design/screenshots/chat-home.png" alt="OctopBot chat home" width="220" />
+<img src="docs/design/screenshots/chat-home.png" alt="Chat home" width="200" />
+<img src="docs/design/screenshots/main-chat.png" alt="Streaming chat" width="200" />
+<img src="docs/design/screenshots/sidebar-1.png" alt="Task tree drawer" width="200" />
 
 # OctopBot
 
-**The official mobile client for [Octop](https://github.com/TencentCloud/Octop)** — the self-hosted, multi-user AI assistant platform.
+**The official mobile client for [Octop](https://github.com/TencentCloud/Octop)** — a smarter, self-hosted AI assistant: multi-user, multi-agent.
 
 English | [简体中文](README.zh-CN.md)
+
+_Preview images are design frames; real-app screenshots land as the UI passes final polish._
 
 </div>
 
 ---
 
-## Features
+## ✨ Highlights
 
-- **Streaming chat** — real-time replies over WebSocket with live Markdown rendering (bold, lists, code blocks), tool-call summaries, and a streaming cursor that survives mid-turn markdown.
-- **Multi-expert roster** — every agent on your server with its own icon and brand color; start a conversation with any expert in one tap.
-- **Conversation history** — threads grouped per expert in the side drawer; open any past conversation and it replays in place.
-- **Automation** — cron jobs per expert with instant enable/disable toggles.
-- **Native platform feel** — Liquid Glass tab bar on iOS 26+, standard Material navigation on Android, safe-area aware everywhere.
-- **Theming** — light/dark modes plus a set of accent palettes; the default follows the design language: pure monochrome ink.
-- **Bilingual** — full Chinese and English UI.
+- **Chat-first companion** for your self-hosted Octop server: streaming conversations with every expert you run, wherever the server is.
+- **Contract-first** — the app speaks the server's documented HTTP + WebSocket API (pinned in [`docs/api-contract.md`](docs/api-contract.md)); no scraping, no private endpoints.
+- **Portable core** — all business logic (API clients, chat socket, state) is pure TypeScript with zero `react-native` imports, ready for additional platforms.
+- **Self-hosted only** — no cloud backend, no telemetry, no bundled credentials: your server URL and session live in the device secure store.
 
-## Platform status
+## 🤔 Features
 
-| Platform  | Status                                                                                                                         |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| iOS       | ✅ Active development                                                                                                          |
-| Android   | ✅ Active development                                                                                                          |
-| HarmonyOS | 🔜 Fast-follow on the same JS codebase via [expo-harmony](https://github.com/renbaoshuo/expo-harmony) (community RNOH toolkit) |
+| Area       | What you get                                                                                                                 |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Chat       | Real-time streaming over WebSocket, live Markdown rendering (code blocks, lists, quotes), tool-call summaries, mid-turn stop |
+| Experts    | Full roster with per-expert icon & brand color; start any conversation in one tap                                            |
+| History    | Threads grouped per expert in the drawer; opening one replays it in place                                                    |
+| Automation | Cron jobs per expert with instant enable/disable toggles                                                                     |
+| Theming    | Light/dark + accent palettes; the default is the design language: monochrome ink                                             |
+| Platform   | Liquid Glass tab bar on iOS 26+, Material navigation on Android, safe-area aware everywhere                                  |
+| i18n       | Full Chinese and English UI                                                                                                  |
 
-## Getting started
+## 🧭 Roadmap
 
-Prerequisites: Node 20+, npm, and either Xcode (iOS Simulator) or Android Studio (emulator).
+- ✅ Shipped: streaming chat, expert roster, thread history, cron automation, bilingual UI, theming
+- 🔨 In progress: message actions (copy / regenerate), knowledge-base browsing, Release builds
+- 🔜 Planned: push notifications (proactive care), expert hub install, HarmonyOS via [expo-harmony](https://github.com/renbaoshuo/expo-harmony) on the same JS codebase
+
+## 🚀 Quick start
+
+**1. Run an Octop server** (if you don't have one yet) — see the [Octop quick start](https://github.com/TencentCloud/Octop#-quick-start): install, `octop init`, `octop run`.
+
+**2. Build and launch the app** (Node 20+, Xcode or Android Studio):
 
 ```bash
 git clone https://github.com/jubaoliang/OctopBot.git
 cd OctopBot
 npm install
-
-# Build and run the dev client (first run compiles the native project)
-npm run ios        # or: npm run android
+npm run ios        # or: npm run android — first run compiles the native project
 ```
 
-The app talks to **your own Octop server**: on the login screen enter the server URL (for example `https://octop.example.com`) plus your username and password. Nothing is hardcoded and no credentials are bundled — the base URL and session token live in the device secure store only.
+**3. Sign in** — enter your server URL (for example `https://octop.example.com`), username, and password. LAN HTTP servers are supported with a one-time warning; certificate validation is never bypassed.
 
-## Scripts
+## 🏗️ Tech stack
 
-| Command                           | Purpose                       |
-| --------------------------------- | ----------------------------- |
-| `npm start`                       | Start Metro                   |
-| `npm run ios` / `npm run android` | Build + launch the dev client |
-| `npm run lint`                    | ESLint (strict, type-checked) |
-| `npm run typecheck`               | TypeScript, no emit           |
-| `npm test`                        | Jest unit suite               |
-| `npm run format`                  | Prettier                      |
+| Layer            | Technology                                                                               |
+| ---------------- | ---------------------------------------------------------------------------------------- |
+| Framework        | Expo SDK 58, React Native 0.88, expo-router                                              |
+| Language         | TypeScript 6 (strict), React Compiler                                                    |
+| Motion           | Reanimated 4 + worklets, Gesture Handler                                                 |
+| Native surface   | expo-glass-effect (iOS 26 Liquid Glass), expo-blur fallback, expo-secure-store           |
+| Backend contract | REST + WebSocket per [`docs/api-contract.md`](docs/api-contract.md) (server Octop 1.0.x) |
+| Tests            | Jest + jest-expo, Maestro E2E                                                            |
+| Quality gates    | ESLint (strict, type-checked), Prettier, commitlint + Conventional Commits               |
 
-## Testing
+## 🧪 Testing
 
-- **Unit** (`npm test`): parsers, formatters, API clients, chat socket contract — 48+ tests.
-- **Integration** (opt-in): a multi-expert, multi-thread scenario that runs the app's own API/WebSocket clients against a real Octop server:
+- **Unit** (`npm test`) — parsers, formatters, API clients, chat-socket handshake contract.
+- **Integration** (opt-in) — multi-expert × multi-thread scenario against a real server, exercising the app's own clients end to end:
 
   ```bash
   OCTOP_E2E_URL=https://octop.example.com \
-  OCTOP_E2E_USER=alice \
-  OCTOP_E2E_PW=secret \
+  OCTOP_E2E_USER=alice OCTOP_E2E_PW=secret \
   npx jest integration.scenario
   ```
 
-- **E2E** ([Maestro](https://docs.maestro.dev/)): flows in `.maestro/`, run with `maestro test .maestro/` against the dev client.
+- **E2E** ([Maestro](https://docs.maestro.dev/)) — user-journey flows in `.maestro/`: `maestro test .maestro/`.
 
-## Project structure
+## 📁 Project layout
 
 ```
 src/
   app/          # expo-router screens
-  components/   # shared UI (tab bar, drawer, markdown bubbles, avatars)
-  core/         # pure TypeScript: API clients, chat WebSocket, types
+  components/   # shared UI (glass tab bar, drawer, markdown turns, avatars)
+  core/         # pure TS: API clients, chat WebSocket, contract types
   features/     # auth, app shell
   platform/     # per-platform capability wrappers (glass, secure storage)
-  i18n/         # zh / en strings
-  theme/        # tokens, palettes, provider
-  utils/        # streaming markdown balancer and friends
+  i18n/ theme/  # zh/en strings; design tokens, palettes
+docs/           # pinned API contract + design snapshots
+.maestro/       # E2E flows
 ```
 
-`src/core` contains no `react-native` imports — the business core is portable to any JS runtime, which is also the path for the future HarmonyOS shell.
+## 🔒 Security & privacy
 
-## Contributing
+The app is a thin client to **your** server: no telemetry, no analytics, no third-party network calls. The session token and server URL are stored in the OS secure store (Keychain / Keystore), requests never log credentials, and sliding token renewal is transparent. The same policy applies to this repository: no secrets, personal data, or machine-identifying content in code, docs, or commits.
 
-Conventional Commits, enforced gates (`lint`, `typecheck`, `test` must pass), and one logical change per PR. Interactive commit authoring: `npm run commit`.
+## 🤝 Contributing
 
-## License
+Conventional Commits; `lint`, `typecheck`, and `test` gates must pass; one logical change per PR. Interactive commit authoring: `npm run commit`. For server-side feature discussions, join the [Octop community](https://github.com/TencentCloud/Octop#-community).
+
+## 📄 License
 
 [MIT](LICENSE)
