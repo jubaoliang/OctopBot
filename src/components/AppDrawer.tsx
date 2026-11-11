@@ -21,10 +21,18 @@ import {
 import { useI18n } from '@/i18n/I18nProvider';
 import { useTokens } from '@/theme';
 
+export interface DrawerThread {
+  threadId: string;
+  title: string;
+}
+
 export interface DrawerTaskGroup {
   name: string;
-  items: string[];
+  agentId: string;
+  items: DrawerThread[];
   expanded: boolean;
+  /** True once this group's threads have been fetched. */
+  threadsLoaded?: boolean;
 }
 
 interface AppDrawerProps {
@@ -32,8 +40,12 @@ interface AppDrawerProps {
   onClose: () => void;
   /** Drawer nav mirrors the tab bar routes; Token 统计 is drawer-only. */
   onNavigate: (route: 'chat' | 'experts' | 'automation') => void;
-  /** Task tree = agent groups with their threads (API-backed once wired). */
+  /** Task tree = agent groups with their threads. */
   groups: DrawerTaskGroup[];
+  /** First expand of a group fetches its threads. */
+  onGroupPress: (group: DrawerTaskGroup) => void;
+  /** Opens an existing conversation. */
+  onThreadPress: (group: DrawerTaskGroup, thread: DrawerThread) => void;
 }
 
 const PANEL_WIDTH = 313;
@@ -43,7 +55,14 @@ const PANEL_WIDTH = 313;
  * logo, nav rows (active = 4% overlay pill), 任务 section with agent
  * groups (40px indented children), profile row at the end.
  */
-export function AppDrawer({ visible, onClose, onNavigate, groups }: AppDrawerProps) {
+export function AppDrawer({
+  visible,
+  onClose,
+  onNavigate,
+  groups,
+  onGroupPress,
+  onThreadPress,
+}: AppDrawerProps) {
   const t = useTokens();
   const { t: strings } = useI18n();
   const insets = useSafeAreaInsets();
@@ -124,14 +143,18 @@ export function AppDrawer({ visible, onClose, onNavigate, groups }: AppDrawerPro
             {groups.map(group => {
               const expanded = group.expanded !== collapsed[group.name];
               return (
-                <View key={group.name}>
+                <View key={group.agentId} style={styles.groupWrap}>
                   <Pressable
                     accessibilityRole="button"
+                    accessibilityLabel={group.name}
                     style={[
                       styles.groupRow,
                       expanded ? { backgroundColor: t.overlaySubtle } : null,
                     ]}
-                    onPress={() => setCollapsed(prev => ({ ...prev, [group.name]: expanded }))}
+                    onPress={() => {
+                      setCollapsed(prev => ({ ...prev, [group.name]: expanded }));
+                      onGroupPress(group);
+                    }}
                   >
                     <PersonGlyph color={t.textBody} />
                     <Text style={[styles.groupName, { color: t.textBody }]} numberOfLines={1}>
@@ -144,14 +167,26 @@ export function AppDrawer({ visible, onClose, onNavigate, groups }: AppDrawerPro
                     </Animated.View>
                   </Pressable>
                   {expanded
-                    ? group.items.map((item, index) => (
-                        <Pressable key={`${group.name}-${index}`} style={styles.childRow}>
+                    ? group.items.map(item => (
+                        <Pressable
+                          key={item.threadId}
+                          accessibilityRole="button"
+                          accessibilityLabel={item.title}
+                          style={({ pressed }) => [
+                            styles.childRow,
+                            pressed ? { opacity: 0.6 } : null,
+                          ]}
+                          onPress={() => onThreadPress(group, item)}
+                        >
                           <Text style={[styles.childName, { color: t.textBody }]} numberOfLines={1}>
-                            {item}
+                            {item.title}
                           </Text>
                         </Pressable>
                       ))
                     : null}
+                  {expanded && group.threadsLoaded && group.items.length === 0 ? (
+                    <Text style={[styles.childEmpty, { color: t.textTertiary }]}>—</Text>
+                  ) : null}
                 </View>
               );
             })}
@@ -229,8 +264,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   tasksSection: {
-    marginTop: 16,
-    gap: 4,
+    marginTop: 24,
+    gap: 12,
   },
   tasksHeader: {
     flexDirection: 'row',
@@ -250,14 +285,16 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: '400',
   },
+  groupWrap: {
+    marginBottom: 2,
+  },
   groupRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginTop: 4,
+    paddingVertical: 10,
   },
   groupName: {
     flex: 1,
@@ -267,7 +304,12 @@ const styles = StyleSheet.create({
   },
   childRow: {
     paddingHorizontal: 40,
+    paddingVertical: 10,
+  },
+  childEmpty: {
+    paddingHorizontal: 40,
     paddingVertical: 8,
+    fontSize: 13,
   },
   childName: {
     fontSize: 16,

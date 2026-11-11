@@ -20,7 +20,8 @@ void SplashScreen.preventAutoHideAsync().catch(() => {
 function RootNavigator() {
   const { mode, tokens } = useTheme();
   const scheme = useColorScheme();
-  const { drawerOpen, closeDrawer, drawerGroups, navigate } = useAppShell();
+  const { drawerOpen, closeDrawer, drawerGroups, navigate, loadGroupThreads, openThread } =
+    useAppShell();
   const { ready, user } = useAuth();
 
   // 'dark' is an explicit override; otherwise follow the OS scheme.
@@ -68,6 +69,8 @@ function RootNavigator() {
               onClose={closeDrawer}
               onNavigate={navigate}
               groups={drawerGroups}
+              onGroupPress={loadGroupThreads}
+              onThreadPress={openThread}
             />
           ) : null}
         </>

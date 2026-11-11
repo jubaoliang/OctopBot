@@ -6,7 +6,7 @@ import { AppHeader } from '@/components/AppHeader';
 import { useTabBarFootprint } from '@/components/DesignTabBar';
 import { ChatInput } from '@/components/ChatInput';
 import { ProcessCard, UserBubble } from '@/components/ChatPieces';
-import { ThreadsApi } from '@/core/api/threads';
+import { readableText, ThreadsApi } from '@/core/api/threads';
 import type { ServerFrame } from '@/core/api/types';
 import { ChatSocket, type ChatConnectionStatus } from '@/core/chat/chat-socket';
 import { useAppShell } from '@/features/app-shell';
@@ -32,8 +32,14 @@ export default function ThreadScreen() {
   // Route params: threadId doubles as the initial prompt text from a
   // suggestion pill ('new' = no prompt, e.g. entering from the experts
   // roster); agent selects the expert; title overrides the header.
-  const params = useLocalSearchParams<{ threadId: string; agent?: string; title?: string }>();
-  const initialText = params.threadId === 'new' ? null : params.threadId;
+  const params = useLocalSearchParams<{
+    threadId: string;
+    agent?: string;
+    thread?: string;
+    title?: string;
+  }>();
+  const initialText =
+    params.threadId === 'new' || params.threadId === 'open' ? null : params.threadId;
   const tabBarFootprint = useTabBarFootprint();
 
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -133,6 +139,26 @@ export default function ThreadScreen() {
         if (threadRef.current) {
           return threadRef.current;
         }
+        if (params.thread) {
+          // Opening an existing conversation: attach + replay history.
+          threadRef.current = params.thread;
+          socket.subscribe(params.thread);
+          const page = await new ThreadsApi(httpClientRef.current).history(agentId, params.thread, {
+            limit: 50,
+          });
+          if (disposed) {
+            return null;
+          }
+          const replay = page.messages
+            .map(m => ({ role: m.role, text: readableText(m.content) }))
+            .filter(
+              (m): m is Turn => (m.role === 'user' || m.role === 'assistant') && m.text.length > 0,
+            );
+          if (replay.length > 0) {
+            setTurns(replay);
+          }
+          return params.thread;
+        }
         const created = await new ThreadsApi(httpClientRef.current).create(agentId);
         if (disposed) {
           return null;
@@ -158,6 +184,9 @@ export default function ThreadScreen() {
           socket.sendUserTurn({ text: initialText, thread_id: threadId });
         }
       })();
+    } else if (params.thread) {
+      // Existing conversation: attach + replay without sending.
+      void ensureThread();
     }
 
     return () => {
