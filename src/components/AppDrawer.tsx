@@ -128,11 +128,15 @@ export function AppDrawer({
         ]}
       >
         <ScrollView
+          // Pin the content to the panel width — an unconstrained long
+          // thread title otherwise widens the whole content container,
+          // every row with it, and ellipsis never engages.
           contentContainerStyle={[
             styles.panelContent,
-            // The design's 40pt top padding assumes a flat status bar;
-            // clear the notch/Dynamic Island on notched devices.
             {
+              width: PANEL_WIDTH,
+              // The design's 40pt top padding assumes a flat status bar;
+              // clear the notch/Dynamic Island on notched devices.
               paddingTop: Math.max(40, insets.top + 8),
               paddingBottom: Math.max(20, insets.bottom + 16),
             },
@@ -180,13 +184,13 @@ export function AppDrawer({
             {groups.map(group => {
               const expanded = collapsed[group.name] ?? group.expanded;
               return (
-                <View key={group.agentId} style={styles.groupWrap}>
+                <View key={group.agentId}>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={group.name}
                     style={[
                       styles.groupRow,
-                      expanded ? { backgroundColor: t.overlaySubtle } : null,
+                      expanded ? { backgroundColor: t.overlaySubtle, paddingTop: 8 } : null,
                     ]}
                     onPress={() => {
                       setCollapsed(prev => ({ ...prev, [group.name]: !expanded }));
@@ -199,10 +203,14 @@ export function AppDrawer({
                       name={group.name}
                       iconName={group.iconName}
                       color={group.color}
-                      size={32}
+                      size={20}
                       fallbackTextSecondary={t.textBody}
                     />
-                    <Text style={[styles.groupName, { color: t.textBody }]} numberOfLines={1}>
+                    <Text
+                      style={[styles.groupName, { color: t.textBody }]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
                       {group.name}
                     </Text>
                     <Chevron expanded={expanded} color={t.textTertiary} />
@@ -221,7 +229,11 @@ export function AppDrawer({
                           ]}
                           onPress={() => onThreadPress(group, item)}
                         >
-                          <Text style={[styles.childName, { color: t.textBody }]} numberOfLines={1}>
+                          <Text
+                            style={[styles.childName, { color: t.textBody }]}
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                          >
                             {item.title}
                           </Text>
                         </AnimatedPressable>
@@ -303,8 +315,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   tasksSection: {
-    marginTop: 24,
-    gap: 12,
+    // Design Frame 2147231496: section gap 4; rows carry their own rhythm.
+    marginTop: 8,
+    gap: 4,
     paddingHorizontal: 12,
   },
   tasksHeader: {
@@ -312,7 +325,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
-    paddingTop: 16,
+    paddingTop: 8,
     paddingBottom: 4,
   },
   tasksHeaderLeft: {
@@ -325,16 +338,15 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: '400',
   },
-  groupWrap: {
-    marginBottom: 2,
-  },
   groupRow: {
+    // Design: pad (12,12,12,8); the expanded group uses (12,8,12,8).
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
   groupName: {
     flex: 1,
@@ -343,13 +355,20 @@ const styles = StyleSheet.create({
     fontWeight: '400',
   },
   childRow: {
-    paddingHorizontal: 40,
-    paddingVertical: 10,
+    // Design: full-width row (289) with pad (40,8,0,8), plain 16/24 text.
+    alignSelf: 'stretch',
+    borderRadius: 8,
+    paddingLeft: 40,
+    paddingRight: 12,
+    paddingVertical: 8,
+    minHeight: 40,
+    justifyContent: 'center',
   },
   childEmpty: {
-    paddingHorizontal: 40,
+    paddingLeft: 40,
     paddingVertical: 8,
-    fontSize: 13,
+    fontSize: 16,
+    lineHeight: 24,
   },
   childName: {
     fontSize: 16,
