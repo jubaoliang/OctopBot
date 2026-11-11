@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 
 import { AppHeader } from '@/components/AppHeader';
@@ -312,7 +313,7 @@ export default function ThreadScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <View style={[styles.safe, { paddingBottom: tabBarFootprint }]}>
+      <SafeAreaView edges={['top']} style={[styles.safe, { paddingBottom: tabBarFootprint }]}>
         <AppHeader
           title={params.title ?? initialText ?? strings.chat.agentName}
           subtitle={headerSubtitle}
@@ -351,7 +352,7 @@ export default function ThreadScreen() {
         <View style={styles.inputWrap}>
           <ChatInput onSend={send} />
         </View>
-      </View>
+      </SafeAreaView>
     </View>
   );
 }
@@ -391,7 +392,7 @@ function appendAssistant(prev: Turn[], delta: string): Turn[] {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  safe: { flex: 1, paddingTop: 47 },
+  safe: { flex: 1, paddingTop: 0 },
   scroll: { flex: 1 },
   content: {
     paddingHorizontal: 16,

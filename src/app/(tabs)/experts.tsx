@@ -1,4 +1,5 @@
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 
@@ -48,7 +49,7 @@ export default function ExpertsScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <View style={[styles.safe, { paddingBottom: tabBarFootprint }]}>
+      <SafeAreaView edges={['top']} style={[styles.safe, { paddingBottom: tabBarFootprint }]}>
         <AppHeader onMenu={openDrawer} />
         <ScrollView
           contentContainerStyle={styles.content}
@@ -112,14 +113,14 @@ export default function ExpertsScreen() {
             <Text style={[styles.empty, { color: tokens.textTertiary }]}>—</Text>
           ) : null}
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  safe: { flex: 1, paddingTop: 47 },
+  safe: { flex: 1, paddingTop: 0 },
   content: {
     paddingHorizontal: 16,
     paddingTop: 8,

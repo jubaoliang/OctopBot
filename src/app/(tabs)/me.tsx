@@ -1,4 +1,5 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppHeader } from '@/components/AppHeader';
 import { useTabBarFootprint } from '@/components/DesignTabBar';
@@ -21,7 +22,7 @@ export default function MeScreen() {
   const tabBarFootprint = useTabBarFootprint();
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <View style={[styles.safe, { paddingBottom: tabBarFootprint }]}>
+      <SafeAreaView edges={['top']} style={[styles.safe, { paddingBottom: tabBarFootprint }]}>
         <AppHeader onMenu={openDrawer} />
         <ScrollView contentContainerStyle={styles.content}>
           <Text style={[styles.section, { color: tokens.textTertiary }]}>
@@ -78,14 +79,14 @@ export default function MeScreen() {
             ))}
           </View>
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  safe: { flex: 1, paddingTop: 47 },
+  safe: { flex: 1, paddingTop: 0 },
   content: {
     padding: 16,
     gap: 12,

@@ -1,4 +1,5 @@
 import { Image, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { AppHeader } from '@/components/AppHeader';
@@ -22,7 +23,7 @@ export default function ChatHomeScreen() {
   const tabBarFootprint = useTabBarFootprint();
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <View style={[styles.safe, { paddingBottom: tabBarFootprint }]}>
+      <SafeAreaView edges={['top']} style={[styles.safe, { paddingBottom: tabBarFootprint }]}>
         <AppHeader onMenu={openDrawer} />
         <View style={styles.body}>
           <View style={styles.spacerTop} />
@@ -48,7 +49,7 @@ export default function ChatHomeScreen() {
         <View style={styles.inputWrap}>
           <ChatInput />
         </View>
-      </View>
+      </SafeAreaView>
     </View>
   );
 }
@@ -59,7 +60,6 @@ const styles = StyleSheet.create({
   },
   safe: {
     flex: 1,
-    paddingTop: 47, // status-bar band per frame
   },
   body: {
     flex: 1,
