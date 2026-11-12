@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect, useState } from 'react';
 
-import { Eye, EyeOff, Pencil } from 'lucide-react-native';
+import { Eye, EyeOff } from 'lucide-react-native';
 import { AuthApi } from '@/core/api/auth';
 import { OctopApiError } from '@/core/api/errors';
 import { HttpClient } from '@/core/api/http';
@@ -142,43 +142,6 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
           </View>
 
           <View style={styles.form}>
-            <View style={styles.serverRow}>
-              <Text style={[styles.serverEntryLabel, { color: tokens.textTertiary }]}>
-                {strings.login.serverUrl}
-              </Text>
-              <Text
-                style={[styles.serverEntryValue, { color: tokens.textBody }]}
-                numberOfLines={1}
-                ellipsizeMode="middle"
-                onPress={() => {
-                  setModalUrl(url);
-                  setTestResult(null);
-                  setServerModal(true);
-                }}
-              >
-                {url || strings.login.serverPlaceholder}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="login-server"
-                testID="login-server"
-                style={({ pressed }) => [
-                  styles.serverPencil,
-                  {
-                    backgroundColor: tokens.overlaySubtle,
-                    opacity: pressed ? 0.7 : 1,
-                  },
-                ]}
-                onPress={() => {
-                  setModalUrl(url);
-                  setTestResult(null);
-                  setServerModal(true);
-                }}
-              >
-                <Pencil size={14} color={tokens.textBody} />
-              </Pressable>
-            </View>
-
             <Text style={[styles.label, { color: tokens.textSecondary }]}>
               {strings.login.username}
             </Text>
@@ -233,6 +196,21 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
 
             <Text style={[styles.note, { color: tokens.textTertiary }]}>{strings.login.note}</Text>
           </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="login-server"
+            testID="login-server"
+            onPress={() => {
+              setModalUrl(url);
+              setTestResult(null);
+              setServerModal(true);
+            }}
+            style={{ alignSelf: 'center', paddingVertical: 6 }}
+          >
+            <Text style={[styles.serverLink, { color: tokens.textTertiary }]} numberOfLines={1}>
+              {url || strings.login.serverPlaceholder}
+            </Text>
+          </Pressable>
           <Text style={[styles.footer, { color: tokens.textTertiary }]}>
             {locale === 'zh' ? 'Octop 移动客户端' : 'Octop mobile client'}
           </Text>
@@ -452,28 +430,12 @@ const styles = StyleSheet.create({
     height: 52,
     justifyContent: 'center',
   },
-  serverRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 4,
-  },
-  serverEntryLabel: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  serverEntryValue: {
-    flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
+  serverLink: {
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: 'center',
     textDecorationLine: 'underline',
-  },
-  serverPencil: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    maxWidth: 280,
   },
   modalScrim: {
     flex: 1,
