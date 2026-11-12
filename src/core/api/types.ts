@@ -274,6 +274,56 @@ export interface DashboardPush {
 // Misc
 // ---------------------------------------------------------------------------
 
+// ── Token usage (src/octop/api/routers/usage.py) ────────────────────────────
+
+/** Time scope of a usage query. Dates are `YYYY-MM-DD`, months `YYYY-MM`. */
+export type UsageWindow =
+  | 'today'
+  | 'yesterday'
+  | 'last_7d'
+  | 'last_30d'
+  | 'all'
+  | `day:${string}`
+  | `month:${string}`
+  | `range:${string}:${string}`;
+
+export type UsageGranularity = 'total' | 'by_day' | 'by_agent' | 'by_model' | 'by_user';
+
+export interface UsageCounters {
+  input_tokens: number;
+  uncached_input_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  output_tokens: number;
+  reasoning_tokens: number;
+  total_tokens: number;
+  model_calls: number;
+  turns: number;
+}
+
+/**
+ * One slice of a summary. `key` is the day (`YYYY-MM-DD`), agent id, model
+ * name (`(unknown)` when the ledger has none) or user id; `label` is the
+ * display name where the server knows one (expert names, user names).
+ */
+export interface UsageBucket extends UsageCounters {
+  key: string;
+  label: string;
+}
+
+export interface UsageSummary extends UsageCounters {
+  window: string;
+  granularity: string;
+  /** Unix seconds; `range_start` is 0 for the `all` window. */
+  range_start: number;
+  range_end: number;
+  /** Whole percent of input tokens served from cache. */
+  cache_hit_percent: number;
+  avg_per_turn: number;
+  /** `by_day` is newest first; the others are largest first. At most 100. */
+  buckets: UsageBucket[];
+}
+
 export interface HealthStatus {
   ok: boolean;
   started_at?: string;

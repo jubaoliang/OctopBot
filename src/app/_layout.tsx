@@ -32,6 +32,9 @@ function drawerRouteFor(pathname: string): DrawerRoute | null {
   if (pathname.startsWith('/automation')) {
     return 'automation';
   }
+  if (pathname.startsWith('/usage')) {
+    return 'usage';
+  }
   if (pathname === '/' || pathname.startsWith('/chat')) {
     return 'chat';
   }

@@ -113,6 +113,17 @@ Server → client (broadcast frames carry `thread_id`):
 - `GET/POST /api/agents/{agent_id}/cron` (POST 201: `{name?, trigger:"cron:0 9 * * *"|"interval:3600"|"date:…"|"agently:…", prompt, enabled, ...}`); `GET/PATCH/DELETE …/cron/{cron_id}` (toggle via PATCH `enabled`), `POST …/run-now` (204); `GET /api/cron/settings` → `{timezone}`; `GET …/cron/examples`.
 - `GET/PUT /api/agents/{agent_id}/proactive-care` → `{enabled, active_hours_start, active_hours_end, min_interval_hours, max_interval_hours}`.
 
+## Token usage (`src/octop/api/routers/usage.py`)
+
+Derived from upstream `develop` on 2026-11-12, after the 1.0.3b4 pin; a server without the usage ledger answers 404, which the client reports as "not supported".
+
+- `GET /api/usage/summary?window=&granularity=&agent_id=` → the caller's own roll-up. `agent_id` narrows to one visible expert (`AGENT_NOT_FOUND` otherwise). An invalid `window` is a 400.
+- `window`: `today` | `yesterday` | `last_7d` | `last_30d` (default) | `all` | `day:YYYY-MM-DD` | `month:YYYY-MM` | `range:YYYY-MM-DD:YYYY-MM-DD`. `today`/`yesterday` start at midnight in the server's default timezone; `last_7d`/`last_30d` are rolling (now − N×24 h), so they touch N+1 calendar days.
+- `granularity`: `total` (no buckets) | `by_day` (default) | `by_agent` | `by_model` | `by_user`.
+- Response: `{window, granularity, range_start, range_end, input_tokens, uncached_input_tokens, cache_read_tokens, cache_write_tokens, output_tokens, reasoning_tokens, total_tokens, model_calls, turns, cache_hit_percent, avg_per_turn, buckets[]}`. `range_*` are unix seconds (`range_start` 0 for `all`); `cache_hit_percent` is a whole percent of input tokens; `turns` counts ledger rows.
+- Bucket: `{key, label, …the same counters}`. `by_day`: key = `YYYY-MM-DD`, **newest first**, days without usage omitted, the day boundary is UTC on the default SQLite ledger (session timezone on PostgreSQL). `by_agent`: key = agent id, label = expert name. `by_model`: key = model name, `(unknown)` when the row has none. `by_agent`/`by_model`/`by_user` are sorted by `total_tokens` descending. Every granularity is capped at 100 buckets, so `all` + `by_day` is truncated to the newest 100 active days.
+- Not used by mobile: `GET /api/usage/export.xlsx`, `?as_user=` (admin), `/api/admin/usage/*`.
+
 ## Preferences, settings, health
 
 - `GET/PATCH /api/preferences` → `{locale, preferred_model?, model_reasoning?, timezone?, sidebar_nav?}`.

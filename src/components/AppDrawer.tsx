@@ -68,7 +68,7 @@ export interface DrawerTaskGroup {
   color?: string | null;
 }
 
-export type DrawerRoute = 'chat' | 'experts' | 'automation';
+export type DrawerRoute = 'chat' | 'experts' | 'automation' | 'usage';
 
 interface AppDrawerProps {
   /** Requested state; the drawer animates toward it. */
@@ -78,7 +78,7 @@ interface AppDrawerProps {
   onDismissed: () => void;
   /** The tab the user is on, so the matching nav row is highlighted. */
   activeRoute: DrawerRoute | null;
-  /** Drawer nav mirrors the tab bar routes; Token 统计 is drawer-only. */
+  /** Drawer nav mirrors the tab bar routes; Token 统计 (`usage`) is drawer-only. */
   onNavigate: (route: DrawerRoute) => void;
   /** Task tree = agent groups with their threads. */
   groups: DrawerTaskGroup[];
@@ -296,6 +296,8 @@ export function AppDrawer({
               <NavRow
                 icon={<MenuTokens width={20} height={20} color={t.textBody} />}
                 label={strings.drawer.tokens}
+                active={activeRoute === 'usage'}
+                onPress={() => onNavigate('usage')}
               />
             </View>
 

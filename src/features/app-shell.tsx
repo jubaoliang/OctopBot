@@ -156,6 +156,11 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       drawerGroups: user ? groups : [],
       navigate: route => {
         setDrawerOpen(false);
+        if (route === 'usage') {
+          // A detail screen pushed above the tabs; it has its own back button.
+          router.push('/usage');
+          return;
+        }
         router.push({
           pathname: route === 'chat' ? '/chat' : `/(tabs)/${route}`,
         });

@@ -2,8 +2,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import type { ReactNode } from 'react';
 
+import { PressableScale } from '@/components/PressableScale';
 import { useI18n } from '@/i18n/I18nProvider';
-import { continuousCorners, radius, typeScale, useTokens } from '@/theme';
+import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
 
 /**
  * Empty state: a quiet glyph, one line saying what is missing, one line
@@ -13,19 +14,35 @@ export function EmptyState({
   icon,
   title,
   hint,
+  action,
+  inline = false,
 }: {
   icon?: ReactNode;
   title: string;
   hint?: string;
+  /** A way out, e.g. "Try again" on a failed load. */
+  action?: { label: string; onPress: () => void; testID?: string };
+  /** Sits under other content instead of standing alone on an empty screen. */
+  inline?: boolean;
 }) {
   const t = useTokens();
   return (
-    <View style={styles.empty}>
+    <View style={[styles.empty, inline ? styles.emptyInline : null]}>
       {icon ? (
         <View style={[styles.emptyIcon, { backgroundColor: t.overlaySubtle }]}>{icon}</View>
       ) : null}
       <Text style={[styles.emptyTitle, { color: t.textPrimary }]}>{title}</Text>
       {hint ? <Text style={[styles.emptyHint, { color: t.textSecondary }]}>{hint}</Text> : null}
+      {action ? (
+        <PressableScale
+          accessibilityRole="button"
+          testID={action.testID}
+          onPress={action.onPress}
+          style={[styles.emptyAction, { backgroundColor: t.overlaySubtle }]}
+        >
+          <Text style={[styles.emptyActionLabel, { color: t.textPrimary }]}>{action.label}</Text>
+        </PressableScale>
+      ) : null}
     </View>
   );
 }
@@ -82,6 +99,10 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 32,
   },
+  emptyInline: {
+    marginTop: 24,
+    marginBottom: 8,
+  },
   emptyIcon: {
     width: 56,
     height: 56,
@@ -97,6 +118,18 @@ const styles = StyleSheet.create({
   emptyHint: {
     ...typeScale.subheadline,
     textAlign: 'center',
+  },
+  emptyAction: {
+    marginTop: 14,
+    minHeight: layout.hitTarget,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    borderRadius: layout.hitTarget / 2,
+    ...continuousCorners,
+  },
+  emptyActionLabel: {
+    ...typeScale.subheadline,
+    fontWeight: '600',
   },
   skeletonList: {
     gap: 12,
