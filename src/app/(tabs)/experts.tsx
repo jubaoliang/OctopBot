@@ -58,6 +58,8 @@ export default function ExpertsScreen() {
         <AppHeader onMenu={openDrawer} />
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: tabBarFootprint }]}
+          showsVerticalScrollIndicator={false}
+          showsHorizontalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -123,6 +125,7 @@ export default function ExpertsScreen() {
               icon={<Users size={26} color={tokens.textTertiary} />}
               title={strings.experts.emptyTitle}
               hint={strings.experts.emptyHint}
+              action={{ label: strings.experts.retry, onPress: load, testID: 'experts-retry' }}
             />
           ) : null}
         </ScrollView>

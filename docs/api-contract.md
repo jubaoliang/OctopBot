@@ -134,6 +134,19 @@ Derived from upstream `develop` on 2026-11-12, after the 1.0.3b4 pin; a server w
 
 `AUTH_FAILED`/`TOKEN_EXPIRED` 401 · `FORBIDDEN` 403 · `NOT_FOUND`/`AGENT_NOT_FOUND`/`KNOWLEDGE_NOT_FOUND` 404 · `SETUP_REQUIRED` 409 · `THREAD_TURN_ACTIVE` 409 (delete while streaming) · `LOGIN_LOCKED` 423 · `MFA_INVALID` · `KNOWLEDGE_DOC_TOO_LARGE` (details `max_mb`) · `KNOWLEDGE_NAME_TAKEN`.
 
+## Voice (STT)
+
+Hybrid speech input for the composer. Default active STT is the builtin
+`browser` preset (system / on-device recognition on the client). Cloud
+providers are optional.
+
+- `GET /api/voice/active` → `{stt, tts, stt_realtime?}`. `stt` / `tts` default to `"browser"`.
+- `PUT /api/voice/active` body `{stt?, tts?}` → same shape. Requires the `voice` permission.
+- `GET /api/voice/providers` → configured provider rows (`id, name, kind, capability, enabled, …`).
+- `POST /api/voice/stt` multipart form `{audio, language?, provider?}` → `{text, confidence?}`. Used when `active.stt` is a cloud provider; `browser` never hits this endpoint.
+
+Realtime `WS /api/voice/stt-stream` and TTS playback are out of scope for mobile v1.
+
 ## Out of scope for mobile v1
 
-Admin/user management, providers, voice, IM channels, connectors, memory, workspace files, skills CRUD, bridge, update, cloud, terminal, plugins, `/api/mobile/*` (capability-gated, revisit later). Available if the design calls for them.
+Admin/user management, provider admin CRUD, IM channels, connectors, memory, workspace files, skills CRUD, bridge, update, cloud, terminal, plugins, `/api/mobile/*` (capability-gated, revisit later). Available if the design calls for them.

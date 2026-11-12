@@ -344,3 +344,30 @@ export interface UploadResult {
   filename: string;
   media_type: string;
 }
+
+// ---------------------------------------------------------------------------
+// Voice (STT / TTS active config)
+// ---------------------------------------------------------------------------
+
+export type VoiceCapability = 'stt' | 'tts' | 'both';
+
+export interface ActiveVoice {
+  stt: string;
+  tts: string;
+  /** True when the active STT provider can stream over WebSocket. */
+  stt_realtime?: boolean;
+}
+
+export interface VoiceProvider {
+  id: number;
+  name: string;
+  kind: string;
+  capability: VoiceCapability;
+  enabled: boolean;
+  note?: string | null;
+}
+
+export interface VoiceTranscribeResult {
+  text: string;
+  confidence?: number | null;
+}

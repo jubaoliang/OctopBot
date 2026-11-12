@@ -33,6 +33,20 @@
         {
           "backgroundColor": "#FAFAFA"
         }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow OctopBot to use the microphone for voice input.",
+          "speechRecognitionPermission": "Allow OctopBot to transcribe speech into text.",
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow OctopBot to use the microphone for voice input."
+        }
       ]
     ],
     "experiments": {

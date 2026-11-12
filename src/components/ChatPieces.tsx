@@ -3,6 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { PressableScale } from '@/components/PressableScale';
 import { IconArrowRight, IconChevronSmall, IconGlobe } from '@/components/icons';
 import { useI18n } from '@/i18n/I18nProvider';
+import { CODE_FONT } from '@/theme/code-font';
 import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
 
 /** Suggestion pill per design: white surface, radius 8, trailing arrow — 44pt tall. */
@@ -66,12 +67,14 @@ export function ProcessCard({
   );
 }
 
-/** Inline code chip per design: 4% overlay, radius 4, footnote text at 60%. */
+/** Inline code chip per design: readable fill, radius 4, monospace footnote. */
 export function CodeChip({ text }: { text: string }) {
   const t = useTokens();
   return (
-    <View style={[styles.codeChip, { backgroundColor: t.overlaySubtle }]}>
-      <Text style={[styles.codeText, { color: t.textSecondary }]}>{text}</Text>
+    <View style={[styles.codeChip, { backgroundColor: t.overlayPressed }]}>
+      <Text style={[styles.codeText, { color: t.textSecondary, fontFamily: CODE_FONT }]}>
+        {text}
+      </Text>
     </View>
   );
 }

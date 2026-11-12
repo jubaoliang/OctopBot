@@ -1,3 +1,4 @@
+import { SpaceMono_400Regular, useFonts } from '@expo-google-fonts/space-mono';
 import {
   DarkTheme,
   DefaultTheme,
@@ -12,11 +13,12 @@ import { ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AppDrawer, type DrawerRoute } from '@/components/AppDrawer';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { registerLastAgentStore } from '@/app/(tabs)/chat/index';
 import { AuthProvider, useAuth } from '@/features/auth';
 import { LoginScreen } from '@/features/LoginScreen';
 import { AppShellProvider, useAppShell } from '@/features/app-shell';
-import { I18nProvider } from '@/i18n/I18nProvider';
+import { I18nProvider, useI18n } from '@/i18n/I18nProvider';
 import { expoSecureStorage } from '@/platform/secure-store';
 import { KeyboardProvider } from '@/platform/keyboard';
 import { darkTokens, lightTokens, ThemeProvider, useTheme } from '@/theme';
@@ -77,11 +79,27 @@ function RootNavigator() {
     };
   }, [effectiveDark]);
 
+  const [fontsLoaded, fontError] = useFonts({ SpaceMono_400Regular });
+  // A missing font asset must not trap the app behind the splash/gate —
+  // fall through and let code fences use the platform monospace face.
+  const fontsReady = fontsLoaded || fontError !== null;
+
   useEffect(() => {
+    if (!fontsReady) {
+      return;
+    }
     void SplashScreen.hideAsync().catch(() => {
       // Already hidden.
     });
-  }, []);
+  }, [fontsReady]);
+
+  if (!fontsReady) {
+    return (
+      <View style={[styles.gate, { backgroundColor: tokens.bg }]}>
+        <ActivityIndicator color={tokens.accent} />
+      </View>
+    );
+  }
 
   return (
     <NavThemeProvider value={navTheme}>
@@ -123,6 +141,30 @@ const styles = {
   },
 } as const;
 
+function RootWithBoundary() {
+  const { t: strings } = useI18n();
+  const { tokens } = useTheme();
+  return (
+    <ErrorBoundary
+      title={strings.chat.crashTitle}
+      hint={strings.chat.crashHint}
+      retryLabel={strings.chat.crashRetry}
+      colors={{
+        bg: tokens.bg,
+        textPrimary: tokens.textPrimary,
+        textSecondary: tokens.textSecondary,
+        overlaySubtle: tokens.overlaySubtle,
+      }}
+    >
+      <AuthProvider storage={expoSecureStorage}>
+        <AppShellProvider>
+          <RootNavigator />
+        </AppShellProvider>
+      </AuthProvider>
+    </ErrorBoundary>
+  );
+}
+
 export default function RootLayout() {
   // One-time registration: the chat home persists the last-used expert id
   // through the same secure storage the rest of the session state uses.
@@ -135,11 +177,7 @@ export default function RootLayout() {
       <KeyboardProvider>
         <ThemeProvider storage={expoSecureStorage}>
           <I18nProvider storage={expoSecureStorage}>
-            <AuthProvider storage={expoSecureStorage}>
-              <AppShellProvider>
-                <RootNavigator />
-              </AppShellProvider>
-            </AuthProvider>
+            <RootWithBoundary />
           </I18nProvider>
         </ThemeProvider>
       </KeyboardProvider>

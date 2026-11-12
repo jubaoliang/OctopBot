@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -5,6 +6,8 @@ import { AppHeader } from '@/components/AppHeader';
 import { useTabBarFootprint } from '@/components/DesignTabBar';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { SettingsRow, SettingsSection } from '@/components/Settings';
+import { VoiceApi } from '@/core/api/voice';
+import type { ActiveVoice, VoiceProvider } from '@/core/api/types';
 import { useAuth } from '@/features/auth';
 import { useAppShell } from '@/features/app-shell';
 import { useI18n, localeNames, type Locale } from '@/i18n/I18nProvider';
@@ -13,23 +16,90 @@ import { layout, palettes, useTheme, useTokens } from '@/theme';
 import type { UserThemeMode } from '@/theme/ThemeProvider';
 
 const LOCALES = Object.keys(localeNames) as Locale[];
+const BROWSER_STT = 'browser';
 
 /** Swatch diameter; the selection ring is drawn outside it, not into it. */
 const SWATCH = 28;
 const SWATCH_RING = 40;
 
+function supportsStt(provider: VoiceProvider): boolean {
+  return provider.enabled && (provider.capability === 'stt' || provider.capability === 'both');
+}
+
 /**
  * 我的 — appearance (theme mode incl. system-follow, accent palette),
- * language, account and sign-out, in the iOS inset-grouped settings
- * anatomy. All rows use the design's token system; nothing is hardcoded.
+ * language, optional speech-input chooser (when cloud STT providers exist),
+ * account and sign-out, in the iOS inset-grouped settings anatomy.
  */
 export default function MeScreen() {
   const tokens = useTokens();
   const { mode, setMode, resolvedMode, paletteId, setPaletteId } = useTheme();
   const { locale, setLocale, t: strings } = useI18n();
   const { openDrawer } = useAppShell();
-  const { baseUrl, user, logout } = useAuth();
+  const { baseUrl, user, logout, httpClient } = useAuth();
   const tabBarFootprint = useTabBarFootprint();
+
+  const [voiceProviders, setVoiceProviders] = useState<VoiceProvider[]>([]);
+  const [activeVoice, setActiveVoice] = useState<ActiveVoice>({
+    stt: BROWSER_STT,
+    tts: BROWSER_STT,
+  });
+  const canEditVoice = Boolean(user?.permissions?.includes('voice'));
+
+  const refreshVoice = useCallback(
+    async (isCancelled?: () => boolean) => {
+      const api = new VoiceApi(httpClient);
+      try {
+        const [providers, active] = await Promise.all([api.listProviders(), api.getActive()]);
+        if (isCancelled?.()) {
+          return;
+        }
+        setVoiceProviders(providers);
+        setActiveVoice(active);
+      } catch {
+        if (isCancelled?.()) {
+          return;
+        }
+        // Voice endpoints may be older / unreachable — hide the section.
+        setVoiceProviders([]);
+      }
+    },
+    [httpClient],
+  );
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      await refreshVoice(() => cancelled);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, refreshVoice]);
+
+  const cloudStt = useMemo(
+    () =>
+      voiceProviders.filter(
+        p => supportsStt(p) && p.kind !== BROWSER_STT && p.name !== BROWSER_STT,
+      ),
+    [voiceProviders],
+  );
+
+  const setActiveStt = async (name: string) => {
+    if (!canEditVoice || name === (activeVoice.stt || BROWSER_STT)) {
+      return;
+    }
+    haptics.selection();
+    try {
+      const next = await new VoiceApi(httpClient).setActive({ stt: name });
+      setActiveVoice(next);
+    } catch {
+      Alert.alert(strings.voice.errorTitle, strings.voice.activeUpdateFailed);
+    }
+  };
 
   const themeModes: { id: UserThemeMode; label: string }[] = [
     { id: 'light', label: strings.me.modeLight },
@@ -53,6 +123,7 @@ export default function MeScreen() {
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: tabBarFootprint }]}
           showsVerticalScrollIndicator={false}
+          showsHorizontalScrollIndicator={false}
         >
           <SettingsSection title={strings.me.appearance}>
             <View style={styles.controlRow}>
@@ -125,6 +196,27 @@ export default function MeScreen() {
               />
             ))}
           </SettingsSection>
+
+          {cloudStt.length > 0 ? (
+            <SettingsSection title={strings.me.voiceInput} footer={strings.me.voiceFooter}>
+              <SettingsRow
+                title={strings.me.voiceSystem}
+                selected={(activeVoice.stt || BROWSER_STT) === BROWSER_STT}
+                testID="stt-browser"
+                onPress={canEditVoice ? () => void setActiveStt(BROWSER_STT) : undefined}
+              />
+              {cloudStt.map((provider, index) => (
+                <SettingsRow
+                  key={provider.id}
+                  title={provider.note?.trim() || provider.name}
+                  selected={activeVoice.stt === provider.name}
+                  last={index === cloudStt.length - 1}
+                  testID={`stt-${provider.name}`}
+                  onPress={canEditVoice ? () => void setActiveStt(provider.name) : undefined}
+                />
+              ))}
+            </SettingsSection>
+          ) : null}
 
           <SettingsSection title={strings.me.account}>
             <SettingsRow

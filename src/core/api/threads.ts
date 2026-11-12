@@ -60,6 +60,25 @@ export function readableText(content: ContentBlock[]): string {
     .join('');
 }
 
+/** Tallies thinking / tool_use blocks across a history page for the process card. */
+export function processCountsFromHistory(messages: { content: ContentBlock[] }[]): {
+  tools: number;
+  thinking: number;
+} {
+  let tools = 0;
+  let thinking = 0;
+  for (const message of messages) {
+    for (const block of message.content) {
+      if (block.type === 'tool_use') {
+        tools += 1;
+      } else if (block.type === 'thinking') {
+        thinking += 1;
+      }
+    }
+  }
+  return { tools, thinking };
+}
+
 export class ThreadsApi {
   constructor(private readonly http: HttpClient) {}
 

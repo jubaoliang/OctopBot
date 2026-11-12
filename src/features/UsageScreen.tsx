@@ -166,6 +166,7 @@ export function UsageScreen() {
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
           showsVerticalScrollIndicator={false}
+          showsHorizontalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

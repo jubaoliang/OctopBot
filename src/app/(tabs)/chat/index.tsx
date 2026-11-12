@@ -155,6 +155,7 @@ export default function ChatHomeScreen() {
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={false}
+            showsHorizontalScrollIndicator={false}
           >
             <View style={styles.spacerTop} />
             <Image
@@ -220,7 +221,12 @@ export default function ChatHomeScreen() {
                   { backgroundColor: tokens.surface, borderColor: tokens.borderSubtle },
                 ]}
               >
-                <ScrollView style={styles.pickerScroll} nestedScrollEnabled>
+                <ScrollView
+                  style={styles.pickerScroll}
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator={false}
+                  showsHorizontalScrollIndicator={false}
+                >
                   {agents.map(agent => (
                     <Pressable
                       key={agent.agent_id}

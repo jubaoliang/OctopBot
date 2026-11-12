@@ -269,6 +269,7 @@ export function AppDrawer({
               },
             ]}
             showsVerticalScrollIndicator={false}
+            showsHorizontalScrollIndicator={false}
           >
             <View style={styles.logoRow}>
               <LogoHeader width={62} height={21} color={t.textBody} />
@@ -279,24 +280,28 @@ export function AppDrawer({
                 icon={<MenuChat width={20} height={20} color={t.textBody} />}
                 label={strings.tabs.chat}
                 active={activeRoute === 'chat'}
+                testID="drawer-chat"
                 onPress={() => onNavigate('chat')}
               />
               <NavRow
                 icon={<MenuExperts width={20} height={20} color={t.textBody} />}
                 label={strings.tabs.experts}
                 active={activeRoute === 'experts'}
+                testID="drawer-experts"
                 onPress={() => onNavigate('experts')}
               />
               <NavRow
                 icon={<MenuAutomation width={20} height={20} color={t.textBody} />}
                 label={strings.tabs.automation}
                 active={activeRoute === 'automation'}
+                testID="drawer-automation"
                 onPress={() => onNavigate('automation')}
               />
               <NavRow
                 icon={<MenuTokens width={20} height={20} color={t.textBody} />}
                 label={strings.drawer.tokens}
                 active={activeRoute === 'usage'}
+                testID="drawer-tokens"
                 onPress={() => onNavigate('usage')}
               />
             </View>
@@ -408,18 +413,22 @@ function NavRow({
   label,
   active = false,
   onPress,
+  testID,
 }: {
   icon: ReactNode;
   label: string;
   active?: boolean;
   onPress?: () => void;
+  testID?: string;
 }) {
   const t = useTokens();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: active, disabled: !onPress }}
+      accessibilityLabel={label}
       disabled={!onPress}
+      testID={testID}
       style={({ pressed }) => [
         styles.navRow,
         active ? { backgroundColor: t.overlaySubtle } : null,

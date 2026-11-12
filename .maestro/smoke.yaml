@@ -1,27 +1,29 @@
-# Smoke: design UI — chat home, thread view, drawer.
+# Smoke: logged-in shell — chat home, composer, experts, drawer.
 # Dev client dev.octop.octopbot with Metro on :8081 (adb reverse tcp:8081).
-# Selectors are exact-match Chinese strings from the Ardot design file;
-# icon-only controls are addressed by testID (their labels are localized).
+# Seed a session first via octopbot://dev-session?url=…&token=… when needed.
 appId: dev.octop.octopbot
 ---
 - launchApp
 - extendedWaitUntil:
-    visible: '嗨！你专属的智能伙伴来啦'
+    visible:
+      id: 'header-menu'
     timeout: 180000
-- assertVisible: '检查容器状态与资源占用'
-- assertVisible: '写运维脚本'
-# Suggestion pill → thread screen
-- tapOn: '检查容器状态与资源占用'
-- assertVisible: '帮我打开腾讯云官网'
-- assertVisible: '查看浏览器'
-# Back home via tab, then open the drawer
-- tapOn: '对话'
-- assertVisible: '嗨！你专属的智能伙伴来啦'
+# Chat home greeting or composer placeholder after login
+- assertVisible:
+    id: 'composer-input'
+# Open drawer and confirm navigation rows
 - tapOn:
     id: 'header-menu'
-- assertVisible: '任务'
-- assertVisible: '通用技能'
-- assertVisible: '系统医生'
+- assertVisible:
+    id: 'drawer-tokens'
 - tapOn:
     id: 'drawer-scrim'
-- assertVisible: '嗨！你专属的智能伙伴来啦'
+# Experts tab loads without crashing
+- tapOn:
+    id: 'tab-experts'
+- assertNotVisible:
+    id: 'composer-input'
+- tapOn:
+    id: 'tab-chat'
+- assertVisible:
+    id: 'composer-input'

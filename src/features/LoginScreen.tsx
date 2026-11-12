@@ -45,7 +45,7 @@ const SHEET_IN = SlideInDown.duration(motion.sheet).easing(Easing.bezier(0.32, 0
 export function LoginScreen({ storage }: { storage?: SecureStorage }) {
   const { tokens } = useTheme();
   const { t: strings, locale } = useI18n();
-  const { login, baseUrl } = useAuth();
+  const { login, baseUrl, sessionExpired, clearSessionExpired } = useAuth();
   const insets = useSafeAreaInsets();
   const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
   const [focused, setFocused] = useState<Field | 'modalUrl' | null>(null);
@@ -103,6 +103,8 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
   };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Derive from auth flag — no setState-in-effect. Cleared on the next submit.
+  const displayError = error ?? (sessionExpired ? strings.login.errors.session_expired : null);
 
   // The focused field trades its hairline for the accent, so the caret is
   // never the only sign of where typing will land.
@@ -117,6 +119,9 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
       return;
     }
     setError(null);
+    if (sessionExpired) {
+      clearSessionExpired();
+    }
     setBusy(true);
     void login(url.trim(), username.trim(), password)
       .then(() => haptics.notify('success'))
@@ -140,6 +145,8 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         bottomOffset={24}
+        showsVerticalScrollIndicator={false}
+        showsHorizontalScrollIndicator={false}
       >
         <View style={styles.brand}>
           <Image
@@ -228,13 +235,13 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
             </Text>
           </PressableScale>
 
-          {error ? (
+          {displayError ? (
             <Text
               accessibilityRole="alert"
               accessibilityLiveRegion="polite"
               style={[styles.error, { color: tokens.danger }]}
             >
-              {error}
+              {displayError}
             </Text>
           ) : null}
 

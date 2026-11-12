@@ -91,6 +91,8 @@ export default function AutomationScreen() {
         <AppHeader onMenu={openDrawer} />
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: tabBarFootprint }]}
+          showsVerticalScrollIndicator={false}
+          showsHorizontalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -175,6 +177,13 @@ export default function AutomationScreen() {
               icon={<CalendarClock size={26} color={tokens.textTertiary} />}
               title={strings.automation.emptyTitle}
               hint={strings.automation.emptyHint}
+              action={{
+                label: strings.automation.retry,
+                onPress: () => {
+                  void load();
+                },
+                testID: 'automation-retry',
+              }}
             />
           ) : null}
         </ScrollView>

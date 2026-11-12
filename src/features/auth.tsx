@@ -25,6 +25,9 @@ interface AuthContextValue {
   baseUrl: string | null;
   token: string | null;
   user: OctopUser | null;
+  /** True after the server rejected a token — LoginScreen shows session_expired. */
+  sessionExpired: boolean;
+  clearSessionExpired: () => void;
   login: (rawBaseUrl: string, username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   /** Thrown errors from login carry a stable code for the UI. */
@@ -57,6 +60,7 @@ export function AuthProvider({
   const [baseUrl, setBaseUrl] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<OctopUser | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   // Token lives in a ref so the client identity is stable across sliding
   // renewals — a new client would tear down live chat sockets mid-turn.
@@ -66,10 +70,20 @@ export function AuthProvider({
   }, [token]);
 
   const dropSession = useCallback(() => {
+    // Only flag "session expired" when a token was actually present — logout
+    // and post-clear 401s must not show that copy on the login screen.
+    const hadSession = tokenRef.current !== null;
     setToken(null);
     setUser(null);
+    if (hadSession) {
+      setSessionExpired(true);
+    }
     void storage.delete(TOKEN_KEY);
   }, [storage]);
+
+  const clearSessionExpired = useCallback(() => {
+    setSessionExpired(false);
+  }, []);
 
   const persistToken = useCallback(
     async (value: string) => {
@@ -88,7 +102,7 @@ export function AuthProvider({
         onTokenRenewed: persistToken,
         onUnauthorized: dropSession,
       }),
-    [baseUrl, storage, persistToken, dropSession],
+    [baseUrl, persistToken, dropSession],
   );
 
   // Restore a persisted session, then validate it against the server.
@@ -219,16 +233,21 @@ export function AuthProvider({
       setBaseUrl(base);
       setToken(result.access_token);
       setUser(result.user);
+      setSessionExpired(false);
     },
     [storage],
   );
 
   const logout = useMemo<AuthContextValue['logout']>(
     () => async () => {
+      // Clear the token first so a subsequent 401 from logout() does not
+      // flip sessionExpired (dropSession only flags when a token was present).
+      tokenRef.current = null;
       void new AuthApi(httpClient).logout().catch(() => undefined);
       await storage.delete(TOKEN_KEY);
       setToken(null);
       setUser(null);
+      setSessionExpired(false);
     },
     [httpClient, storage],
   );
@@ -275,8 +294,18 @@ export function AuthProvider({
   }, [storage, persistToken, dropSession]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ ready, baseUrl, token, user, login, logout, httpClient }),
-    [ready, baseUrl, token, user, login, logout, httpClient],
+    () => ({
+      ready,
+      baseUrl,
+      token,
+      user,
+      sessionExpired,
+      clearSessionExpired,
+      login,
+      logout,
+      httpClient,
+    }),
+    [ready, baseUrl, token, user, sessionExpired, clearSessionExpired, login, logout, httpClient],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
