@@ -1,11 +1,17 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavThemeProvider } from 'expo-router';
+import {
+  DarkTheme,
+  DefaultTheme,
+  Stack,
+  ThemeProvider as NavThemeProvider,
+  usePathname,
+} from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo } from 'react';
-import { ActivityIndicator, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-import { AppDrawer } from '@/components/AppDrawer';
+import { AppDrawer, type DrawerRoute } from '@/components/AppDrawer';
 import { registerLastAgentStore } from '@/app/(tabs)/chat/index';
 import { AuthProvider, useAuth } from '@/features/auth';
 import { LoginScreen } from '@/features/LoginScreen';
@@ -18,15 +24,38 @@ void SplashScreen.preventAutoHideAsync().catch(() => {
   // The splash screen may already be hidden during fast refresh or headless rendering.
 });
 
-function RootNavigator() {
-  const { mode, tokens } = useTheme();
-  const scheme = useColorScheme();
-  const { drawerOpen, closeDrawer, drawerGroups, navigate, loadGroupThreads, openThread } =
-    useAppShell();
-  const { ready, user } = useAuth();
+/** Maps the current path to the drawer row that should read as selected. */
+function drawerRouteFor(pathname: string): DrawerRoute | null {
+  if (pathname.startsWith('/experts')) {
+    return 'experts';
+  }
+  if (pathname.startsWith('/automation')) {
+    return 'automation';
+  }
+  if (pathname === '/' || pathname.startsWith('/chat')) {
+    return 'chat';
+  }
+  return null;
+}
 
-  // 'dark' is an explicit override; otherwise follow the OS scheme.
-  const effectiveDark = mode === 'dark' || scheme === 'dark';
+function RootNavigator() {
+  const { resolvedMode, tokens } = useTheme();
+  const {
+    drawerOpen,
+    drawerPresented,
+    closeDrawer,
+    finishDrawerClose,
+    drawerGroups,
+    navigate,
+    loadGroupThreads,
+    openThread,
+  } = useAppShell();
+  const { ready, user } = useAuth();
+  const pathname = usePathname();
+
+  // The theme provider already resolves `system` against the OS scheme; an
+  // explicit Light/Dark choice must win over the OS setting here too.
+  const effectiveDark = resolvedMode === 'dark';
 
   // Navigation chrome follows the app tokens so overscroll/transition
   // areas never flash a foreign shade.
@@ -64,10 +93,12 @@ function RootNavigator() {
           <Stack
             screenOptions={{ headerShown: false, contentStyle: { backgroundColor: tokens.bg } }}
           />
-          {drawerOpen ? (
+          {drawerPresented ? (
             <AppDrawer
               visible={drawerOpen}
               onClose={closeDrawer}
+              onDismissed={finishDrawerClose}
+              activeRoute={drawerRouteFor(pathname)}
               onNavigate={navigate}
               groups={drawerGroups}
               onGroupPress={loadGroupThreads}

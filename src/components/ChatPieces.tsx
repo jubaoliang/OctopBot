@@ -1,33 +1,40 @@
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { PressableScale } from '@/components/PressableScale';
 import { IconArrowRight, IconChevronSmall, IconGlobe } from '@/components/icons';
 import { useI18n } from '@/i18n/I18nProvider';
-import { useTokens } from '@/theme';
+import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
 
-/** Suggestion pill per design: white surface, radius 8, padding 12/7, arrow 16. */
+/** Suggestion pill per design: white surface, radius 8, trailing arrow — 44pt tall. */
 export function SuggestionPill({ label, onPress }: { label: string; onPress?: () => void }) {
   const t = useTokens();
   return (
-    <Pressable style={[styles.pill, { backgroundColor: t.surface }]} onPress={onPress}>
+    <PressableScale
+      accessibilityRole="button"
+      style={[styles.pill, { backgroundColor: t.surface, shadowColor: t.shadowSoft }]}
+      onPress={onPress}
+    >
       <Text style={[styles.label, { color: t.textBody }]}>{label}</Text>
       <IconArrowRight width={16} height={16} color={t.textBody} />
-    </Pressable>
+    </PressableScale>
   );
 }
 
-/** User bubble per design: 4% overlay, radius 16/16/4/16, padding 14/8, 15/23 text. */
+/** User bubble per design: 4% overlay, tailed corner, body text; long-press to copy. */
 export function UserBubble({ text }: { text: string }) {
   const t = useTokens();
   return (
     <View style={[styles.bubble, { backgroundColor: t.overlaySubtle }]}>
-      <Text style={[styles.bubbleText, { color: t.textBody }]}>{text}</Text>
+      <Text selectable style={[styles.bubbleText, { color: t.textBody }]}>
+        {text}
+      </Text>
     </View>
   );
 }
 
 /**
- * Process summary card per design: 6% hairline borders, padding 8/0, min
- * height 38 — summary text at 60% with a small chevron.
+ * Process summary card per design: 6% hairline borders — summary text at
+ * 60% with a small chevron, one full touch target tall.
  */
 export function ProcessCard({
   tools,
@@ -42,9 +49,12 @@ export function ProcessCard({
   const { t: strings } = useI18n();
   return (
     <Pressable
-      style={[
+      accessibilityRole={onPress ? 'button' : 'text'}
+      disabled={!onPress}
+      style={({ pressed }) => [
         styles.processCard,
         { borderTopColor: t.borderSubtle, borderBottomColor: t.borderSubtle },
+        pressed ? { backgroundColor: t.overlaySubtle } : null,
       ]}
       onPress={onPress}
     >
@@ -56,7 +66,7 @@ export function ProcessCard({
   );
 }
 
-/** Inline code chip per design: 4% overlay, radius 4, padding 8/2, 13/21 at 60%. */
+/** Inline code chip per design: 4% overlay, radius 4, footnote text at 60%. */
 export function CodeChip({ text }: { text: string }) {
   const t = useTokens();
   return (
@@ -66,20 +76,26 @@ export function CodeChip({ text }: { text: string }) {
   );
 }
 
-/** Accent link row per design: globe 16 + 16/24 Medium accent text. */
+/** Accent link row per design: globe 16 + headline-weight accent text. */
 export function LinkRow({ label, onPress }: { label: string; onPress?: () => void }) {
   const t = useTokens();
   return (
-    <Pressable style={styles.linkRow} onPress={onPress}>
+    <PressableScale
+      accessibilityRole="link"
+      dimTo={0.6}
+      scaleTo={1}
+      style={styles.linkRow}
+      onPress={onPress}
+    >
       <IconGlobe width={16} height={16} color={t.accent} />
       <Text style={[styles.linkText, { color: t.accent }]}>{label}</Text>
-    </Pressable>
+    </PressableScale>
   );
 }
 
 /** Artifact image per design: 240×138, radius 8, in a gap-8 row. */
 export function ArtifactImage({ uri }: { uri: string }) {
-  return <Image source={{ uri }} style={styles.artifact} />;
+  return <Image source={{ uri }} accessibilityIgnoresInvertColors style={styles.artifact} />;
 }
 
 const styles = StyleSheet.create({
@@ -88,72 +104,70 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: 8,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    minHeight: layout.hitTarget,
+    borderRadius: radius.pill,
+    ...continuousCorners,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    // Design: drop shadow y 4, radius 20, black 3%.
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    elevation: 1,
   },
   label: {
-    fontSize: 14,
-    lineHeight: 22,
-    fontWeight: '400',
+    ...typeScale.subheadline,
+    flexShrink: 1,
   },
   bubble: {
     alignSelf: 'flex-end',
-    maxWidth: 260,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    borderBottomRightRadius: 4,
-    borderBottomLeftRadius: 16,
+    maxWidth: '82%',
+    borderTopLeftRadius: radius.bubble,
+    borderTopRightRadius: radius.bubble,
+    borderBottomRightRadius: radius.bubbleTail,
+    borderBottomLeftRadius: radius.bubble,
+    ...continuousCorners,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 9,
   },
   bubbleText: {
-    fontSize: 15,
-    lineHeight: 23,
-    fontWeight: '400',
+    ...typeScale.reading,
   },
   processCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: 6,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
     paddingVertical: 8,
-    minHeight: 38,
+    minHeight: layout.hitTarget,
     alignSelf: 'stretch',
   },
   processText: {
-    fontSize: 14,
-    lineHeight: 22,
-    fontWeight: '400',
+    ...typeScale.subheadline,
   },
   codeChip: {
-    borderRadius: 4,
+    borderRadius: radius.chip,
     paddingHorizontal: 8,
     paddingVertical: 2,
     alignSelf: 'flex-start',
   },
   codeText: {
-    fontSize: 13,
-    lineHeight: 21,
-    fontWeight: '400',
+    ...typeScale.footnote,
   },
   linkRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    borderRadius: 8,
-    paddingVertical: 4,
+    gap: 6,
+    minHeight: layout.hitTarget,
     alignSelf: 'flex-start',
   },
   linkText: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '500',
+    ...typeScale.headline,
   },
   artifact: {
     width: 240,
     height: 138,
-    borderRadius: 8,
+    borderRadius: radius.pill,
   },
 });

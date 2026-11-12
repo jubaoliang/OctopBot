@@ -1,17 +1,20 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useEffect, useState, type ReactNode } from 'react';
+import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import Animated, {
   Easing,
   FadeIn,
   FadeInDown,
   FadeOut,
   FadeOutUp,
+  cubicBezier,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import {
   IconChevronDown,
@@ -24,23 +27,24 @@ import {
 } from '@/components/icons';
 import { AgentAvatar } from '@/components/AgentAvatar';
 import { useI18n } from '@/i18n/I18nProvider';
-import { useTokens } from '@/theme';
+import { haptics } from '@/platform/haptics';
+import { continuousCorners, layout, motion, radius, typeScale, useTokens } from '@/theme';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+/** iOS sheet curve — the drawer is a sheet that enters from the leading edge. */
+const EASE_SHEET = Easing.bezier(0.32, 0.72, 0, 1);
 
-/** Chevron with a spring rotation driven by the expand state. */
+/** Where a flick would come to rest (Apple's exponential-decay projection). */
+function project(velocity: number, decelerationRate = 0.998): number {
+  'worklet';
+  return ((velocity / 1000) * decelerationRate) / (1 - decelerationRate);
+}
+
+/** Chevron that turns with the expand state (UI-thread CSS transition). */
 function Chevron({ expanded, color }: { expanded: boolean; color: string }) {
-  const rotate = useSharedValue(expanded ? 0 : -90);
-  // Apple-style spring (duration + dampingRatio), driven from an effect —
-  // never as a side effect of render.
-  useEffect(() => {
-    rotate.value = withSpring(expanded ? 0 : -90, { duration: 200, dampingRatio: 0.8 });
-  }, [expanded, rotate]);
-  const style = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${rotate.value}deg` }],
-  }));
   return (
-    <Animated.View style={style}>
+    <Animated.View
+      style={[chevronTransition, { transform: [{ rotate: expanded ? '0deg' : '-90deg' }] }]}
+    >
       <IconChevronDown width={16} height={16} color={color} />
     </Animated.View>
   );
@@ -48,6 +52,7 @@ function Chevron({ expanded, color }: { expanded: boolean; color: string }) {
 
 export interface DrawerThread {
   threadId: string;
+  /** Server title; empty when the conversation has none yet. */
   title: string;
 }
 
@@ -63,11 +68,18 @@ export interface DrawerTaskGroup {
   color?: string | null;
 }
 
+export type DrawerRoute = 'chat' | 'experts' | 'automation';
+
 interface AppDrawerProps {
+  /** Requested state; the drawer animates toward it. */
   visible: boolean;
   onClose: () => void;
+  /** Fired once the close animation has finished — the parent unmounts then. */
+  onDismissed: () => void;
+  /** The tab the user is on, so the matching nav row is highlighted. */
+  activeRoute: DrawerRoute | null;
   /** Drawer nav mirrors the tab bar routes; Token 统计 is drawer-only. */
-  onNavigate: (route: 'chat' | 'experts' | 'automation') => void;
+  onNavigate: (route: DrawerRoute) => void;
   /** Task tree = agent groups with their threads. */
   groups: DrawerTaskGroup[];
   /** First expand of a group fetches its threads. */
@@ -78,14 +90,28 @@ interface AppDrawerProps {
 
 const PANEL_WIDTH = 313;
 
+// Reanimated CSS transition; not in StyleSheet.create (core style types do
+// not know Reanimated's easing objects).
+const chevronTransition = {
+  transitionProperty: 'transform',
+  transitionDuration: motion.state,
+  transitionTimingFunction: cubicBezier(0.23, 1, 0.32, 1),
+} as const;
+
 /**
  * Left drawer per design: 40% scrim, 313-wide panel on tokens.bg —
  * logo, nav rows (active = 4% overlay pill), 任务 section with agent
- * groups (40px indented children), profile row at the end.
+ * groups (40px indented children).
+ *
+ * One shared value (`progress`, 0 closed → 1 open) drives the panel and the
+ * scrim, whether it is animating or under the finger: swipe left anywhere to
+ * dismiss, and a flick is enough.
  */
 export function AppDrawer({
   visible,
   onClose,
+  onDismissed,
+  activeRoute,
   onNavigate,
   groups,
   onGroupPress,
@@ -95,167 +121,283 @@ export function AppDrawer({
   const { t: strings } = useI18n();
   const insets = useSafeAreaInsets();
   const progress = useSharedValue(0);
+  const dragStart = useSharedValue(0);
+  // True once a close has been committed (by tap, navigation or a swipe).
+  // The pan ignores touches from then on: grabbing a closing drawer and
+  // dragging it back open would leave it on screen while the app believes
+  // it is closed.
+  const closing = useSharedValue(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // Set when the swipe gesture already started the closing spring, so the
+  // `visible` effect does not restart it with a timing curve.
+  const gestureClosing = useRef(false);
 
   useEffect(() => {
-    progress.value = withTiming(visible ? 1 : 0, {
-      duration: 220,
-      easing: Easing.out(Easing.cubic),
-    });
-  }, [visible, progress]);
+    if (visible) {
+      gestureClosing.current = false;
+      closing.set(false);
+      progress.set(withTiming(1, { duration: motion.sheet, easing: EASE_SHEET }));
+      return;
+    }
+    if (gestureClosing.current) {
+      return;
+    }
+    closing.set(true);
+    progress.set(
+      withTiming(0, { duration: 240, easing: EASE_SHEET }, finished => {
+        if (finished) {
+          scheduleOnRN(onDismissed);
+        }
+      }),
+    );
+  }, [visible, progress, closing, onDismissed]);
 
-  // The parent mounts this component only while open, so no display
-  // toggling here — opacity alone drives the fade.
+  // Android hardware back closes the drawer before it leaves the screen.
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      onClose();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [visible, onClose]);
+
+  const closeFromGesture = useCallback(() => {
+    gestureClosing.current = true;
+    haptics.impact('light');
+    onClose();
+  }, [onClose]);
+
+  const pan = usePanGesture({
+    // Declare the axis so vertical scrolling of the task tree always wins.
+    activeOffsetX: [-12, 12],
+    failOffsetY: [-12, 12],
+    onActivate: () => {
+      'worklet';
+      if (closing.get()) {
+        return;
+      }
+      // Continue from where the eye last saw the panel, not from fully open.
+      dragStart.set(progress.get());
+    },
+    onUpdate: event => {
+      'worklet';
+      if (closing.get()) {
+        return;
+      }
+      const next = dragStart.get() + event.translationX / PANEL_WIDTH;
+      progress.set(Math.min(1, Math.max(0, next)));
+    },
+    onDeactivate: event => {
+      'worklet';
+      if (closing.get()) {
+        return;
+      }
+      const velocity = event.velocityX / PANEL_WIDTH;
+      // Decide from the release event itself — the last onUpdate can trail
+      // the finger by a frame or more, which under-reads a quick drag.
+      const released = Math.min(1, Math.max(0, dragStart.get() + event.translationX / PANEL_WIDTH));
+      const projected = released + project(event.velocityX) / PANEL_WIDTH;
+      if (projected < 0.5) {
+        closing.set(true);
+        progress.set(
+          withSpring(
+            0,
+            { duration: motion.sheet, dampingRatio: 1, velocity, overshootClamping: true },
+            finished => {
+              if (finished) {
+                scheduleOnRN(onDismissed);
+              }
+            },
+          ),
+        );
+        scheduleOnRN(closeFromGesture);
+      } else {
+        progress.set(
+          withSpring(1, {
+            duration: motion.sheet,
+            dampingRatio: 1,
+            velocity,
+            overshootClamping: true,
+          }),
+        );
+      }
+    },
+  });
+
   const scrimStyle = useAnimatedStyle(() => ({
-    opacity: progress.value,
+    opacity: progress.get(),
   }));
   const panelStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: -PANEL_WIDTH * (1 - progress.value) }],
+    transform: [{ translateX: -PANEL_WIDTH * (1 - progress.get()) }],
   }));
 
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, scrimStyle, { backgroundColor: t.scrim }]}>
-      <Pressable
-        style={StyleSheet.absoluteFill}
-        onPress={onClose}
-        accessibilityLabel="close menu"
-      />
-      <Animated.View
-        style={[
-          styles.panel,
-          { backgroundColor: t.bg, borderRightColor: t.borderSubtle },
-          panelStyle,
-        ]}
-      >
-        <ScrollView
-          // Pin the content to the panel width — an unconstrained long
-          // thread title otherwise widens the whole content container,
-          // every row with it, and ellipsis never engages.
-          contentContainerStyle={[
-            styles.panelContent,
-            {
-              width: PANEL_WIDTH,
-              // The design's 40pt top padding assumes a flat status bar;
-              // clear the notch/Dynamic Island on notched devices.
-              paddingTop: Math.max(40, insets.top + 8),
-              paddingBottom: Math.max(20, insets.bottom + 16),
-            },
+    <GestureDetector gesture={pan}>
+      <View style={StyleSheet.absoluteFill}>
+        <Animated.View style={[StyleSheet.absoluteFill, scrimStyle, { backgroundColor: t.scrim }]}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel={strings.a11y.closeMenu}
+            testID="drawer-scrim"
+          />
+        </Animated.View>
+        <Animated.View
+          accessibilityViewIsModal
+          style={[
+            styles.panel,
+            { backgroundColor: t.bg, borderRightColor: t.borderSubtle },
+            panelStyle,
           ]}
-          bounces={false}
         >
-          <View style={styles.logoRow}>
-            <LogoHeader width={62} height={21} color={t.textBody} />
-          </View>
-
-          <View style={styles.menuList}>
-            <NavRow
-              icon={<MenuChat width={20} height={20} color={t.textBody} />}
-              label={strings.tabs.chat}
-              active
-              onPress={() => onNavigate('chat')}
-            />
-            <NavRow
-              icon={<MenuExperts width={20} height={20} color={t.textBody} />}
-              label={strings.tabs.experts}
-              onPress={() => onNavigate('experts')}
-            />
-            <NavRow
-              icon={<MenuAutomation width={20} height={20} color={t.textBody} />}
-              label={strings.tabs.automation}
-              onPress={() => onNavigate('automation')}
-            />
-            <NavRow
-              icon={<MenuTokens width={20} height={20} color={t.textBody} />}
-              label={strings.drawer.tokens}
-            />
-          </View>
-
-          {groups.length > 0 ? (
-            <View style={styles.tasksSection}>
-              <View style={styles.tasksHeader}>
-                <View style={styles.tasksHeaderLeft}>
-                  <Text style={[styles.tasksTitle, { color: t.textTertiary }]}>
-                    {strings.drawer.tasks}
-                  </Text>
-                  <IconChevronDown width={16} height={16} color={t.textTertiary} />
-                </View>
-                <IconTaskWindow width={16} height={16} color={t.textTertiary} />
-              </View>
-
-              {groups.map(group => {
-                const expanded = collapsed[group.name] ?? group.expanded;
-                return (
-                  <View key={group.agentId}>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={group.name}
-                      style={[
-                        styles.groupRow,
-                        expanded ? { backgroundColor: t.overlaySubtle, paddingTop: 8 } : null,
-                      ]}
-                      onPress={() => {
-                        setCollapsed(prev => ({ ...prev, [group.name]: !expanded }));
-                        if (!expanded) {
-                          onGroupPress(group);
-                        }
-                      }}
-                    >
-                      <AgentAvatar
-                        name={group.name}
-                        iconName={group.iconName}
-                        color={group.color}
-                        size={20}
-                        fallbackTextSecondary={t.textBody}
-                      />
-                      <Text
-                        style={[styles.groupName, { color: t.textBody }]}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                      >
-                        {group.name}
-                      </Text>
-                      <Chevron expanded={expanded} color={t.textTertiary} />
-                    </Pressable>
-                    {expanded
-                      ? group.items.map((item, index) => (
-                          <AnimatedPressable
-                            key={item.threadId}
-                            accessibilityRole="button"
-                            accessibilityLabel={item.title}
-                            entering={FadeInDown.delay(index * 20).duration(180)}
-                            exiting={FadeOutUp.duration(120)}
-                            style={({ pressed }: { pressed: boolean }) =>
-                              pressed ? styles.childPressed : undefined
-                            }
-                            onPress={() => onThreadPress(group, item)}
-                          >
-                            <Text
-                              style={[styles.childRow, styles.childName, { color: t.textBody }]}
-                              numberOfLines={1}
-                              ellipsizeMode="tail"
-                            >
-                              {item.title}
-                            </Text>
-                          </AnimatedPressable>
-                        ))
-                      : null}
-                    {expanded && group.threadsLoaded && group.items.length === 0 ? (
-                      <Animated.Text
-                        entering={FadeIn.duration(150)}
-                        exiting={FadeOut.duration(100)}
-                        style={[styles.childEmpty, { color: t.textTertiary }]}
-                      >
-                        —
-                      </Animated.Text>
-                    ) : null}
-                  </View>
-                );
-              })}
+          <ScrollView
+            // Pin the content to the panel width — an unconstrained long
+            // thread title otherwise widens the whole content container,
+            // every row with it, and ellipsis never engages.
+            contentContainerStyle={[
+              styles.panelContent,
+              {
+                width: PANEL_WIDTH,
+                // The design's 40pt top padding assumes a flat status bar;
+                // clear the notch/Dynamic Island on notched devices.
+                paddingTop: Math.max(40, insets.top + 8),
+                paddingBottom: Math.max(20, insets.bottom + 16),
+              },
+            ]}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.logoRow}>
+              <LogoHeader width={62} height={21} color={t.textBody} />
             </View>
-          ) : null}
-        </ScrollView>
-      </Animated.View>
-    </Animated.View>
+
+            <View style={styles.menuList}>
+              <NavRow
+                icon={<MenuChat width={20} height={20} color={t.textBody} />}
+                label={strings.tabs.chat}
+                active={activeRoute === 'chat'}
+                onPress={() => onNavigate('chat')}
+              />
+              <NavRow
+                icon={<MenuExperts width={20} height={20} color={t.textBody} />}
+                label={strings.tabs.experts}
+                active={activeRoute === 'experts'}
+                onPress={() => onNavigate('experts')}
+              />
+              <NavRow
+                icon={<MenuAutomation width={20} height={20} color={t.textBody} />}
+                label={strings.tabs.automation}
+                active={activeRoute === 'automation'}
+                onPress={() => onNavigate('automation')}
+              />
+              <NavRow
+                icon={<MenuTokens width={20} height={20} color={t.textBody} />}
+                label={strings.drawer.tokens}
+              />
+            </View>
+
+            {groups.length > 0 ? (
+              <View style={styles.tasksSection}>
+                <View style={styles.tasksHeader}>
+                  <View style={styles.tasksHeaderLeft}>
+                    <Text
+                      accessibilityRole="header"
+                      style={[styles.tasksTitle, { color: t.textTertiary }]}
+                    >
+                      {strings.drawer.tasks}
+                    </Text>
+                    <IconChevronDown width={16} height={16} color={t.textTertiary} />
+                  </View>
+                  <IconTaskWindow width={16} height={16} color={t.textTertiary} />
+                </View>
+
+                {groups.map(group => {
+                  const expanded = collapsed[group.name] ?? group.expanded;
+                  return (
+                    <View key={group.agentId}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={group.name}
+                        accessibilityState={{ expanded }}
+                        style={({ pressed }) => [
+                          styles.groupRow,
+                          expanded ? { backgroundColor: t.overlaySubtle } : null,
+                          pressed ? { backgroundColor: t.overlayPressed } : null,
+                        ]}
+                        onPress={() => {
+                          setCollapsed(prev => ({ ...prev, [group.name]: !expanded }));
+                          if (!expanded) {
+                            onGroupPress(group);
+                          }
+                        }}
+                      >
+                        <AgentAvatar
+                          name={group.name}
+                          iconName={group.iconName}
+                          color={group.color}
+                          size={20}
+                          fallbackTextSecondary={t.textBody}
+                        />
+                        <Text
+                          style={[styles.groupName, { color: t.textBody }]}
+                          numberOfLines={1}
+                          ellipsizeMode="tail"
+                        >
+                          {group.name}
+                        </Text>
+                        <Chevron expanded={expanded} color={t.textTertiary} />
+                      </Pressable>
+                      {expanded
+                        ? group.items.map((item, index) => {
+                            const title = item.title || strings.chat.newThread;
+                            return (
+                              <Animated.View
+                                key={item.threadId}
+                                entering={FadeInDown.delay(index * 20).duration(180)}
+                                exiting={FadeOutUp.duration(120)}
+                              >
+                                <Pressable
+                                  accessibilityRole="button"
+                                  accessibilityLabel={title}
+                                  style={({ pressed }) => [
+                                    styles.childRow,
+                                    pressed ? { backgroundColor: t.overlayPressed } : null,
+                                  ]}
+                                  onPress={() => onThreadPress(group, { ...item, title })}
+                                >
+                                  <Text
+                                    style={[styles.childName, { color: t.textBody }]}
+                                    numberOfLines={1}
+                                    ellipsizeMode="tail"
+                                  >
+                                    {title}
+                                  </Text>
+                                </Pressable>
+                              </Animated.View>
+                            );
+                          })
+                        : null}
+                      {expanded && group.threadsLoaded && group.items.length === 0 ? (
+                        <Animated.Text
+                          entering={FadeIn.duration(150)}
+                          exiting={FadeOut.duration(100)}
+                          style={[styles.childEmpty, { color: t.textTertiary }]}
+                        >
+                          —
+                        </Animated.Text>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
+          </ScrollView>
+        </Animated.View>
+      </View>
+    </GestureDetector>
   );
 }
 
@@ -273,11 +415,20 @@ function NavRow({
   const t = useTokens();
   return (
     <Pressable
-      style={[styles.navRow, active ? { backgroundColor: t.overlaySubtle, borderRadius: 8 } : null]}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active, disabled: !onPress }}
+      disabled={!onPress}
+      style={({ pressed }) => [
+        styles.navRow,
+        active ? { backgroundColor: t.overlaySubtle } : null,
+        pressed ? { backgroundColor: t.overlayPressed } : null,
+      ]}
       onPress={onPress}
     >
       {icon}
-      <Text style={[styles.navLabel, { color: t.textBody }]}>{label}</Text>
+      <Text style={[styles.navLabel, { color: t.textBody }]} numberOfLines={1}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -296,29 +447,32 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   logoRow: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 24,
     paddingBottom: 20,
   },
   menuList: {
     paddingHorizontal: 12,
-    gap: 0,
+    gap: 2,
   },
   navRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    minHeight: layout.rowMinHeight,
+    borderRadius: radius.pill,
+    ...continuousCorners,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   navLabel: {
-    fontSize: 16,
-    lineHeight: 24,
+    ...typeScale.body,
     fontWeight: '500',
+    flex: 1,
   },
   tasksSection: {
     // Design Frame 2147231496: section gap 4; rows carry their own rhythm.
-    marginTop: 8,
-    gap: 4,
+    marginTop: 12,
+    gap: 2,
     paddingHorizontal: 12,
   },
   tasksHeader: {
@@ -327,7 +481,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 12,
     paddingTop: 8,
-    paddingBottom: 4,
+    paddingBottom: 6,
   },
   tasksHeaderLeft: {
     flexDirection: 'row',
@@ -335,50 +489,39 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   tasksTitle: {
-    fontSize: 14,
-    lineHeight: 22,
-    fontWeight: '400',
+    ...typeScale.footnote,
   },
   groupRow: {
-    // Design: pad (12,12,12,8); the expanded group uses (12,8,12,8).
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    borderRadius: 8,
+    minHeight: layout.rowMinHeight,
+    borderRadius: radius.pill,
+    ...continuousCorners,
     paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingVertical: 8,
   },
   groupName: {
     flex: 1,
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '400',
+    ...typeScale.body,
   },
   childRow: {
-    // Design: full-width row (289) with pad (40,8,0,8), plain 16/24 text.
-    // Padding lives on the Text below — guaranteed to render even when the
-    // animated wrapper drops function styles.
-    alignSelf: 'stretch',
-    borderRadius: 8,
-    minHeight: 40,
+    // Design: children indent 40, aligning with the group label
+    // (12 pad + 20 avatar + 8 gap).
+    minHeight: layout.rowMinHeight,
     justifyContent: 'center',
-  },
-  childPressed: {
-    opacity: 0.6,
+    borderRadius: radius.pill,
+    ...continuousCorners,
+    paddingLeft: 40,
+    paddingRight: 12,
+    paddingVertical: 8,
   },
   childEmpty: {
     paddingLeft: 40,
     paddingVertical: 8,
-    fontSize: 16,
-    lineHeight: 24,
+    ...typeScale.callout,
   },
   childName: {
-    paddingLeft: 40,
-    paddingRight: 12,
-    paddingVertical: 8,
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '400',
+    ...typeScale.callout,
   },
 });

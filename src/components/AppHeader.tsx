@@ -1,7 +1,9 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
+import { IconButton } from '@/components/IconButton';
 import { IconHamburger, IconKebab, LogoHeader } from '@/components/icons';
-import { useTokens } from '@/theme';
+import { useI18n } from '@/i18n/I18nProvider';
+import { layout, typeScale, useTokens } from '@/theme';
 
 interface AppHeaderProps {
   /** Center content: app logo (default) or title + optional subtitle. */
@@ -13,78 +15,74 @@ interface AppHeaderProps {
 
 /**
  * Mobile header per design: hamburger / centered logo-or-title / kebab.
- * Frame: 375w, padding 16/8, item gap 24, height 52.
+ * The 20pt glyphs keep the design's 16pt optical margin but sit in 44pt
+ * touch frames (HIG); the bar grows with Dynamic Type instead of clipping.
  */
 export function AppHeader({ title, subtitle, onMenu, onMore }: AppHeaderProps) {
   const t = useTokens();
+  const { t: strings } = useI18n();
 
   return (
     <View style={styles.header}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="menu"
-        onPress={onMenu}
-        hitSlop={12}
-        style={styles.iconButton}
-      >
+      <IconButton label={strings.a11y.menu} testID="header-menu" onPress={onMenu}>
         <IconHamburger width={20} height={20} color={t.textBody} />
-      </Pressable>
+      </IconButton>
 
       {title ? (
         <View style={styles.titleStack}>
-          <Text style={[styles.title, { color: t.textPrimary }]} numberOfLines={1}>
+          <Text
+            accessibilityRole="header"
+            style={[styles.title, { color: t.textPrimary }]}
+            numberOfLines={1}
+            maxFontSizeMultiplier={1.4}
+          >
             {title}
           </Text>
           {subtitle ? (
-            <Text style={[styles.subtitle, { color: t.textTertiary }]} numberOfLines={1}>
+            <Text
+              style={[styles.subtitle, { color: t.textTertiary }]}
+              numberOfLines={1}
+              maxFontSizeMultiplier={1.4}
+            >
               {subtitle}
             </Text>
           ) : null}
         </View>
       ) : (
-        <LogoHeader width={60} height={20} color={t.textBody} />
+        <View accessible accessibilityRole="header" accessibilityLabel={strings.appName}>
+          <LogoHeader width={60} height={20} color={t.textBody} />
+        </View>
       )}
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="more"
-        onPress={onMore}
-        hitSlop={12}
-        style={styles.iconButton}
-      >
+      <IconButton label={strings.a11y.more} testID="header-more" onPress={onMore}>
         <IconKebab width={20} height={20} color={t.textBody} />
-      </Pressable>
+      </IconButton>
     </View>
   );
 }
 
+// Glyph (20) centered in a 44pt frame leaves 12pt inside the frame, so a
+// 4pt bar inset lands the glyph edge on the 16pt screen margin.
+const BAR_INSET = layout.screenMargin - (layout.hitTarget - 20) / 2;
+
 const styles = StyleSheet.create({
   header: {
-    height: 52,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  iconButton: {
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: BAR_INSET,
+    paddingVertical: 4,
+    gap: 8,
   },
   titleStack: {
+    flex: 1,
     alignItems: 'center',
-    gap: 0,
   },
   title: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '500',
+    ...typeScale.headline,
   },
   subtitle: {
-    fontSize: 14,
-    lineHeight: 22,
-    fontWeight: '400',
+    ...typeScale.footnote,
   },
 });

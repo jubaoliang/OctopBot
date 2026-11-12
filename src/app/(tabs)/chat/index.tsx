@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { ChevronDown } from 'lucide-react-native';
 
 import { AppHeader } from '@/components/AppHeader';
@@ -18,12 +19,17 @@ import { useTabBarFootprint } from '@/components/DesignTabBar';
 import { ChatInput } from '@/components/ChatInput';
 import { SuggestionPill } from '@/components/ChatPieces';
 import { AgentAvatar } from '@/components/AgentAvatar';
+import { PressableScale } from '@/components/PressableScale';
 import type { AgentSummary, QuickPrompts } from '@/core/api/types';
 import { AgentsApi } from '@/core/api/agents';
 import { useAuth } from '@/features/auth';
 import { useAppShell } from '@/features/app-shell';
 import { useI18n } from '@/i18n/I18nProvider';
-import { useTokens } from '@/theme';
+import { haptics } from '@/platform/haptics';
+import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
+
+// Module scope: layout-animation builders are not rebuilt per render.
+const PICKER_IN = FadeIn.duration(150);
 
 /** Normalize the server's quick_prompts payload to a flat string list. */
 export function quickPromptList(payload: QuickPrompts, locale: string): string[] {
@@ -119,6 +125,7 @@ export default function ChatHomeScreen() {
   }, [selected?.agent_id, locale, httpClient]);
 
   const pickAgent = useCallback((agent: AgentSummary) => {
+    haptics.selection();
     setSelected(agent);
     setPickerOpen(false);
     void storageSetLastAgent(agent.agent_id);
@@ -153,17 +160,26 @@ export default function ChatHomeScreen() {
               style={styles.mascot}
               resizeMode="contain"
             />
-            <Text style={[styles.greeting, { color: tokens.textPrimary }]}>
+            <Text
+              accessibilityRole="header"
+              style={[styles.greeting, { color: tokens.textPrimary }]}
+            >
               {strings.chatHome.greeting}
             </Text>
 
             {/* Expert selector */}
-            <Pressable
+            <PressableScale
               accessibilityRole="button"
-              accessibilityLabel="select-expert"
-              style={({ pressed }) => [
+              accessibilityLabel={
+                selected
+                  ? `${strings.a11y.selectExpert}, ${selected.name}`
+                  : strings.a11y.selectExpert
+              }
+              accessibilityState={{ expanded: pickerOpen }}
+              testID="select-expert"
+              style={[
                 styles.selector,
-                { backgroundColor: tokens.surface, opacity: pressed ? 0.85 : 1 },
+                { backgroundColor: tokens.surface, shadowColor: tokens.shadowSoft },
               ]}
               onPress={() => setPickerOpen(v => !v)}
             >
@@ -193,15 +209,22 @@ export default function ChatHomeScreen() {
                 </Text>
               )}
               <ChevronDown size={18} color={tokens.textTertiary} />
-            </Pressable>
+            </PressableScale>
             {pickerOpen ? (
-              <View style={[styles.pickerList, { backgroundColor: tokens.surface }]}>
+              <Animated.View
+                entering={PICKER_IN}
+                style={[
+                  styles.pickerList,
+                  { backgroundColor: tokens.surface, borderColor: tokens.borderSubtle },
+                ]}
+              >
                 <ScrollView style={styles.pickerScroll} nestedScrollEnabled>
                   {agents.map(agent => (
                     <Pressable
                       key={agent.agent_id}
-                      accessibilityRole="button"
+                      accessibilityRole="radio"
                       accessibilityLabel={agent.name}
+                      accessibilityState={{ selected: selected?.agent_id === agent.agent_id }}
                       style={({ pressed }) => [
                         styles.pickerRow,
                         {
@@ -210,7 +233,7 @@ export default function ChatHomeScreen() {
                               ? tokens.overlaySubtle
                               : 'transparent',
                         },
-                        pressed ? { opacity: 0.7 } : null,
+                        pressed ? { backgroundColor: tokens.overlayPressed } : null,
                       ]}
                       onPress={() => pickAgent(agent)}
                     >
@@ -236,7 +259,7 @@ export default function ChatHomeScreen() {
                     </Text>
                   ) : null}
                 </ScrollView>
-              </View>
+              </Animated.View>
             ) : null}
 
             <View style={styles.pills}>
@@ -299,36 +322,43 @@ const styles = StyleSheet.create({
     height: 132,
     alignSelf: 'flex-start',
   },
+  // Greeting, selector and pills share one leading edge (12 + 8 = 20pt).
   greeting: {
     marginTop: 6,
-    marginLeft: 11,
-    fontSize: 24,
-    lineHeight: 32,
-    fontWeight: '600',
+    marginHorizontal: 8,
+    ...typeScale.title2,
   },
   selector: {
-    marginTop: 24,
+    marginTop: 20,
     marginLeft: 8,
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    borderRadius: 20,
+    minHeight: layout.hitTarget,
+    borderRadius: layout.hitTarget / 2,
+    ...continuousCorners,
     paddingHorizontal: 12,
     paddingVertical: 8,
     maxWidth: '100%',
+    // Same lift as the suggestion pills below it.
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    elevation: 1,
   },
   selectorName: {
-    fontSize: 16,
-    lineHeight: 24,
+    ...typeScale.callout,
     fontWeight: '500',
     maxWidth: 260,
   },
   pickerList: {
     marginTop: 6,
-    marginLeft: 8,
-    borderRadius: 12,
-    maxHeight: 260,
+    marginHorizontal: 8,
+    borderRadius: radius.card,
+    ...continuousCorners,
+    borderWidth: StyleSheet.hairlineWidth,
+    maxHeight: 264,
     overflow: 'hidden',
   },
   pickerScroll: {
@@ -338,26 +368,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    minHeight: layout.rowMinHeight,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   pickerName: {
     flex: 1,
-    fontSize: 16,
-    lineHeight: 24,
+    ...typeScale.callout,
   },
   pickerEmpty: {
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 14,
+    ...typeScale.subheadline,
   },
   pills: {
-    marginTop: 24,
+    marginTop: 20,
     marginLeft: 8,
+    // Design: 12 between suggestion pills.
     gap: 12,
     alignItems: 'flex-start',
   },
   inputWrap: {
-    paddingHorizontal: 16,
+    paddingHorizontal: layout.screenMargin,
   },
 });

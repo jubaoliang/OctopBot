@@ -9,16 +9,24 @@ import {
 } from 'react';
 import { useRouter } from 'expo-router';
 
-import type { DrawerTaskGroup } from '@/components/AppDrawer';
+import type { DrawerRoute, DrawerTaskGroup } from '@/components/AppDrawer';
 import { ThreadsApi } from '@/core/api/threads';
 import { fetchAgents, useAuth } from '@/features/auth';
 
-export type DrawerRoute = 'chat' | 'experts' | 'automation';
+export type { DrawerRoute };
 
 interface AppShellValue {
+  /** Requested drawer state — the drawer animates toward it. */
   drawerOpen: boolean;
+  /**
+   * True from the moment the drawer opens until its close animation has
+   * finished. Chrome that must not overlap the drawer keys on this.
+   */
+  drawerPresented: boolean;
   openDrawer: () => void;
   closeDrawer: () => void;
+  /** Called by the drawer once its close animation completes. */
+  finishDrawerClose: () => void;
   drawerGroups: DrawerTaskGroup[];
   navigate: (route: DrawerRoute) => void;
   /** Loads an expert's threads into the drawer tree (first expand). */
@@ -33,6 +41,7 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { user, ready, httpClient } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerPresented, setDrawerPresented] = useState(false);
   const [groups, setGroups] = useState<DrawerTaskGroup[]>([]);
 
   // Live agent tree for the drawer: experts with at least one thread,
@@ -62,7 +71,7 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
                 agentId: agent.agent_id,
                 items: threads.map(t => ({
                   threadId: t.thread_id,
-                  title: t.title?.trim() || '新对话',
+                  title: t.title?.trim() ?? '',
                 })),
                 expanded: existing?.expanded ?? false,
                 threadsLoaded: true,
@@ -99,7 +108,7 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
                     threadsLoaded: true,
                     items: threads.map(t => ({
                       threadId: t.thread_id,
-                      title: t.title?.trim() || '新对话',
+                      title: t.title?.trim() ?? '',
                     })),
                   }
                 : g,
@@ -129,11 +138,20 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
     [router],
   );
 
+  const openDrawer = useCallback(() => {
+    setDrawerPresented(true);
+    setDrawerOpen(true);
+  }, []);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const finishDrawerClose = useCallback(() => setDrawerPresented(false), []);
+
   const value = useMemo<AppShellValue>(
     () => ({
       drawerOpen,
-      openDrawer: () => setDrawerOpen(true),
-      closeDrawer: () => setDrawerOpen(false),
+      drawerPresented,
+      openDrawer,
+      closeDrawer,
+      finishDrawerClose,
       // Render-level gate keeps the tree empty when signed out.
       drawerGroups: user ? groups : [],
       navigate: route => {
@@ -145,7 +163,18 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       loadGroupThreads,
       openThread,
     }),
-    [drawerOpen, groups, user, router, loadGroupThreads, openThread],
+    [
+      drawerOpen,
+      drawerPresented,
+      openDrawer,
+      closeDrawer,
+      finishDrawerClose,
+      groups,
+      user,
+      router,
+      loadGroupThreads,
+      openThread,
+    ],
   );
 
   return <AppShellContext.Provider value={value}>{children}</AppShellContext.Provider>;

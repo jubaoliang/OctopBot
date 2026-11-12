@@ -1,4 +1,5 @@
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ChevronRight, Users } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
@@ -6,11 +7,13 @@ import { useRouter } from 'expo-router';
 import { AppHeader } from '@/components/AppHeader';
 import { useTabBarFootprint } from '@/components/DesignTabBar';
 import { AgentAvatar } from '@/components/AgentAvatar';
-import { IconArrowRight } from '@/components/icons';
+import { EmptyState, SkeletonList } from '@/components/ListStates';
+import { PressableScale } from '@/components/PressableScale';
 import type { AgentSummary } from '@/core/api/types';
 import { fetchAgents, useAuth } from '@/features/auth';
 import { useAppShell } from '@/features/app-shell';
-import { useTokens } from '@/theme';
+import { useI18n } from '@/i18n/I18nProvider';
+import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
 
 /**
  * 专家 — the live expert roster. Each card opens a chat with that expert;
@@ -18,6 +21,7 @@ import { useTokens } from '@/theme';
  */
 export default function ExpertsScreen() {
   const tokens = useTokens();
+  const { t: strings } = useI18n();
   const { openDrawer } = useAppShell();
   const { httpClient, user, ready } = useAuth();
   const router = useRouter();
@@ -50,10 +54,10 @@ export default function ExpertsScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <SafeAreaView edges={['top']} style={[styles.safe, { paddingBottom: tabBarFootprint }]}>
+      <SafeAreaView edges={['top']} style={styles.safe}>
         <AppHeader onMenu={openDrawer} />
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingBottom: tabBarFootprint }]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -62,58 +66,64 @@ export default function ExpertsScreen() {
             />
           }
         >
-          {agents.map(agent => (
-            <Pressable
-              key={agent.agent_id}
-              accessibilityRole="button"
-              accessibilityLabel={agent.name}
-              style={({ pressed }) => [
-                styles.card,
-                { backgroundColor: tokens.surface, opacity: pressed ? 0.85 : 1 },
-              ]}
-              onPress={() =>
-                router.push({
-                  pathname: '/chat/[threadId]',
-                  params: { threadId: 'new', agent: agent.agent_id, title: agent.name },
-                })
-              }
-            >
-              <AgentAvatar
-                name={agent.name}
-                iconName={agent.icon_name}
-                color={agent.color}
-                size={44}
-                fallbackTextSecondary={tokens.textSecondary}
-              />
-              <View style={styles.meta}>
-                <Text style={[styles.name, { color: tokens.textPrimary }]} numberOfLines={1}>
-                  {agent.name}
-                </Text>
-                {agent.description ? (
-                  <Text style={[styles.desc, { color: tokens.textSecondary }]} numberOfLines={1}>
-                    {agent.description}
+          {!loaded ? <SkeletonList /> : null}
+          {agents.map(agent => {
+            const running = agent.state === 'running';
+            const status = running ? strings.experts.running : strings.experts.idle;
+            return (
+              <PressableScale
+                key={agent.agent_id}
+                accessibilityRole="button"
+                accessibilityLabel={`${agent.name}, ${status}`}
+                accessibilityHint={agent.description ?? undefined}
+                scaleTo={0.98}
+                style={[styles.card, { backgroundColor: tokens.surface }]}
+                onPress={() =>
+                  router.push({
+                    pathname: '/chat/[threadId]',
+                    params: { threadId: 'new', agent: agent.agent_id, title: agent.name },
+                  })
+                }
+              >
+                <AgentAvatar
+                  name={agent.name}
+                  iconName={agent.icon_name}
+                  color={agent.color}
+                  size={44}
+                  fallbackTextSecondary={tokens.textSecondary}
+                />
+                <View style={styles.meta}>
+                  <Text style={[styles.name, { color: tokens.textPrimary }]} numberOfLines={1}>
+                    {agent.name}
                   </Text>
-                ) : null}
-              </View>
-              <View style={styles.tail}>
-                <View style={[styles.badge, { backgroundColor: tokens.overlaySubtle }]}>
-                  <Text
-                    style={[
-                      styles.badgeText,
-                      {
-                        color: agent.state === 'running' ? tokens.textBody : tokens.textTertiary,
-                      },
-                    ]}
-                  >
-                    {agent.state === 'running' ? '●' : '○'}
-                  </Text>
+                  {agent.description ? (
+                    <Text style={[styles.desc, { color: tokens.textSecondary }]} numberOfLines={2}>
+                      {agent.description}
+                    </Text>
+                  ) : null}
+                  {/* Status is a dot plus a word — never color alone. */}
+                  <View style={styles.status}>
+                    <View
+                      style={[
+                        styles.statusDot,
+                        { backgroundColor: running ? tokens.success : tokens.textPlaceholder },
+                      ]}
+                    />
+                    <Text style={[styles.statusText, { color: tokens.textTertiary }]}>
+                      {status}
+                    </Text>
+                  </View>
                 </View>
-                <IconArrowRight width={16} height={16} color={tokens.textTertiary} />
-              </View>
-            </Pressable>
-          ))}
+                <ChevronRight size={18} color={tokens.textPlaceholder} />
+              </PressableScale>
+            );
+          })}
           {loaded && agents.length === 0 ? (
-            <Text style={[styles.empty, { color: tokens.textTertiary }]}>—</Text>
+            <EmptyState
+              icon={<Users size={26} color={tokens.textTertiary} />}
+              title={strings.experts.emptyTitle}
+              hint={strings.experts.emptyHint}
+            />
           ) : null}
         </ScrollView>
       </SafeAreaView>
@@ -123,9 +133,9 @@ export default function ExpertsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  safe: { flex: 1, paddingTop: 0 },
+  safe: { flex: 1 },
   content: {
-    paddingHorizontal: 16,
+    paddingHorizontal: layout.screenMargin,
     paddingTop: 8,
     gap: 12,
   },
@@ -133,51 +143,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    borderRadius: 12,
+    borderRadius: radius.card,
+    ...continuousCorners,
     padding: 14,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 18,
-    lineHeight: 24,
-    fontWeight: '600',
   },
   meta: {
     flex: 1,
     gap: 2,
   },
   name: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '500',
+    ...typeScale.headline,
   },
   desc: {
-    fontSize: 13,
-    lineHeight: 19,
+    ...typeScale.subheadline,
   },
-  tail: {
+  status: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    marginTop: 2,
   },
-  badge: {
-    borderRadius: 9,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  badgeText: {
-    fontSize: 10,
-    lineHeight: 14,
-  },
-  empty: {
-    textAlign: 'center',
-    marginTop: 32,
-    fontSize: 14,
+  statusText: {
+    ...typeScale.caption1,
   },
 });

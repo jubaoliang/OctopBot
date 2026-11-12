@@ -22,7 +22,9 @@ Official mobile client for [TencentCloud/Octop](https://github.com/TencentCloud/
 ## Design source of truth
 
 - Design file (Ardot): https://ardot.tencent.com/file/745886345003849 — read via the `ardot` MCP server.
-- Screen scope follows the design file. Design tokens (color/typography/spacing) come from the Ardot file, not ad-hoc values.
+- Screen scope follows the design file. Colors, layout and component anatomy come from the Ardot file, not ad-hoc values. The file covers four frames (chat home, thread, drawer ×2) and defines no shared styles or variables; Me, Experts, Automation and Login are undesigned and follow the same tokens.
+- **Metrics follow Apple's Human Interface Guidelines where they differ from the Ardot values** (deliberate divergence): the type ramp in `src/theme/tokens.ts` is the iOS text-style ramp (body 17pt, minimum 11pt) instead of the design's 14–16pt sizes, every touch target is at least 44pt (small glyphs reach it through `hitSlop`), rounded shapes use continuous corners, and settings use the inset-grouped list anatomy. Text sizes come from `typeScale`, never inline numbers.
+- Interaction feedback is one system: `PressableScale` / `IconButton` for press states, `src/platform/haptics.ts` for haptics (one per user action, never the only feedback), and Reduce Motion is honored by every animation.
 
 ## Hard requirements
 

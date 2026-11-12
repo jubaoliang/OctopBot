@@ -7,6 +7,7 @@ import { AppHeader } from '@/components/AppHeader';
 import { useTabBarFootprint } from '@/components/DesignTabBar';
 import { ChatInput } from '@/components/ChatInput';
 import { ProcessCard, UserBubble } from '@/components/ChatPieces';
+import { TypingDots } from '@/components/TypingDots';
 import { readableText, ThreadsApi } from '@/core/api/threads';
 import { balanceStreamingMarkdown } from '@/utils/streaming-markdown';
 import Markdown from 'react-native-markdown-display';
@@ -15,7 +16,11 @@ import { ChatSocket, type ChatConnectionStatus } from '@/core/chat/chat-socket';
 import { useAppShell } from '@/features/app-shell';
 import { useAuth } from '@/features/auth';
 import { useI18n } from '@/i18n/I18nProvider';
-import { useTheme } from '@/theme';
+import { continuousCorners, layout, radius, typeScale, useTheme } from '@/theme';
+
+// The one sanctioned fontFamily: code needs a monospace face, and the
+// markdown library's iOS default (Courier) is a typewriter font.
+const CODE_FONT = Platform.select({ ios: 'Menlo', default: 'monospace' });
 
 interface Turn {
   role: 'user' | 'assistant';
@@ -58,7 +63,8 @@ export default function ThreadScreen() {
   // Markdown typography from the token system — no hardcoded colors.
   const mdStyles = useMemo(
     () => ({
-      body: { color: tokens.textBody, fontSize: 15, lineHeight: 23, fontWeight: '400' as const },
+      body: { color: tokens.textBody, ...typeScale.reading },
+      paragraph: { marginTop: 0, marginBottom: 10 },
       strong: { color: tokens.textPrimary, fontWeight: '600' as const },
       em: { color: tokens.textBody },
       link: { color: tokens.accent },
@@ -66,52 +72,62 @@ export default function ThreadScreen() {
       code_inline: {
         color: tokens.textBody,
         backgroundColor: tokens.overlaySubtle,
-        borderRadius: 4,
+        // The library defaults draw a 1px #CCC border and black table
+        // rules; every border here comes from tokens instead.
+        borderWidth: 0,
+        borderRadius: radius.chip,
         paddingHorizontal: 6,
         paddingVertical: 1,
         fontFamily: undefined,
       },
+      // Fenced code is a text node in this library, so its type size lives
+      // on `fence` itself (13pt mono wraps far less than the 17pt body).
       fence: {
-        backgroundColor: tokens.overlaySubtle,
-        borderRadius: 8,
-        padding: 10,
-        marginVertical: 6,
-      },
-      fence_text: {
         color: tokens.textBody,
-        fontSize: 13,
-        lineHeight: 19,
+        backgroundColor: tokens.overlaySubtle,
+        borderColor: tokens.borderSubtle,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderRadius: radius.pill,
+        ...continuousCorners,
+        padding: 12,
+        marginVertical: 6,
+        ...typeScale.footnote,
+        fontFamily: CODE_FONT,
+      },
+      code_block: {
+        color: tokens.textBody,
+        backgroundColor: tokens.overlaySubtle,
+        borderColor: tokens.borderSubtle,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderRadius: radius.pill,
+        ...continuousCorners,
+        padding: 12,
+        marginVertical: 6,
+        ...typeScale.footnote,
+        fontFamily: CODE_FONT,
       },
       blockquote: {
         backgroundColor: tokens.overlaySubtle,
         borderLeftColor: tokens.borderStrong,
         borderLeftWidth: 3,
-        borderRadius: 4,
-        paddingHorizontal: 10,
+        borderRadius: radius.chip,
+        paddingHorizontal: 12,
         paddingVertical: 6,
       },
       blockquote_text: { color: tokens.textSecondary },
-      heading1: {
-        color: tokens.textPrimary,
-        fontSize: 20,
-        lineHeight: 28,
-        fontWeight: '600' as const,
-      },
-      heading2: {
-        color: tokens.textPrimary,
-        fontSize: 17,
-        lineHeight: 25,
-        fontWeight: '600' as const,
-      },
-      heading3: {
-        color: tokens.textPrimary,
-        fontSize: 15,
-        lineHeight: 23,
-        fontWeight: '600' as const,
-      },
+      heading1: { color: tokens.textPrimary, ...typeScale.title2, marginTop: 8, marginBottom: 6 },
+      heading2: { color: tokens.textPrimary, ...typeScale.title3, marginTop: 8, marginBottom: 6 },
+      heading3: { color: tokens.textPrimary, ...typeScale.headline, marginTop: 6, marginBottom: 4 },
       hr: { backgroundColor: tokens.borderSubtle, height: 1 },
-      table_border: { borderColor: tokens.borderSubtle },
-      table_text: { color: tokens.textBody },
+      table: {
+        borderColor: tokens.borderStrong,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderRadius: radius.pill,
+        marginVertical: 6,
+      },
+      tr: { borderColor: tokens.borderStrong, borderBottomWidth: StyleSheet.hairlineWidth },
+      th: { padding: 8 },
+      td: { padding: 8 },
     }),
     [tokens],
   );
@@ -328,6 +344,9 @@ export default function ThreadScreen() {
             onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
             style={styles.scroll}
             contentContainerStyle={styles.content}
+            // Drag the transcript to put the keyboard away, as in Messages.
+            keyboardDismissMode="interactive"
+            keyboardShouldPersistTaps="handled"
           >
             {turns.map((turn, index) =>
               turn.role === 'user' ? (
@@ -350,7 +369,7 @@ export default function ThreadScreen() {
               </Text>
             ) : null}
             {streaming && (turns.length === 0 || turns[turns.length - 1].role === 'user') ? (
-              <Text style={[styles.hintText, { color: tokens.textTertiary }]}>···</Text>
+              <TypingDots label={strings.chat.replying} />
             ) : null}
           </ScrollView>
           <View style={styles.inputWrap}>
@@ -400,8 +419,8 @@ const styles = StyleSheet.create({
   safe: { flex: 1, paddingTop: 0 },
   scroll: { flex: 1 },
   content: {
-    paddingHorizontal: 16,
-    paddingTop: 33,
+    paddingHorizontal: layout.screenMargin,
+    paddingTop: 24,
     gap: 20,
     paddingBottom: 24,
   },
@@ -409,8 +428,9 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
   hintText: {
-    fontSize: 14,
-    lineHeight: 22,
+    ...typeScale.subheadline,
+    textAlign: 'center',
+    marginTop: 24,
   },
-  inputWrap: { paddingHorizontal: 16 },
+  inputWrap: { paddingHorizontal: layout.screenMargin },
 });

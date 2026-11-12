@@ -1,12 +1,14 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PressableScale } from '@/components/PressableScale';
 import { TabAutomation, TabChat, TabExperts, TabMe } from '@/components/icons';
 import { useI18n } from '@/i18n/I18nProvider';
 import { useAppShell } from '@/features/app-shell';
 import { GlassSurface } from '@/platform/glass';
-import { useTokens } from '@/theme';
+import { haptics } from '@/platform/haptics';
+import { continuousCorners, typeScale, useTokens } from '@/theme';
 
 // All tab glyphs live in 24×24 design frames — render the boxes uniformly;
 // each SVG centers its own glyph exactly like the design frames.
@@ -48,12 +50,12 @@ export function DesignTabBar({
   const { t: strings } = useI18n();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { drawerOpen } = useAppShell();
+  const { drawerPresented } = useAppShell();
   const bottomOffset = Math.max(insets.bottom, 12) + 4;
 
-  // Native glass layers above the drawer overlay; hide the bar while the
-  // drawer covers the screen so it never floats over drawer content.
-  if (drawerOpen) {
+  // Native glass layers above the drawer overlay; hide the bar until the
+  // drawer has fully animated out so it never floats over drawer content.
+  if (drawerPresented) {
     return null;
   }
 
@@ -75,15 +77,14 @@ export function DesignTabBar({
           const fg = isActive ? t.accent : t.textPlaceholder;
 
           return (
-            <Pressable
+            <PressableScale
               key={route.key}
               accessibilityRole="tab"
+              accessibilityLabel={label}
               accessibilityState={{ selected: isActive }}
-              style={({ pressed }) => [
-                styles.item,
-                isActive ? { backgroundColor: t.accentSoft } : null,
-                pressed ? { opacity: 0.6 } : null,
-              ]}
+              testID={`tab-${name}`}
+              scaleTo={0.94}
+              style={[styles.item, isActive ? { backgroundColor: t.accentSoft } : null]}
               onPress={() => {
                 // Re-tapping the active tab pops its stack to the tab root;
                 // at the root there is nothing to pop and an unguarded
@@ -93,6 +94,8 @@ export function DesignTabBar({
                     router.back();
                   }
                 } else {
+                  // Same frame as the visual change (HIG: selection feedback).
+                  haptics.selection();
                   navigateToTab(route.key);
                 }
               }}
@@ -100,10 +103,15 @@ export function DesignTabBar({
               <View style={styles.iconBox}>
                 <meta.Icon width={meta.w} height={meta.h} color={fg} />
               </View>
-              <Text style={[styles.label, { color: fg, fontWeight: isActive ? '600' : '500' }]}>
+              <Text
+                style={[styles.label, { color: fg, fontWeight: isActive ? '600' : '500' }]}
+                numberOfLines={1}
+                // Bar chrome stays compact; the label is also the a11y label.
+                maxFontSizeMultiplier={1.2}
+              >
                 {label}
               </Text>
-            </Pressable>
+            </PressableScale>
           );
         })}
       </GlassSurface>
@@ -122,6 +130,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     minHeight: PILL_HEIGHT,
     borderRadius: 30,
+    ...continuousCorners,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
@@ -138,8 +147,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
+    minHeight: 48,
     borderRadius: 24,
-    paddingVertical: 8,
+    ...continuousCorners,
+    paddingVertical: 6,
   },
   iconBox: {
     width: 24,
@@ -148,7 +159,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   label: {
-    fontSize: 10,
-    lineHeight: 14,
+    ...typeScale.caption2,
   },
 });

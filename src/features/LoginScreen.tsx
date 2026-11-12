@@ -1,4 +1,5 @@
 import {
+  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -10,10 +11,13 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useEffect, useState } from 'react';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRef, useState, type ComponentRef } from 'react';
+import Animated, { Easing, SlideInDown } from 'react-native-reanimated';
 
 import { Eye, EyeOff } from 'lucide-react-native';
+import { IconButton } from '@/components/IconButton';
+import { PressableScale } from '@/components/PressableScale';
 import { AuthApi } from '@/core/api/auth';
 import { OctopApiError } from '@/core/api/errors';
 import { HttpClient } from '@/core/api/http';
@@ -27,9 +31,13 @@ import {
 import { type SecureStorage } from '@/platform/secure-storage';
 import { LoginFlowError, useAuth } from '@/features/auth';
 import { useI18n } from '@/i18n/I18nProvider';
-import { useTheme } from '@/theme';
+import { haptics } from '@/platform/haptics';
+import { continuousCorners, layout, motion, radius, typeScale, useTheme } from '@/theme';
 
 type Field = 'url' | 'username' | 'password';
+
+// The server sheet rises on the iOS sheet curve while the scrim fades.
+const SHEET_IN = SlideInDown.duration(motion.sheet).easing(Easing.bezier(0.32, 0.72, 0, 1));
 
 /**
  * Sign-in per the original login design: brand block, server URL +
@@ -40,6 +48,9 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
   const { tokens } = useTheme();
   const { t: strings, locale } = useI18n();
   const { login, baseUrl } = useAuth();
+  const insets = useSafeAreaInsets();
+  const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
+  const [focused, setFocused] = useState<Field | 'modalUrl' | null>(null);
 
   const [url, setUrl] = useState(baseUrl ?? '');
   const [username, setUsername] = useState('');
@@ -51,55 +62,57 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [history, setHistory] = useState<ServerEntry[]>([]);
 
-  // Pre-fill + auto-test when the sheet opens, so a reachable server shows
-  // the latency immediately and an unreachable one is diagnosed up front.
-  useEffect(() => {
-    if (!serverModal) {
-      return;
+  const testServer = async (rawUrl: string) => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const base = normalizeBaseUrl(rawUrl.trim());
+      const started = Date.now();
+      const client = new HttpClient({
+        baseUrl: base,
+        getToken: () => Promise.resolve(null),
+        onTokenRenewed: () => Promise.resolve(),
+        onUnauthorized: () => undefined,
+      });
+      await new AuthApi(client).health();
+      setTestResult({
+        ok: true,
+        message: `${strings.login.testOk} (${Date.now() - started}ms)`,
+      });
+    } catch (e) {
+      const code =
+        e instanceof OctopApiError && e.code === 'NETWORK_ERROR' ? 'unreachable' : 'invalid_url';
+      setTestResult({ ok: false, message: strings.login.errors[code] });
+    } finally {
+      setTesting(false);
     }
+  };
+
+  // Opening the sheet pre-fills the URL, loads the server history and
+  // tests straight away, so a reachable server shows its latency at once
+  // and an unreachable one is diagnosed up front.
+  const openServerSheet = () => {
+    setModalUrl(url);
+    setTestResult(null);
+    setServerModal(true);
     void storage
       ?.get('servers.history')
       .then(raw => setHistory(parseServerList(raw)))
       .catch(() => undefined);
-    if (!modalUrl.trim()) {
-      return;
+    if (url.trim()) {
+      void testServer(url);
     }
-    void (async () => {
-      // Async continuation keeps setState out of the effect body.
-      setTesting(true);
-      setTestResult(null);
-      try {
-        const base = normalizeBaseUrl(modalUrl.trim());
-        const started = Date.now();
-        const client = new HttpClient({
-          baseUrl: base,
-          getToken: () => Promise.resolve(null),
-          onTokenRenewed: () => Promise.resolve(),
-          onUnauthorized: () => undefined,
-        });
-        await new AuthApi(client).health();
-        setTestResult({
-          ok: true,
-          message: `${strings.login.testOk} (${Date.now() - started}ms)`,
-        });
-      } catch (e) {
-        const code =
-          e instanceof OctopApiError && e.code === 'NETWORK_ERROR' ? 'unreachable' : 'invalid_url';
-        setTestResult({ ok: false, message: strings.login.errors[code] });
-      } finally {
-        setTesting(false);
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverModal]);
+  };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fieldStyle = {
+  // The focused field trades its hairline for the accent, so the caret is
+  // never the only sign of where typing will land.
+  const fieldStyle = (field: Field | 'modalUrl') => ({
     backgroundColor: tokens.overlaySubtle,
-    borderColor: tokens.borderStrong,
+    borderColor: focused === field ? tokens.accent : tokens.borderStrong,
     color: tokens.textBody,
-  };
+  });
 
   const submit = () => {
     if (busy) {
@@ -108,7 +121,9 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
     setError(null);
     setBusy(true);
     void login(url.trim(), username.trim(), password)
+      .then(() => haptics.notify('success'))
       .catch((e: unknown) => {
+        haptics.notify('error');
         if (e instanceof LoginFlowError) {
           setError(strings.login.errors[e.code]);
         } else {
@@ -149,9 +164,19 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
               value={username}
               onChangeText={setUsername}
               testID="login-username"
+              accessibilityLabel={strings.login.username}
               autoCapitalize="none"
               autoCorrect={false}
-              style={[styles.field, fieldStyle]}
+              // Lets the system offer saved credentials (Password AutoFill).
+              autoComplete="username"
+              textContentType="username"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+              onFocus={() => setFocused('username')}
+              onBlur={() => setFocused(null)}
+              selectionColor={tokens.accent}
+              style={[styles.field, fieldStyle('username')]}
             />
 
             <Text style={[styles.label, { color: tokens.textSecondary }]}>
@@ -159,53 +184,71 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
             </Text>
             <View style={styles.fieldWrap}>
               <TextInput
+                ref={passwordRef}
                 value={password}
                 onChangeText={setPassword}
                 testID="login-password"
+                accessibilityLabel={strings.login.password}
                 secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="current-password"
+                textContentType="password"
+                returnKeyType="go"
                 onSubmitEditing={submit}
-                style={[styles.field, styles.fieldWithIcon, fieldStyle]}
+                onFocus={() => setFocused('password')}
+                onBlur={() => setFocused(null)}
+                selectionColor={tokens.accent}
+                style={[styles.field, styles.fieldWithIcon, fieldStyle('password')]}
               />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={showPassword ? 'hide-password' : 'show-password'}
-                onPress={() => setShowPassword(v => !v)}
-                style={styles.fieldIcon}
-              >
-                {showPassword ? (
-                  <EyeOff width={20} height={20} color={tokens.textTertiary} />
-                ) : (
-                  <Eye width={20} height={20} color={tokens.textTertiary} />
-                )}
-              </Pressable>
+              <View style={styles.fieldIcon}>
+                <IconButton
+                  label={showPassword ? strings.a11y.hidePassword : strings.a11y.showPassword}
+                  testID="login-toggle-password"
+                  onPress={() => setShowPassword(v => !v)}
+                >
+                  {showPassword ? (
+                    <EyeOff width={20} height={20} color={tokens.textTertiary} />
+                  ) : (
+                    <Eye width={20} height={20} color={tokens.textTertiary} />
+                  )}
+                </IconButton>
+              </View>
             </View>
 
-            <Pressable
+            <PressableScale
               accessibilityRole="button"
-              accessibilityLabel="login-submit"
+              accessibilityLabel={busy ? strings.login.signingIn : strings.login.signIn}
+              accessibilityState={{ busy, disabled: busy }}
+              testID="login-submit"
               disabled={busy}
               onPress={submit}
               style={[styles.signIn, { backgroundColor: tokens.accent, opacity: busy ? 0.6 : 1 }]}
             >
+              {busy ? <ActivityIndicator size="small" color={tokens.textInverse} /> : null}
               <Text style={[styles.signInText, { color: tokens.textInverse }]}>
                 {busy ? strings.login.signingIn : strings.login.signIn}
               </Text>
-            </Pressable>
+            </PressableScale>
 
-            {error ? <Text style={[styles.error, { color: tokens.danger }]}>{error}</Text> : null}
+            {error ? (
+              <Text
+                accessibilityRole="alert"
+                accessibilityLiveRegion="polite"
+                style={[styles.error, { color: tokens.danger }]}
+              >
+                {error}
+              </Text>
+            ) : null}
 
             <Text style={[styles.note, { color: tokens.textTertiary }]}>{strings.login.note}</Text>
           </View>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="login-server"
+            accessibilityLabel={`${strings.login.serverUrl}, ${url || strings.login.serverPlaceholder}`}
             testID="login-server"
-            onPress={() => {
-              setModalUrl(url);
-              setTestResult(null);
-              setServerModal(true);
-            }}
-            style={{ alignSelf: 'center', paddingVertical: 6 }}
+            onPress={openServerSheet}
+            style={({ pressed }) => [styles.serverButton, pressed ? styles.dimmed : null]}
           >
             <Text style={[styles.serverLink, { color: tokens.textTertiary }]} numberOfLines={1}>
               {url || strings.login.serverPlaceholder}
@@ -222,154 +265,162 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
         animationType="fade"
         onRequestClose={() => setServerModal(false)}
       >
-        <Pressable
-          style={[styles.modalScrim, { backgroundColor: tokens.scrim }]}
-          onPress={() => setServerModal(false)}
+        {/* The sheet has its own keyboard avoidance: a Modal is a separate
+            window, so the screen's KeyboardAvoidingView does not reach it. */}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
         >
           <Pressable
-            style={[styles.modalCard, { backgroundColor: tokens.surface }]}
-            onPress={e => e.stopPropagation()}
+            accessibilityLabel={strings.login.cancel}
+            style={[styles.modalScrim, { backgroundColor: tokens.scrim }]}
+            onPress={() => setServerModal(false)}
           >
-            <View style={[styles.modalHandle, { backgroundColor: tokens.borderStrong }]} />
-            <Text style={[styles.modalTitle, { color: tokens.textPrimary }]}>
-              {strings.login.serverUrl}
-            </Text>
-            {history.length > 0 ? (
-              <View style={[styles.historyCard, { backgroundColor: tokens.overlaySubtle }]}>
-                {history.map(entry => (
-                  <Pressable
-                    key={entry.url}
+            <Animated.View entering={SHEET_IN}>
+              <Pressable
+                accessible={false}
+                style={[
+                  styles.modalCard,
+                  {
+                    backgroundColor: tokens.surface,
+                    paddingBottom: Math.max(insets.bottom + 12, 24),
+                  },
+                ]}
+                onPress={e => e.stopPropagation()}
+              >
+                <View style={[styles.modalHandle, { backgroundColor: tokens.borderStrong }]} />
+                <Text
+                  accessibilityRole="header"
+                  style={[styles.modalTitle, { color: tokens.textPrimary }]}
+                >
+                  {strings.login.serverUrl}
+                </Text>
+                {history.length > 0 ? (
+                  <View style={[styles.historyCard, { backgroundColor: tokens.overlaySubtle }]}>
+                    {history.map(entry => (
+                      <Pressable
+                        key={entry.url}
+                        accessibilityRole="button"
+                        style={({ pressed }) => [
+                          styles.historyRow,
+                          pressed ? { backgroundColor: tokens.overlayPressed } : null,
+                        ]}
+                        onPress={() => {
+                          setModalUrl(entry.url);
+                          setTestResult(null);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.historyLabel,
+                            { color: entry.label ? tokens.textBody : tokens.textSecondary },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {entry.label ?? entry.url}
+                        </Text>
+                        {entry.label ? (
+                          <Text
+                            style={[styles.historyUrl, { color: tokens.textTertiary }]}
+                            numberOfLines={1}
+                            ellipsizeMode="middle"
+                          >
+                            {entry.url}
+                          </Text>
+                        ) : null}
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+                <TextInput
+                  value={modalUrl}
+                  onChangeText={setModalUrl}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                  accessibilityLabel={strings.login.serverUrl}
+                  autoComplete="url"
+                  textContentType="URL"
+                  returnKeyType="done"
+                  placeholder="https://octop.example.com"
+                  placeholderTextColor={tokens.textPlaceholder}
+                  onFocus={() => setFocused('modalUrl')}
+                  onBlur={() => setFocused(null)}
+                  selectionColor={tokens.accent}
+                  style={[styles.field, fieldStyle('modalUrl')]}
+                />
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityState={{ busy: testing, disabled: testing || !modalUrl.trim() }}
+                  disabled={testing || !modalUrl.trim()}
+                  onPress={() => void testServer(modalUrl)}
+                  style={[
+                    styles.testButton,
+                    { borderColor: tokens.borderStrong },
+                    testing || !modalUrl.trim() ? styles.dimmed : null,
+                  ]}
+                >
+                  {testing ? <ActivityIndicator size="small" color={tokens.textSecondary} /> : null}
+                  <Text style={[styles.testButtonText, { color: tokens.textBody }]}>
+                    {testing ? strings.login.testing : strings.login.testConnection}
+                  </Text>
+                </PressableScale>
+                {testResult ? (
+                  <Text
+                    accessibilityLiveRegion="polite"
+                    style={[
+                      styles.testResult,
+                      { color: testResult.ok ? tokens.success : tokens.danger },
+                    ]}
+                  >
+                    {testResult.message}
+                  </Text>
+                ) : null}
+                <View style={styles.modalActions}>
+                  <PressableScale
                     accessibilityRole="button"
-                    style={({ pressed }) => [styles.historyRow, { opacity: pressed ? 0.6 : 1 }]}
+                    accessibilityState={{ disabled: !modalUrl.trim() }}
+                    style={[
+                      styles.sheetButton,
+                      { backgroundColor: tokens.accent },
+                      modalUrl.trim() ? null : styles.dimmed,
+                    ]}
+                    disabled={!modalUrl.trim()}
                     onPress={() => {
-                      setModalUrl(entry.url);
-                      setTestResult(null);
+                      const trimmed = normalizeBaseUrl(modalUrl.trim());
+                      setUrl(trimmed);
+                      void storage
+                        ?.get('servers.history')
+                        .then(raw => {
+                          const list = upsertServer(parseServerList(raw), trimmed);
+                          return storage
+                            ?.set('servers.history', serializeServerList(list))
+                            .then(() => setHistory(list));
+                        })
+                        .catch(() => undefined);
+                      setServerModal(false);
                     }}
                   >
-                    <Text
-                      style={[
-                        styles.historyLabel,
-                        { color: entry.label ? tokens.textBody : tokens.textSecondary },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {entry.label ?? entry.url}
+                    <Text style={[styles.sheetButtonText, { color: tokens.textInverse }]}>
+                      {strings.login.save}
                     </Text>
-                    {entry.label ? (
-                      <Text
-                        style={[styles.historyUrl, { color: tokens.textTertiary }]}
-                        numberOfLines={1}
-                        ellipsizeMode="middle"
-                      >
-                        {entry.url}
-                      </Text>
-                    ) : null}
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
-            <TextInput
-              value={modalUrl}
-              onChangeText={setModalUrl}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              placeholder="https://octop.example.com"
-              placeholderTextColor={tokens.textPlaceholder}
-              style={[styles.field, fieldStyle]}
-            />
-            <Pressable
-              accessibilityRole="button"
-              disabled={testing}
-              onPress={() => {
-                setTesting(true);
-                setTestResult(null);
-                void (async () => {
-                  try {
-                    const base = normalizeBaseUrl(modalUrl.trim());
-                    const started = Date.now();
-                    const client = new HttpClient({
-                      baseUrl: base,
-                      getToken: () => Promise.resolve(null),
-                      onTokenRenewed: () => Promise.resolve(),
-                      onUnauthorized: () => undefined,
-                    });
-                    await new AuthApi(client).health();
-                    setTestResult({
-                      ok: true,
-                      message: `${strings.login.testOk} (${Date.now() - started}ms)`,
-                    });
-                  } catch (e) {
-                    const code =
-                      e instanceof OctopApiError && e.code === 'NETWORK_ERROR'
-                        ? 'unreachable'
-                        : 'invalid_url';
-                    setTestResult({ ok: false, message: strings.login.errors[code] });
-                  } finally {
-                    setTesting(false);
-                  }
-                })();
-              }}
-              style={[
-                styles.testButton,
-                { borderColor: tokens.borderStrong },
-                testing ? { opacity: 0.6 } : null,
-              ]}
-            >
-              <Text style={[styles.testButtonText, { color: tokens.textBody }]}>
-                {testing ? strings.login.testing : strings.login.testConnection}
-              </Text>
-            </Pressable>
-            {testResult ? (
-              <Text
-                style={[
-                  styles.testResult,
-                  { color: testResult.ok ? tokens.textBody : tokens.danger },
-                ]}
-              >
-                {testResult.message}
-              </Text>
-            ) : null}
-            <View style={styles.modalActions}>
-              <Pressable
-                accessibilityRole="button"
-                style={[
-                  styles.sheetButton,
-                  { backgroundColor: tokens.overlaySubtle },
-                  modalUrl.trim() ? null : { opacity: 0.5 },
-                ]}
-                disabled={!modalUrl.trim()}
-                onPress={() => {
-                  const trimmed = normalizeBaseUrl(modalUrl.trim());
-                  setUrl(trimmed);
-                  void storage
-                    ?.get('servers.history')
-                    .then(raw => {
-                      const list = upsertServer(parseServerList(raw), trimmed);
-                      return storage
-                        ?.set('servers.history', serializeServerList(list))
-                        .then(() => setHistory(list));
-                    })
-                    .catch(() => undefined);
-                  setServerModal(false);
-                }}
-              >
-                <Text style={[styles.sheetButtonText, { color: tokens.textBody }]}>
-                  {strings.login.save}
-                </Text>
+                  </PressableScale>
+                  <PressableScale
+                    accessibilityRole="button"
+                    onPress={() => setServerModal(false)}
+                    scaleTo={1}
+                    dimTo={0.6}
+                    style={styles.sheetButton}
+                  >
+                    <Text style={[styles.sheetButtonText, { color: tokens.textSecondary }]}>
+                      {strings.login.cancel}
+                    </Text>
+                  </PressableScale>
+                </View>
               </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setServerModal(false)}
-                style={styles.sheetButton}
-              >
-                <Text style={[styles.sheetButtonText, { color: tokens.textSecondary }]}>
-                  {strings.login.cancel}
-                </Text>
-              </Pressable>
-            </View>
+            </Animated.View>
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -377,6 +428,8 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
 
 /** Exposed for tests: field keys in visual order. */
 export const LOGIN_FIELD_ORDER: Field[] = ['url', 'username', 'password'];
+
+const FIELD_HEIGHT = 52;
 
 const styles = StyleSheet.create({
   content: {
@@ -394,143 +447,156 @@ const styles = StyleSheet.create({
     height: 68,
   },
   brandName: {
-    fontSize: 34,
-    lineHeight: 41,
-    fontWeight: '600',
+    ...typeScale.largeTitle,
   },
   tagline: {
-    fontSize: 15,
-    lineHeight: 22,
+    ...typeScale.subheadline,
   },
   form: {
     gap: 12,
     marginTop: 40,
   },
   label: {
-    fontSize: 13,
-    lineHeight: 18,
+    ...typeScale.footnote,
     fontWeight: '500',
   },
   field: {
-    height: 52,
-    borderRadius: 12,
+    // minHeight, not height: the field grows with Dynamic Type.
+    minHeight: FIELD_HEIGHT,
+    borderRadius: radius.input,
+    ...continuousCorners,
     borderWidth: 1,
     paddingHorizontal: 16,
-    fontSize: 16,
+    paddingVertical: 12,
+    ...typeScale.body,
+    // A set lineHeight clips the caret in single-line iOS fields.
+    lineHeight: undefined,
   },
   fieldWrap: {
     justifyContent: 'center',
   },
   fieldWithIcon: {
-    paddingRight: 48,
+    paddingRight: 52,
   },
   fieldIcon: {
     position: 'absolute',
-    right: 14,
-    height: 52,
+    right: 4,
+    top: 0,
+    bottom: 0,
     justifyContent: 'center',
   },
+  serverButton: {
+    alignSelf: 'center',
+    minHeight: layout.hitTarget,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    marginTop: 4,
+  },
   serverLink: {
-    fontSize: 12,
-    lineHeight: 17,
+    ...typeScale.footnote,
     textAlign: 'center',
     textDecorationLine: 'underline',
     maxWidth: 280,
+  },
+  dimmed: {
+    opacity: 0.5,
   },
   modalScrim: {
     flex: 1,
     justifyContent: 'flex-end',
   },
   modalCard: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
+    ...continuousCorners,
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 32,
+    paddingTop: 8,
     gap: 12,
   },
   modalHandle: {
     alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: 2,
+    width: 36,
+    height: 5,
+    borderRadius: 2.5,
     marginBottom: 8,
   },
   historyCard: {
-    borderRadius: 12,
+    borderRadius: radius.card,
+    ...continuousCorners,
     overflow: 'hidden',
   },
   historyRow: {
+    minHeight: layout.rowMinHeight,
+    justifyContent: 'center',
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 10,
     gap: 2,
   },
   historyLabel: {
-    fontSize: 15,
-    lineHeight: 22,
+    ...typeScale.subheadline,
   },
   historyUrl: {
-    fontSize: 12,
-    lineHeight: 16,
+    ...typeScale.caption1,
   },
   modalTitle: {
-    fontSize: 17,
-    lineHeight: 24,
-    fontWeight: '600',
+    ...typeScale.headline,
   },
   testButton: {
+    flexDirection: 'row',
+    gap: 8,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: radius.input,
+    ...continuousCorners,
     alignItems: 'center',
-    paddingVertical: 12,
+    justifyContent: 'center',
+    minHeight: layout.hitTarget,
+    paddingVertical: 11,
   },
   testButtonText: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  testResult: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  modalActions: {
-    gap: 10,
-  },
-  sheetButton: {
-    borderRadius: 12,
-    alignItems: 'center',
-    paddingVertical: 14,
-  },
-  sheetButtonText: {
-    fontSize: 16,
-    lineHeight: 24,
+    ...typeScale.subheadline,
     fontWeight: '500',
   },
+  testResult: {
+    ...typeScale.footnote,
+  },
+  modalActions: {
+    gap: 6,
+  },
+  sheetButton: {
+    borderRadius: radius.input,
+    ...continuousCorners,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 50,
+    paddingVertical: 12,
+  },
+  sheetButtonText: {
+    ...typeScale.headline,
+  },
   signIn: {
-    height: 52,
-    borderRadius: 12,
+    flexDirection: 'row',
+    gap: 8,
+    minHeight: FIELD_HEIGHT,
+    borderRadius: radius.input,
+    ...continuousCorners,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 12,
   },
   signInText: {
-    fontSize: 16,
-    lineHeight: 22,
-    fontWeight: '600',
+    ...typeScale.headline,
   },
   error: {
-    fontSize: 13,
-    lineHeight: 18,
+    ...typeScale.footnote,
   },
   note: {
-    fontSize: 12,
-    lineHeight: 17,
+    ...typeScale.caption1,
     textAlign: 'center',
     marginTop: 8,
   },
   footer: {
-    fontSize: 11,
-    lineHeight: 15,
+    ...typeScale.caption2,
     textAlign: 'center',
-    marginTop: 24,
+    marginTop: 16,
   },
 });

@@ -1,6 +1,7 @@
 # Smoke: design UI — chat home, thread view, drawer.
 # Dev client dev.octop.octopbot with Metro on :8081 (adb reverse tcp:8081).
-# Selectors are exact-match Chinese strings from the Ardot design file.
+# Selectors are exact-match Chinese strings from the Ardot design file;
+# icon-only controls are addressed by testID (their labels are localized).
 appId: dev.octop.octopbot
 ---
 - launchApp
@@ -16,9 +17,11 @@ appId: dev.octop.octopbot
 # Back home via tab, then open the drawer
 - tapOn: '对话'
 - assertVisible: '嗨！你专属的智能伙伴来啦'
-- tapOn: 'menu'
+- tapOn:
+    id: 'header-menu'
 - assertVisible: '任务'
 - assertVisible: '通用技能'
 - assertVisible: '系统医生'
-- tapOn: 'close menu'
+- tapOn:
+    id: 'drawer-scrim'
 - assertVisible: '嗨！你专属的智能伙伴来啦'

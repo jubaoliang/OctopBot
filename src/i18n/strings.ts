@@ -4,6 +4,17 @@ const zh = {
   appName: 'Octop',
   tabs: { chat: '对话', experts: '专家', automation: '自动化', me: '我的' },
   drawer: { tokens: 'Token 统计', tasks: '任务' },
+  a11y: {
+    menu: '菜单',
+    more: '更多',
+    closeMenu: '关闭菜单',
+    attach: '添加附件',
+    voice: '语音输入',
+    send: '发送',
+    showPassword: '显示密码',
+    hidePassword: '隐藏密码',
+    selectExpert: '选择专家',
+  },
   chatHome: {
     greeting: '嗨！你专属的智能伙伴来啦',
     suggestions: ['检查容器状态与资源占用', '磁盘与内存排查', '网络连通诊断', '写运维脚本'],
@@ -22,6 +33,8 @@ const zh = {
     waiting: '等待回复…',
     reconnecting: '连接中断，正在重连…',
     disconnected: '连接已断开',
+    replying: '正在回复',
+    newThread: '新对话',
   },
   me: {
     title: '我的',
@@ -30,9 +43,22 @@ const zh = {
     modeDark: '深色',
     modeSystem: '跟随系统',
     palette: '主题色',
+    paletteNames: {
+      ink: '墨色',
+      'octop-blue': 'Octop 蓝',
+      violet: '紫罗兰',
+      emerald: '翡翠绿',
+      rose: '玫瑰红',
+      amber: '琥珀',
+      cyan: '青色',
+    } as Record<string, string>,
+    language: '语言',
+    account: '账号',
     server: '服务器',
     connectedTo: '已连接 {url}',
     logout: '退出登录',
+    logoutConfirmTitle: '退出登录？',
+    logoutConfirmMessage: '退出后需要重新输入用户名和密码。',
     notLoggedIn: '未登录',
   },
   login: {
@@ -63,7 +89,13 @@ const zh = {
     emptyTitle: '暂无自动化任务',
     emptyHint: '在专家的对话中创建定时任务后，会显示在这里',
   },
-  common: { pendingDesign: '该页面待设计' },
+  experts: {
+    running: '运行中',
+    idle: '未运行',
+    emptyTitle: '还没有专家',
+    emptyHint: '在 Octop 网页端添加专家后，下拉即可刷新',
+  },
+  common: { pendingDesign: '该页面待设计', cancel: '取消', loading: '加载中' },
 };
 
 export type Dict = typeof zh;
@@ -72,6 +104,17 @@ const en: Dict = {
   appName: 'Octop',
   tabs: { chat: 'Chats', experts: 'Experts', automation: 'Automation', me: 'Me' },
   drawer: { tokens: 'Token usage', tasks: 'Tasks' },
+  a11y: {
+    menu: 'Menu',
+    more: 'More',
+    closeMenu: 'Close menu',
+    attach: 'Add attachment',
+    voice: 'Voice input',
+    send: 'Send',
+    showPassword: 'Show password',
+    hidePassword: 'Hide password',
+    selectExpert: 'Choose an expert',
+  },
   chatHome: {
     greeting: 'Hi! Your personal AI companion is here',
     suggestions: [
@@ -95,6 +138,8 @@ const en: Dict = {
     waiting: 'Waiting for reply…',
     reconnecting: 'Connection lost, reconnecting…',
     disconnected: 'Disconnected',
+    replying: 'Replying',
+    newThread: 'New chat',
   },
   me: {
     title: 'Me',
@@ -103,9 +148,22 @@ const en: Dict = {
     modeDark: 'Dark',
     modeSystem: 'Follow system',
     palette: 'Accent color',
+    paletteNames: {
+      ink: 'Ink',
+      'octop-blue': 'Octop Blue',
+      violet: 'Violet',
+      emerald: 'Emerald',
+      rose: 'Rose',
+      amber: 'Amber',
+      cyan: 'Cyan',
+    },
+    language: 'Language',
+    account: 'Account',
     server: 'Server',
     connectedTo: 'Connected to {url}',
     logout: 'Sign out',
+    logoutConfirmTitle: 'Sign out?',
+    logoutConfirmMessage: 'You will need to enter your username and password again.',
     notLoggedIn: 'Not signed in',
   },
   login: {
@@ -136,7 +194,13 @@ const en: Dict = {
     emptyTitle: 'No automated tasks yet',
     emptyHint: 'Create a scheduled task in an expert chat and it will show up here',
   },
-  common: { pendingDesign: 'Screen design pending' },
+  experts: {
+    running: 'Running',
+    idle: 'Not running',
+    emptyTitle: 'No experts yet',
+    emptyHint: 'Add an expert in the Octop web console, then pull down to refresh',
+  },
+  common: { pendingDesign: 'Screen design pending', cancel: 'Cancel', loading: 'Loading' },
 };
 
 const dictionaries: Record<Locale, Dict> = { zh, en };

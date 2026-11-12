@@ -1,17 +1,20 @@
 import { RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useCallback, useEffect, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { CalendarClock } from 'lucide-react-native';
 
 import { AppHeader } from '@/components/AppHeader';
 import { useTabBarFootprint } from '@/components/DesignTabBar';
 import { AgentAvatar } from '@/components/AgentAvatar';
+import { EmptyState, SkeletonList } from '@/components/ListStates';
 import { AgentsApi } from '@/core/api/agents';
 import { CronApi } from '@/core/api/knowledge';
 import type { AgentSummary, CronJob } from '@/core/api/types';
 import { useAuth } from '@/features/auth';
 import { useAppShell } from '@/features/app-shell';
 import { useI18n } from '@/i18n/I18nProvider';
-import { useTokens } from '@/theme';
+import { haptics } from '@/platform/haptics';
+import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
 
 interface AgentCrons {
   agent: AgentSummary;
@@ -84,10 +87,10 @@ export default function AutomationScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <SafeAreaView edges={['top']} style={[styles.safe, { paddingBottom: tabBarFootprint }]}>
+      <SafeAreaView edges={['top']} style={styles.safe}>
         <AppHeader onMenu={openDrawer} />
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingBottom: tabBarFootprint }]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -99,6 +102,7 @@ export default function AutomationScreen() {
             />
           }
         >
+          {!loaded ? <SkeletonList rows={3} /> : null}
           {sections.map(({ agent, jobs }) => (
             <View key={agent.agent_id} style={styles.section}>
               <View style={styles.sectionHead}>
@@ -110,6 +114,7 @@ export default function AutomationScreen() {
                   fallbackTextSecondary={tokens.textSecondary}
                 />
                 <Text
+                  accessibilityRole="header"
                   style={[styles.sectionTitle, { color: tokens.textPrimary }]}
                   numberOfLines={1}
                   ellipsizeMode="tail"
@@ -117,38 +122,60 @@ export default function AutomationScreen() {
                   {agent.name}
                 </Text>
               </View>
-              {jobs.map(job => (
-                <View key={job.id} style={[styles.jobRow, { backgroundColor: tokens.surface }]}>
-                  <View style={styles.jobMeta}>
-                    <Text style={[styles.jobName, { color: tokens.textBody }]} numberOfLines={1}>
-                      {job.name ?? job.prompt.slice(0, 24)}
-                    </Text>
-                    <Text
-                      style={[styles.jobTrigger, { color: tokens.textTertiary }]}
-                      numberOfLines={1}
+              <View
+                style={[
+                  styles.group,
+                  { backgroundColor: tokens.surface, borderColor: tokens.borderSubtle },
+                ]}
+              >
+                {jobs.map((job, index) => {
+                  const name = job.name ?? job.prompt.slice(0, 24);
+                  return (
+                    <View
+                      key={job.id}
+                      style={[
+                        styles.jobRow,
+                        { borderBottomColor: tokens.borderSubtle },
+                        index === jobs.length - 1 ? styles.jobRowLast : null,
+                      ]}
                     >
-                      {job.trigger}
-                    </Text>
-                  </View>
-                  <Switch
-                    value={job.enabled}
-                    onValueChange={next => toggle(agent.agent_id, job, next)}
-                    trackColor={{ true: tokens.accent, false: tokens.overlaySubtle }}
-                    thumbColor={tokens.surface}
-                  />
-                </View>
-              ))}
+                      <View style={styles.jobMeta}>
+                        <Text
+                          style={[styles.jobName, { color: tokens.textBody }]}
+                          numberOfLines={1}
+                        >
+                          {name}
+                        </Text>
+                        <Text
+                          style={[styles.jobTrigger, { color: tokens.textTertiary }]}
+                          numberOfLines={1}
+                        >
+                          {job.trigger}
+                        </Text>
+                      </View>
+                      <Switch
+                        accessibilityLabel={name}
+                        value={job.enabled}
+                        onValueChange={next => {
+                          haptics.selection();
+                          toggle(agent.agent_id, job, next);
+                        }}
+                        trackColor={{ true: tokens.accent, false: tokens.overlayPressed }}
+                        thumbColor={tokens.surfaceRaised}
+                        ios_backgroundColor={tokens.overlayPressed}
+                      />
+                    </View>
+                  );
+                })}
+              </View>
             </View>
           ))}
           {loaded && sections.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={[styles.emptyTitle, { color: tokens.textSecondary }]}>
-                {strings.automation.emptyTitle}
-              </Text>
-              <Text style={[styles.emptyHint, { color: tokens.textTertiary }]}>
-                {strings.automation.emptyHint}
-              </Text>
-            </View>
+            <EmptyState
+              icon={<CalendarClock size={26} color={tokens.textTertiary} />}
+              title={strings.automation.emptyTitle}
+              hint={strings.automation.emptyHint}
+            />
           ) : null}
         </ScrollView>
       </SafeAreaView>
@@ -160,9 +187,9 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   safe: { flex: 1 },
   content: {
-    paddingHorizontal: 16,
+    paddingHorizontal: layout.screenMargin,
     paddingTop: 8,
-    gap: 20,
+    gap: 24,
   },
   section: {
     gap: 8,
@@ -171,46 +198,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 4,
+    paddingHorizontal: layout.screenMargin,
   },
   sectionTitle: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '500',
+    ...typeScale.subheadline,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  group: {
+    borderRadius: radius.card,
+    ...continuousCorners,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+    paddingLeft: layout.screenMargin,
   },
   jobRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    borderRadius: 12,
-    padding: 14,
+    minHeight: 60,
+    paddingRight: layout.screenMargin,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  jobRowLast: {
+    borderBottomWidth: 0,
   },
   jobMeta: {
     flex: 1,
     gap: 2,
   },
   jobName: {
-    fontSize: 15,
-    lineHeight: 22,
+    ...typeScale.body,
   },
   jobTrigger: {
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  emptyState: {
-    alignItems: 'center',
-    marginTop: 96,
-    gap: 8,
-    paddingHorizontal: 32,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '500',
-  },
-  emptyHint: {
-    fontSize: 14,
-    lineHeight: 22,
-    textAlign: 'center',
+    ...typeScale.footnote,
   },
 });
