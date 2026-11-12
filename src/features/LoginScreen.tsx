@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Modal,
   Pressable,
@@ -18,7 +19,7 @@ import { PressableScale } from '@/components/PressableScale';
 import { AuthApi } from '@/core/api/auth';
 import { OctopApiError } from '@/core/api/errors';
 import { HttpClient } from '@/core/api/http';
-import { normalizeBaseUrl } from '@/core/api/urls';
+import { cleartextAckStorageKey, isCleartext, normalizeBaseUrl } from '@/core/api/urls';
 import {
   parseServerList,
   serializeServerList,
@@ -114,16 +115,9 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
     color: tokens.textBody,
   });
 
-  const submit = () => {
-    if (busy) {
-      return;
-    }
-    setError(null);
-    if (sessionExpired) {
-      clearSessionExpired();
-    }
+  const runLogin = (rawUrl: string, user: string, pass: string) => {
     setBusy(true);
-    void login(url.trim(), username.trim(), password)
+    void login(rawUrl, user, pass)
       .then(() => haptics.notify('success'))
       .catch((e: unknown) => {
         haptics.notify('error');
@@ -134,6 +128,64 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
         }
       })
       .finally(() => setBusy(false));
+  };
+
+  const submit = () => {
+    if (busy) {
+      return;
+    }
+    setError(null);
+    if (sessionExpired) {
+      clearSessionExpired();
+    }
+    let base: string;
+    try {
+      base = normalizeBaseUrl(url.trim());
+    } catch {
+      setError(strings.login.errors.invalid_url);
+      return;
+    }
+    const user = username.trim();
+    if (!isCleartext(base)) {
+      runLogin(base, user, password);
+      return;
+    }
+    // Block double-taps while we look up / prompt for the cleartext ack.
+    setBusy(true);
+    void (async () => {
+      const key = cleartextAckStorageKey(base);
+      let acknowledged = false;
+      if (storage) {
+        try {
+          acknowledged = (await storage.get(key)) === '1';
+        } catch {
+          acknowledged = false;
+        }
+      }
+      if (acknowledged) {
+        runLogin(base, user, password);
+        return;
+      }
+      setBusy(false);
+      Alert.alert(strings.login.cleartextTitle, strings.login.cleartextMessage, [
+        { text: strings.login.cancel, style: 'cancel' },
+        {
+          text: strings.login.cleartextContinue,
+          onPress: () => {
+            void (async () => {
+              if (storage) {
+                try {
+                  await storage.set(key, '1');
+                } catch {
+                  // Persistence failure must not block the explicit continue.
+                }
+              }
+              runLogin(base, user, password);
+            })();
+          },
+        },
+      ]);
+    })();
   };
 
   return (

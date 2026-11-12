@@ -81,6 +81,17 @@ npm run ios        # 或：npm run android —— 首次运行会编译原生工
 
 - **端到端**（[Maestro](https://docs.maestro.dev/)）—— 用户旅程用例位于 `.maestro/`：`maestro test .maestro/`。
 
+## 📦 发布构建
+
+商店包通过 [`eas.json`](eas.json) 的 EAS Build 配置（`development` / `preview` / `production`）。签名凭证只放在 EAS 或 CI 密钥中，切勿提交 keystore 或密码。上传 Play 前请确认制品**不是** debug 签名：
+
+```bash
+apksigner verify --print-certs path/to/app.apk
+# 若证书 CN 为 Android Debug 或别名为 androiddebugkey，则拒绝发布。
+```
+
+本地 `expo prebuild` 生成的 `android/` 仍可能把 release 签成 debug；不要分发这类 APK。
+
 ## 📁 项目结构
 
 ```

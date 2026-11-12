@@ -81,6 +81,17 @@ npm run ios        # or: npm run android — first run compiles the native proje
 
 - **E2E** ([Maestro](https://docs.maestro.dev/)) — user-journey flows in `.maestro/`: `maestro test .maestro/`.
 
+## 📦 Release builds
+
+Store releases use [EAS Build](https://docs.expo.dev/build/introduction/) profiles in [`eas.json`](eas.json) (`development` / `preview` / `production`). Credentials stay on EAS or in CI secrets — never commit keystores or passwords. Before any Play upload, verify the artifact is **not** debug-signed:
+
+```bash
+apksigner verify --print-certs path/to/app.apk
+# Reject if the certificate CN is Android Debug or the alias is androiddebugkey.
+```
+
+Local `android/` trees from `expo prebuild` may still default release to the debug keystore; do not distribute those APKs.
+
 ## 📁 Project layout
 
 ```

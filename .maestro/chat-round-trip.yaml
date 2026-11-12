@@ -1,0 +1,24 @@
+# Chat round-trip: send → assistant reply → terminal composer idle.
+# Android baseline (dev.octop.octopbot). Seed a session first when needed:
+# octopbot://dev-session?url=…&token=…
+appId: dev.octop.octopbot
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'composer-input'
+    timeout: 180000
+- tapOn:
+    id: 'composer-input'
+- inputText: 'ping from maestro'
+- tapOn:
+    id: 'composer-send'
+# While streaming, stop may appear; wait for a terminal idle composer.
+- extendedWaitUntil:
+    visible:
+      id: 'composer-send'
+    timeout: 120000
+- assertNotVisible:
+    id: 'composer-stop'
+- assertVisible:
+    id: 'composer-input'
