@@ -8,6 +8,7 @@ import { useI18n } from '@/i18n/I18nProvider';
 import { useAppShell } from '@/features/app-shell';
 import { GlassSurface } from '@/platform/glass';
 import { haptics } from '@/platform/haptics';
+import { useKeyboardState } from '@/platform/keyboard';
 import { continuousCorners, typeScale, useTokens } from '@/theme';
 
 // All tab glyphs live in 24×24 design frames — render the boxes uniformly;
@@ -51,11 +52,15 @@ export function DesignTabBar({
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { drawerPresented } = useAppShell();
+  // Prefer height over isVisible: floating / zero-inset IMEs can report
+  // visible while covering nothing, which would hide the tab bar for free.
+  const keyboardHeight = useKeyboardState(state => state.height);
   const bottomOffset = Math.max(insets.bottom, 12) + 4;
 
   // Native glass layers above the drawer overlay; hide the bar until the
   // drawer has fully animated out so it never floats over drawer content.
-  if (drawerPresented) {
+  // Also hide while a real (non-zero) IME owns the bottom edge.
+  if (drawerPresented || keyboardHeight > 0) {
     return null;
   }
 

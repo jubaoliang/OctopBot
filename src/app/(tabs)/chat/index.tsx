@@ -1,13 +1,4 @@
-import {
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -26,6 +17,7 @@ import { useAuth } from '@/features/auth';
 import { useAppShell } from '@/features/app-shell';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
+import { KeyboardInsetView } from '@/platform/keyboard';
 import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
 
 // Module scope: layout-animation builders are not rebuilt per render.
@@ -147,13 +139,23 @@ export default function ChatHomeScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <SafeAreaView edges={['top']} style={[styles.safe, { paddingBottom: tabBarFootprint }]}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
+      <SafeAreaView edges={['top']} style={styles.safe}>
+        {/* The composer rests above the tab bar and rides the keyboard. */}
+        <KeyboardInsetView
+          restingInset={tabBarFootprint}
+          gap={layout.keyboardGap}
+          style={styles.fill}
         >
           <AppHeader onMenu={openDrawer} />
-          <View style={styles.body}>
+          {/* Scrolls only when the keyboard leaves less room than the
+              content needs; at rest the spacers center it as designed. */}
+          <ScrollView
+            style={styles.fill}
+            contentContainerStyle={styles.body}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.spacerTop} />
             <Image
               source={require('@/assets/images/mascot.png')}
@@ -268,11 +270,11 @@ export default function ChatHomeScreen() {
               ))}
             </View>
             <View style={styles.spacerBottom} />
-          </View>
+          </ScrollView>
           <View style={styles.inputWrap}>
             <ChatInput onSend={text => startChat(text)} />
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardInsetView>
       </SafeAreaView>
     </View>
   );
@@ -307,8 +309,11 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
   },
-  body: {
+  fill: {
     flex: 1,
+  },
+  body: {
+    flexGrow: 1,
     paddingHorizontal: 12,
   },
   spacerTop: {
@@ -316,6 +321,8 @@ const styles = StyleSheet.create({
   },
   spacerBottom: {
     flex: 125,
+    // Keeps the last pill clear of the composer when the content scrolls.
+    minHeight: 12,
   },
   mascot: {
     width: 132,

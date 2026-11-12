@@ -1,11 +1,8 @@
 import {
   ActivityIndicator,
   Image,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -32,6 +29,7 @@ import { type SecureStorage } from '@/platform/secure-storage';
 import { LoginFlowError, useAuth } from '@/features/auth';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
+import { KeyboardAwareScrollView, KeyboardInsetView } from '@/platform/keyboard';
 import { continuousCorners, layout, motion, radius, typeScale, useTheme } from '@/theme';
 
 type Field = 'url' | 'username' | 'password';
@@ -135,130 +133,128 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: tokens.bg }}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      {/* The scroll view makes its own room for the keyboard and scrolls the
+          focused field above it; wrapping it in a second avoider doubles up. */}
+      <KeyboardAwareScrollView
         style={{ flex: 1 }}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={24}
       >
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.brand}>
-            <Image
-              source={require('@/assets/images/mascot.png')}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-            <Text style={[styles.brandName, { color: tokens.textPrimary }]}>Octop</Text>
-            <Text style={[styles.tagline, { color: tokens.textSecondary }]}>
-              {strings.login.tagline}
-            </Text>
-          </View>
+        <View style={styles.brand}>
+          <Image
+            source={require('@/assets/images/mascot.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text style={[styles.brandName, { color: tokens.textPrimary }]}>Octop</Text>
+          <Text style={[styles.tagline, { color: tokens.textSecondary }]}>
+            {strings.login.tagline}
+          </Text>
+        </View>
 
-          <View style={styles.form}>
-            <Text style={[styles.label, { color: tokens.textSecondary }]}>
-              {strings.login.username}
-            </Text>
+        <View style={styles.form}>
+          <Text style={[styles.label, { color: tokens.textSecondary }]}>
+            {strings.login.username}
+          </Text>
+          <TextInput
+            value={username}
+            onChangeText={setUsername}
+            testID="login-username"
+            accessibilityLabel={strings.login.username}
+            autoCapitalize="none"
+            autoCorrect={false}
+            // Lets the system offer saved credentials (Password AutoFill).
+            autoComplete="username"
+            textContentType="username"
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            onFocus={() => setFocused('username')}
+            onBlur={() => setFocused(null)}
+            selectionColor={tokens.accent}
+            style={[styles.field, fieldStyle('username')]}
+          />
+
+          <Text style={[styles.label, { color: tokens.textSecondary }]}>
+            {strings.login.password}
+          </Text>
+          <View style={styles.fieldWrap}>
             <TextInput
-              value={username}
-              onChangeText={setUsername}
-              testID="login-username"
-              accessibilityLabel={strings.login.username}
+              ref={passwordRef}
+              value={password}
+              onChangeText={setPassword}
+              testID="login-password"
+              accessibilityLabel={strings.login.password}
+              secureTextEntry={!showPassword}
               autoCapitalize="none"
               autoCorrect={false}
-              // Lets the system offer saved credentials (Password AutoFill).
-              autoComplete="username"
-              textContentType="username"
-              returnKeyType="next"
-              submitBehavior="submit"
-              onSubmitEditing={() => passwordRef.current?.focus()}
-              onFocus={() => setFocused('username')}
+              autoComplete="current-password"
+              textContentType="password"
+              returnKeyType="go"
+              onSubmitEditing={submit}
+              onFocus={() => setFocused('password')}
               onBlur={() => setFocused(null)}
               selectionColor={tokens.accent}
-              style={[styles.field, fieldStyle('username')]}
+              style={[styles.field, styles.fieldWithIcon, fieldStyle('password')]}
             />
-
-            <Text style={[styles.label, { color: tokens.textSecondary }]}>
-              {strings.login.password}
-            </Text>
-            <View style={styles.fieldWrap}>
-              <TextInput
-                ref={passwordRef}
-                value={password}
-                onChangeText={setPassword}
-                testID="login-password"
-                accessibilityLabel={strings.login.password}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="current-password"
-                textContentType="password"
-                returnKeyType="go"
-                onSubmitEditing={submit}
-                onFocus={() => setFocused('password')}
-                onBlur={() => setFocused(null)}
-                selectionColor={tokens.accent}
-                style={[styles.field, styles.fieldWithIcon, fieldStyle('password')]}
-              />
-              <View style={styles.fieldIcon}>
-                <IconButton
-                  label={showPassword ? strings.a11y.hidePassword : strings.a11y.showPassword}
-                  testID="login-toggle-password"
-                  onPress={() => setShowPassword(v => !v)}
-                >
-                  {showPassword ? (
-                    <EyeOff width={20} height={20} color={tokens.textTertiary} />
-                  ) : (
-                    <Eye width={20} height={20} color={tokens.textTertiary} />
-                  )}
-                </IconButton>
-              </View>
-            </View>
-
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel={busy ? strings.login.signingIn : strings.login.signIn}
-              accessibilityState={{ busy, disabled: busy }}
-              testID="login-submit"
-              disabled={busy}
-              onPress={submit}
-              style={[styles.signIn, { backgroundColor: tokens.accent, opacity: busy ? 0.6 : 1 }]}
-            >
-              {busy ? <ActivityIndicator size="small" color={tokens.textInverse} /> : null}
-              <Text style={[styles.signInText, { color: tokens.textInverse }]}>
-                {busy ? strings.login.signingIn : strings.login.signIn}
-              </Text>
-            </PressableScale>
-
-            {error ? (
-              <Text
-                accessibilityRole="alert"
-                accessibilityLiveRegion="polite"
-                style={[styles.error, { color: tokens.danger }]}
+            <View style={styles.fieldIcon}>
+              <IconButton
+                label={showPassword ? strings.a11y.hidePassword : strings.a11y.showPassword}
+                testID="login-toggle-password"
+                onPress={() => setShowPassword(v => !v)}
               >
-                {error}
-              </Text>
-            ) : null}
-
-            <Text style={[styles.note, { color: tokens.textTertiary }]}>{strings.login.note}</Text>
+                {showPassword ? (
+                  <EyeOff width={20} height={20} color={tokens.textTertiary} />
+                ) : (
+                  <Eye width={20} height={20} color={tokens.textTertiary} />
+                )}
+              </IconButton>
+            </View>
           </View>
-          <Pressable
+
+          <PressableScale
             accessibilityRole="button"
-            accessibilityLabel={`${strings.login.serverUrl}, ${url || strings.login.serverPlaceholder}`}
-            testID="login-server"
-            onPress={openServerSheet}
-            style={({ pressed }) => [styles.serverButton, pressed ? styles.dimmed : null]}
+            accessibilityLabel={busy ? strings.login.signingIn : strings.login.signIn}
+            accessibilityState={{ busy, disabled: busy }}
+            testID="login-submit"
+            disabled={busy}
+            onPress={submit}
+            style={[styles.signIn, { backgroundColor: tokens.accent, opacity: busy ? 0.6 : 1 }]}
           >
-            <Text style={[styles.serverLink, { color: tokens.textTertiary }]} numberOfLines={1}>
-              {url || strings.login.serverPlaceholder}
+            {busy ? <ActivityIndicator size="small" color={tokens.textInverse} /> : null}
+            <Text style={[styles.signInText, { color: tokens.textInverse }]}>
+              {busy ? strings.login.signingIn : strings.login.signIn}
             </Text>
-          </Pressable>
-          <Text style={[styles.footer, { color: tokens.textTertiary }]}>
-            {locale === 'zh' ? 'Octop 移动客户端' : 'Octop mobile client'}
+          </PressableScale>
+
+          {error ? (
+            <Text
+              accessibilityRole="alert"
+              accessibilityLiveRegion="polite"
+              style={[styles.error, { color: tokens.danger }]}
+            >
+              {error}
+            </Text>
+          ) : null}
+
+          <Text style={[styles.note, { color: tokens.textTertiary }]}>{strings.login.note}</Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${strings.login.serverUrl}, ${url || strings.login.serverPlaceholder}`}
+          testID="login-server"
+          onPress={openServerSheet}
+          style={({ pressed }) => [styles.serverButton, pressed ? styles.dimmed : null]}
+        >
+          <Text style={[styles.serverLink, { color: tokens.textTertiary }]} numberOfLines={1}>
+            {url || strings.login.serverPlaceholder}
           </Text>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </Pressable>
+        <Text style={[styles.footer, { color: tokens.textTertiary }]}>
+          {locale === 'zh' ? 'Octop 移动客户端' : 'Octop mobile client'}
+        </Text>
+      </KeyboardAwareScrollView>
       <Modal
         visible={serverModal}
         transparent
@@ -266,11 +262,8 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
         onRequestClose={() => setServerModal(false)}
       >
         {/* The sheet has its own keyboard avoidance: a Modal is a separate
-            window, so the screen's KeyboardAvoidingView does not reach it. */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
-        >
+            window, so nothing on the screen behind it reaches it. */}
+        <KeyboardInsetView style={{ flex: 1 }}>
           <Pressable
             accessibilityLabel={strings.login.cancel}
             style={[styles.modalScrim, { backgroundColor: tokens.scrim }]}
@@ -420,7 +413,7 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
               </Pressable>
             </Animated.View>
           </Pressable>
-        </KeyboardAvoidingView>
+        </KeyboardInsetView>
       </Modal>
     </SafeAreaView>
   );

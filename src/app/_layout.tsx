@@ -18,6 +18,7 @@ import { LoginScreen } from '@/features/LoginScreen';
 import { AppShellProvider, useAppShell } from '@/features/app-shell';
 import { I18nProvider } from '@/i18n/I18nProvider';
 import { expoSecureStorage } from '@/platform/secure-store';
+import { KeyboardProvider } from '@/platform/keyboard';
 import { darkTokens, lightTokens, ThemeProvider, useTheme } from '@/theme';
 
 void SplashScreen.preventAutoHideAsync().catch(() => {
@@ -131,15 +132,17 @@ export default function RootLayout() {
   );
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider storage={expoSecureStorage}>
-        <I18nProvider storage={expoSecureStorage}>
-          <AuthProvider storage={expoSecureStorage}>
-            <AppShellProvider>
-              <RootNavigator />
-            </AppShellProvider>
-          </AuthProvider>
-        </I18nProvider>
-      </ThemeProvider>
+      <KeyboardProvider>
+        <ThemeProvider storage={expoSecureStorage}>
+          <I18nProvider storage={expoSecureStorage}>
+            <AuthProvider storage={expoSecureStorage}>
+              <AppShellProvider>
+                <RootNavigator />
+              </AppShellProvider>
+            </AuthProvider>
+          </I18nProvider>
+        </ThemeProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

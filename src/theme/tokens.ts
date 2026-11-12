@@ -63,6 +63,8 @@ export const layout = {
   screenMargin: 16,
   /** List rows are at least one touch target tall. */
   rowMinHeight: 44,
+  /** Space between the keyboard's top edge and the content riding on it. */
+  keyboardGap: 8,
 } as const;
 
 export const radius = {
