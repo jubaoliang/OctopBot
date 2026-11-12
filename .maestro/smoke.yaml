@@ -16,14 +16,19 @@ appId: dev.octop.octopbot
     id: 'header-menu'
 - assertVisible:
     id: 'drawer-tokens'
+# Navigate via drawer (closes it) — tab bar is hidden while drawerPresented
 - tapOn:
-    id: 'drawer-scrim'
-# Experts tab loads without crashing
-- tapOn:
-    id: 'tab-experts'
+    id: 'drawer-experts'
 - assertNotVisible:
     id: 'composer-input'
-- tapOn:
-    id: 'tab-chat'
 - assertVisible:
-    id: 'composer-input'
+    id: 'header-menu'
+# Return to chat home via drawer (more reliable than the floating tab pill)
+- tapOn:
+    id: 'header-menu'
+- tapOn:
+    id: 'drawer-chat'
+- extendedWaitUntil:
+    visible:
+      id: 'composer-input'
+    timeout: 30000
