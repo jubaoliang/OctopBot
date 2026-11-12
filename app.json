@@ -48,6 +48,14 @@
           "microphonePermission": "Allow OctopBot to use the microphone for voice input."
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow OctopBot to access your photos so you can attach images to messages.",
+          "cameraPermission": "Allow OctopBot to use the camera so you can attach a photo to a message.",
+          "microphonePermission": false
+        }
+      ],
       "expo-font",
       "expo-secure-store",
       "expo-status-bar",

@@ -1,18 +1,38 @@
-import { StyleSheet, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useRef, useState } from 'react';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Svg, Path, Rect } from 'react-native-svg';
+import { X } from 'lucide-react-native';
 
 import { IconButton } from '@/components/IconButton';
-import { IconMic } from '@/components/icons';
+import { IconMic, IconPlus } from '@/components/icons';
+import type { AttachSource, PendingAttachment } from '@/core/api/attachments';
+import type { TurnAttachment } from '@/core/api/types';
 import { useVoiceInput } from '@/features/useVoiceInput';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
 import { continuousCorners, radius, typeScale, useTokens } from '@/theme';
 
 interface ChatInputProps {
-  /** Composing state swaps the stop/send button (per design). */
-  onSend?: (text: string) => void;
+  /**
+   * Composing state swaps the stop/send button (per design). Attachments
+   * are the already-uploaded chips; omitted for a text-only send.
+   */
+  onSend?: (text: string, attachments?: TurnAttachment[]) => void;
+  /** Leading + opens a source chooser, then calls this. Omit to hide the button. */
+  onPickImages?: (source: AttachSource) => void;
+  /** Chips above the field; the screen owns upload state. */
+  pendingAttachments?: PendingAttachment[];
+  onRemovePending?: (id: string) => void;
   /** Shown while a turn is streaming — cancels the active turn. */
   onStop?: () => void;
   streaming?: boolean;
@@ -31,12 +51,27 @@ const GLYPH_FRAME = 28;
  * Chat composer: field + mic / send / stop. Voice uses hybrid STT
  * (system dictation by default; cloud upload when `active.stt` is set).
  */
-export function ChatInput({ onSend, onStop, streaming = false, canSend = true }: ChatInputProps) {
+export function ChatInput({
+  onSend,
+  onStop,
+  streaming = false,
+  canSend = true,
+  onPickImages,
+  pendingAttachments,
+  onRemovePending,
+}: ChatInputProps) {
   const t = useTokens();
   const { t: strings } = useI18n();
   const [text, setText] = useState('');
   const baseBeforeVoice = useRef('');
-  const composing = text.trim().length > 0;
+  const pending = pendingAttachments ?? [];
+  const hasPending = pending.length > 0;
+  const uploading = pending.some(item => item.status === 'uploading');
+  const failed = pending.some(item => item.status === 'failed');
+  // Chips make the message sendable without text; a text-only send is only
+  // allowed when there are no chips, and nothing sends while one is in flight.
+  const composing = text.trim().length > 0 || hasPending;
+  const attachmentsReady = !uploading && !failed;
 
   const mergeVoice = (spoken: string, interim: boolean) => {
     const base = baseBeforeVoice.current;
@@ -60,11 +95,12 @@ export function ChatInput({ onSend, onStop, streaming = false, canSend = true }:
   });
 
   const submit = () => {
-    if (!composing || !canSend || streaming || voice.busy) {
+    if (!composing || !canSend || !attachmentsReady || streaming || voice.busy) {
       return;
     }
     haptics.impact('light');
-    onSend?.(text.trim());
+    const ready = pending.flatMap(item => (item.attachment ? [item.attachment] : []));
+    onSend?.(text.trim(), ready.length > 0 ? ready : undefined);
     setText('');
     baseBeforeVoice.current = '';
   };
@@ -72,6 +108,15 @@ export function ChatInput({ onSend, onStop, streaming = false, canSend = true }:
   const stop = () => {
     haptics.impact('medium');
     onStop?.();
+  };
+
+  const onAttach = () => {
+    haptics.impact('light');
+    Alert.alert(strings.attachments.sourceTitle, undefined, [
+      { text: strings.attachments.library, onPress: () => onPickImages?.('library') },
+      { text: strings.attachments.camera, onPress: () => onPickImages?.('camera') },
+      { text: strings.common.cancel, style: 'cancel' },
+    ]);
   };
 
   const onMic = () => {
@@ -119,11 +164,14 @@ export function ChatInput({ onSend, onStop, streaming = false, canSend = true }:
             label={strings.a11y.send}
             testID="composer-send"
             size={GLYPH_FRAME}
-            disabled={!canSend}
+            disabled={!canSend || !attachmentsReady}
             onPress={submit}
           >
             <View
-              style={[styles.sendDisc, { backgroundColor: t.accent, opacity: canSend ? 1 : 0.4 }]}
+              style={[
+                styles.sendDisc,
+                { backgroundColor: t.accent, opacity: canSend && attachmentsReady ? 1 : 0.4 },
+              ]}
             >
               <SendGlyph color={t.textInverse} />
             </View>
@@ -146,26 +194,121 @@ export function ChatInput({ onSend, onStop, streaming = false, canSend = true }:
   })();
 
   return (
-    <View style={[styles.bar, { backgroundColor: t.surface, shadowColor: t.shadow }]}>
-      <TextInput
-        style={[styles.input, { color: t.textBody }]}
-        placeholder={
-          voice.recording
-            ? strings.voice.listening
-            : voice.transcribing
-              ? strings.voice.transcribing
-              : strings.chatHome.inputPlaceholder
-        }
-        placeholderTextColor={t.textPlaceholder}
-        selectionColor={t.accent}
-        value={text}
-        onChangeText={setText}
-        multiline
-        editable={!streaming && !voice.busy}
-        onSubmitEditing={submit}
-        testID="composer-input"
+    <View style={[styles.card, { backgroundColor: t.surface, shadowColor: t.shadow }]}>
+      {hasPending ? (
+        <ScrollView
+          horizontal
+          style={styles.chips}
+          contentContainerStyle={styles.chipsContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          showsHorizontalScrollIndicator={false}
+        >
+          {pending.map(item => (
+            <PendingChip
+              key={item.id}
+              item={item}
+              removeLabel={strings.attachments.remove}
+              statusLabel={
+                item.status === 'uploading'
+                  ? strings.attachments.uploading
+                  : item.status === 'failed'
+                    ? strings.attachments.failed
+                    : undefined
+              }
+              onRemove={onRemovePending}
+            />
+          ))}
+        </ScrollView>
+      ) : null}
+      <View style={styles.bar}>
+        {onPickImages ? (
+          <IconButton
+            label={strings.a11y.attach}
+            testID="composer-attach"
+            size={GLYPH_FRAME}
+            disabled={streaming || voice.busy}
+            onPress={onAttach}
+          >
+            <IconPlus width={22} height={22} color={t.textSecondary} />
+          </IconButton>
+        ) : null}
+        <TextInput
+          style={[styles.input, { color: t.textBody }]}
+          placeholder={
+            voice.recording
+              ? strings.voice.listening
+              : voice.transcribing
+                ? strings.voice.transcribing
+                : strings.chatHome.inputPlaceholder
+          }
+          placeholderTextColor={t.textPlaceholder}
+          selectionColor={t.accent}
+          value={text}
+          onChangeText={setText}
+          multiline
+          editable={!streaming && !voice.busy}
+          onSubmitEditing={submit}
+          testID="composer-input"
+        />
+        {trailing}
+      </View>
+    </View>
+  );
+}
+
+/** Thumbnail chip with upload state overlay and a remove control. */
+function PendingChip({
+  item,
+  removeLabel,
+  statusLabel,
+  onRemove,
+}: {
+  item: PendingAttachment;
+  removeLabel: string;
+  statusLabel?: string;
+  onRemove?: (id: string) => void;
+}) {
+  const t = useTokens();
+  return (
+    <View
+      testID={`composer-pending-${item.id}`}
+      style={[
+        styles.chip,
+        {
+          backgroundColor: t.overlaySubtle,
+          borderColor: item.status === 'failed' ? t.danger : t.borderSubtle,
+        },
+      ]}
+    >
+      <Image
+        source={{ uri: item.uri }}
+        style={styles.thumb}
+        resizeMode="cover"
+        accessibilityLabel={statusLabel ? `${item.filename}, ${statusLabel}` : item.filename}
       />
-      {trailing}
+      {item.status === 'uploading' ? (
+        <View style={[styles.thumbOverlay, { backgroundColor: t.scrim }]}>
+          <ActivityIndicator color={t.textInverse} />
+        </View>
+      ) : null}
+      {item.status === 'failed' ? (
+        <View style={[styles.thumbOverlay, { backgroundColor: t.dangerSoft }]}>
+          <Text style={[styles.failedMark, { color: t.danger }]}>!</Text>
+        </View>
+      ) : null}
+      <View style={styles.chipRemove}>
+        <IconButton
+          label={removeLabel}
+          testID={`composer-pending-remove-${item.id}`}
+          size={20}
+          onPress={() => onRemove?.(item.id)}
+        >
+          <View style={[styles.removeDisc, { backgroundColor: t.textPrimary }]}>
+            <X size={12} color={t.textInverse} />
+          </View>
+        </IconButton>
+      </View>
     </View>
   );
 }
@@ -191,22 +334,72 @@ function StopGlyph({ color }: { color: string }) {
   );
 }
 
+/** Square thumbnail edge. */
+const THUMB = 56;
+
 const styles = StyleSheet.create({
+  card: {
+    borderRadius: radius.input,
+    ...continuousCorners,
+    // Design: soft 32-radius ambient shadow.
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 32,
+    elevation: 2,
+  },
   bar: {
     flexDirection: 'row',
     // Buttons stay on the last line while the field grows upward.
     alignItems: 'flex-end',
     gap: 8,
     minHeight: 48,
-    borderRadius: radius.input,
-    ...continuousCorners,
     paddingHorizontal: 10,
     paddingVertical: 10,
-    // Design: soft 32-radius ambient shadow.
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 32,
-    elevation: 2,
+  },
+  chips: {
+    flexGrow: 0,
+  },
+  chipsContent: {
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    // Room for the remove control that overhangs the thumbnail corner.
+    paddingRight: 18,
+  },
+  chip: {
+    width: THUMB,
+    height: THUMB,
+    borderRadius: radius.pill,
+    ...continuousCorners,
+    borderWidth: StyleSheet.hairlineWidth,
+    // Visible so the remove control can overhang; the image clips itself.
+    overflow: 'visible',
+  },
+  thumb: {
+    width: '100%',
+    height: '100%',
+    borderRadius: radius.pill,
+  },
+  thumbOverlay: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  failedMark: {
+    ...typeScale.headline,
+  },
+  chipRemove: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+  },
+  removeDisc: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   input: {
     flex: 1,

@@ -22,13 +22,32 @@ export function SuggestionPill({ label, onPress }: { label: string; onPress?: ()
 }
 
 /** User bubble per design: 4% overlay, tailed corner, body text; long-press to copy. */
-export function UserBubble({ text }: { text: string }) {
+export function UserBubble({
+  text,
+  attachmentNames,
+}: {
+  text: string;
+  /** Filenames of images sent with this turn, shown above the text. */
+  attachmentNames?: string[];
+}) {
   const t = useTokens();
   return (
     <View style={[styles.bubble, { backgroundColor: t.overlaySubtle }]}>
-      <Text selectable style={[styles.bubbleText, { color: t.textBody }]}>
-        {text}
-      </Text>
+      {attachmentNames?.map((name, index) => (
+        <Text
+          key={`${name}-${index}`}
+          numberOfLines={1}
+          ellipsizeMode="middle"
+          style={[styles.bubbleAttachment, { color: t.textSecondary }]}
+        >
+          {name}
+        </Text>
+      ))}
+      {text ? (
+        <Text selectable style={[styles.bubbleText, { color: t.textBody }]}>
+          {text}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -135,6 +154,10 @@ const styles = StyleSheet.create({
   },
   bubbleText: {
     ...typeScale.reading,
+  },
+  bubbleAttachment: {
+    ...typeScale.footnote,
+    marginBottom: 2,
   },
   processCard: {
     flexDirection: 'row',

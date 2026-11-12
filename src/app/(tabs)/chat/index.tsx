@@ -11,10 +11,12 @@ import { ChatInput } from '@/components/ChatInput';
 import { SuggestionPill } from '@/components/ChatPieces';
 import { AgentAvatar } from '@/components/AgentAvatar';
 import { PressableScale } from '@/components/PressableScale';
-import type { AgentSummary, QuickPrompts } from '@/core/api/types';
+import type { AgentSummary, QuickPrompts, TurnAttachment } from '@/core/api/types';
 import { AgentsApi } from '@/core/api/agents';
 import { useAuth } from '@/features/auth';
 import { useAppShell } from '@/features/app-shell';
+import { putChatHandoff } from '@/features/chat-handoff';
+import { useImageAttachments } from '@/features/useImageAttachments';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
 import { KeyboardInsetView } from '@/platform/keyboard';
@@ -53,6 +55,8 @@ export default function ChatHomeScreen() {
   const [selected, setSelected] = useState<AgentSummary | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [prompts, setPrompts] = useState<string[]>([]);
+  // Uploads target the selected expert's workspace; switching experts drops chips.
+  const attachmentFlow = useImageAttachments(selected?.agent_id ?? 'main');
 
   // Load roster, restore the last-used expert (falls back to `main`).
   useEffect(() => {
@@ -123,9 +127,15 @@ export default function ChatHomeScreen() {
     void storageSetLastAgent(agent.agent_id);
   }, []);
 
-  const startChat = (promptText: string | null) => {
+  const startChat = (promptText: string | null, attachments?: TurnAttachment[]) => {
     if (!selected) {
       return;
+    }
+    // Attachments hand off in memory — never through route params.
+    const hasAttachments = attachments !== undefined && attachments.length > 0;
+    const handoff = hasAttachments ? putChatHandoff(promptText ?? '', attachments) : null;
+    if (hasAttachments) {
+      attachmentFlow.clear();
     }
     router.push({
       pathname: '/chat/[threadId]',
@@ -135,7 +145,7 @@ export default function ChatHomeScreen() {
         threadId: 'new',
         agent: selected.agent_id,
         title: selected.name,
-        ...(promptText ? { prompt: promptText } : {}),
+        ...(handoff ? { handoff } : promptText ? { prompt: promptText } : {}),
       },
     });
   };
@@ -281,7 +291,12 @@ export default function ChatHomeScreen() {
             <View style={styles.spacerBottom} />
           </ScrollView>
           <View style={styles.inputWrap}>
-            <ChatInput onSend={text => startChat(text)} />
+            <ChatInput
+              onSend={(text, attachments) => startChat(text, attachments)}
+              onPickImages={selected ? attachmentFlow.pick : undefined}
+              pendingAttachments={attachmentFlow.pending}
+              onRemovePending={attachmentFlow.remove}
+            />
           </View>
         </KeyboardInsetView>
       </SafeAreaView>
