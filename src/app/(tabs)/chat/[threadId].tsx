@@ -13,6 +13,11 @@ import { balanceStreamingMarkdown } from '@/utils/streaming-markdown';
 import Markdown from 'react-native-markdown-display';
 import type { ServerFrame } from '@/core/api/types';
 import { ChatSocket, type ChatConnectionStatus } from '@/core/chat/chat-socket';
+import {
+  applyProcessFrame,
+  emptyProcessCounts,
+  type CountableFrame,
+} from '@/core/chat/process-counts';
 import { useAppShell } from '@/features/app-shell';
 import { useAuth } from '@/features/auth';
 import { useI18n } from '@/i18n/I18nProvider';
@@ -59,6 +64,9 @@ export default function ThreadScreen() {
   const threadRef = useRef<string | null>(null);
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const ensureThreadRef = useRef<(() => Promise<string | null>) | null>(null);
+  // Process-card counters fold streaming deltas into session/tool units;
+  // the ref holds the fold state so chunk bursts do not inflate the UI.
+  const processCountsRef = useRef(emptyProcessCounts());
 
   // Markdown typography from the token system — no hardcoded colors.
   const mdStyles = useMemo(
@@ -162,6 +170,18 @@ export default function ThreadScreen() {
 
   const handleFrame = useCallback(
     (frame: ServerFrame) => {
+      const foldProcess = (countable: CountableFrame) => {
+        const next = applyProcessFrame(processCountsRef.current, countable);
+        if (
+          next.tools !== processCountsRef.current.tools ||
+          next.thinking !== processCountsRef.current.thinking
+        ) {
+          setToolCount(next.tools);
+          setThinkingCount(next.thinking);
+        }
+        processCountsRef.current = next;
+      };
+
       switch (frame.type) {
         case 'token': {
           // The forward-compat union member also matches 'token'; narrow it.
@@ -169,20 +189,34 @@ export default function ThreadScreen() {
           if (typeof delta === 'string') {
             setStreaming(true);
             pendingTokensRef.current += delta;
+            foldProcess({ type: 'token' });
           }
           break;
         }
         case 'reasoning':
-          setThinkingCount(c => c + 1);
+          foldProcess({ type: 'reasoning' });
           break;
-        case 'tool_call_chunk':
-          setToolCount(c => c + 1);
+        case 'tool_call_chunk': {
+          const index = (frame as { index?: unknown }).index;
+          if (typeof index === 'number') {
+            foldProcess({ type: 'tool_call_chunk', index });
+          }
+          break;
+        }
+        case 'tool_result':
+          foldProcess({ type: 'tool_result' });
           break;
         case 'turn.started':
+          foldProcess({ type: 'turn.started' });
           setStreaming(true);
           break;
         case 'turn.ended':
+          foldProcess({ type: 'turn.ended' });
+          flushTokens();
+          setStreaming(false);
+          break;
         case 'done':
+          foldProcess({ type: 'done' });
           flushTokens();
           setStreaming(false);
           break;
