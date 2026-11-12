@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  Alert,
   NativeScrollEvent,
   NativeSyntheticEvent,
   ScrollView,
@@ -41,6 +42,7 @@ import { useAppShell } from '@/features/app-shell';
 import { useAuth } from '@/features/auth';
 import { useI18n } from '@/i18n/I18nProvider';
 import { KeyboardInsetView } from '@/platform/keyboard';
+import { confirmOpenHttpUrl } from '@/platform/linking';
 import { CODE_FONT } from '@/theme/code-font';
 import { continuousCorners, layout, radius, typeScale, useTheme } from '@/theme';
 import { balanceStreamingMarkdown } from '@/utils/streaming-markdown';
@@ -78,17 +80,22 @@ export default function ThreadScreen() {
   const { t: strings } = useI18n();
   const { openDrawer } = useAppShell();
   const { baseUrl, token, httpClient, user } = useAuth();
-  // Route params: threadId doubles as the initial prompt text from a
-  // suggestion pill ('new' = no prompt, e.g. entering from the experts
-  // roster); agent selects the expert; title overrides the header.
+  // Route params: `threadId` is a path segment (`new` / `open` / forged deep
+  // link). Internal suggestion pills pass `prompt` — never put user text in
+  // the path, or an external `octopbot://chat/…` URL would auto-send.
   const params = useLocalSearchParams<{
     threadId: string;
     agent?: string;
     thread?: string;
     title?: string;
+    prompt?: string;
   }>();
-  const initialText =
-    params.threadId === 'new' || params.threadId === 'open' ? null : params.threadId;
+  const internalPrompt =
+    typeof params.prompt === 'string' && params.prompt.trim().length > 0 ? params.prompt : null;
+  const externalDraft =
+    !internalPrompt && !params.thread && params.threadId !== 'new' && params.threadId !== 'open'
+      ? params.threadId
+      : null;
   const tabBarFootprint = useTabBarFootprint();
 
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -236,8 +243,30 @@ export default function ThreadScreen() {
           {children}
         </MarkdownTable>
       ),
+      // Remote images contact third-party hosts — refuse by default.
+      image: (node: MdNode) => (
+        <Text key={node.key} style={{ color: tokens.textTertiary, ...typeScale.footnote }}>
+          {strings.chat.imageBlocked}
+        </Text>
+      ),
     }),
-    [],
+    [strings.chat.imageBlocked, tokens.textTertiary],
+  );
+
+  const onMarkdownLink = useCallback(
+    (url: string) =>
+      confirmOpenHttpUrl(url, {
+        title: strings.chat.openLinkTitle,
+        message: strings.chat.openLinkMessage,
+        cancel: strings.common.cancel,
+        open: strings.chat.openLinkConfirm,
+      }),
+    [
+      strings.chat.openLinkConfirm,
+      strings.chat.openLinkMessage,
+      strings.chat.openLinkTitle,
+      strings.common.cancel,
+    ],
   );
 
   // Fresh token for the socket factory; sliding renewals land here.
@@ -468,20 +497,48 @@ export default function ThreadScreen() {
     };
     ensureThreadRef.current = ensureThread;
 
-    if (initialText) {
+    if (internalPrompt) {
       void (async () => {
         // Async continuation keeps setState out of the effect body.
-        setTurns([{ kind: 'user', text: initialText }]);
+        setTurns([{ kind: 'user', text: internalPrompt }]);
         const threadId = await ensureThread();
         if (threadId && !disposed) {
-          socket.sendUserTurn({ text: initialText, thread_id: threadId });
+          socket.sendUserTurn({ text: internalPrompt, thread_id: threadId });
         } else if (!disposed) {
           setTurns(prev => [
             ...prev,
-            { kind: 'error', text: strings.chat.sendFailed, retryText: initialText },
+            { kind: 'error', text: strings.chat.sendFailed, retryText: internalPrompt },
           ]);
         }
       })();
+    } else if (externalDraft) {
+      // Deep-linked path text is a draft — never auto-send without consent.
+      void ensureThread();
+      Alert.alert(strings.chat.externalPromptTitle, externalDraft, [
+        { text: strings.chat.externalPromptDiscard, style: 'cancel' },
+        {
+          text: strings.chat.externalPromptSend,
+          onPress: () => {
+            void (async () => {
+              setTurns([{ kind: 'user', text: externalDraft }]);
+              const threadId = await ensureThreadRef.current?.();
+              const live = socketRef.current;
+              if (threadId && live) {
+                live.sendUserTurn({ text: externalDraft, thread_id: threadId });
+              } else {
+                setTurns(prev => [
+                  ...prev,
+                  {
+                    kind: 'error',
+                    text: stringsRef.current.chat.sendFailed,
+                    retryText: externalDraft,
+                  },
+                ]);
+              }
+            })();
+          },
+        },
+      ]);
     } else if (params.thread) {
       // Existing conversation: attach + replay without sending.
       void ensureThread();
@@ -498,7 +555,7 @@ export default function ThreadScreen() {
     };
     // agentId / params.thread are stable for the life of this route instance.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseUrl, user, initialText, handleFrame, agentId]);
+  }, [baseUrl, user, internalPrompt, externalDraft, handleFrame, agentId]);
 
   const send = (text: string) => {
     setTurns(prev => [...prev, { kind: 'user', text }]);
@@ -594,7 +651,7 @@ export default function ThreadScreen() {
           style={styles.fill}
         >
           <AppHeader
-            title={params.title ?? initialText ?? strings.chat.agentName}
+            title={params.title ?? internalPrompt ?? strings.chat.agentName}
             subtitle={headerSubtitle}
             onMenu={openDrawer}
           />
@@ -648,6 +705,7 @@ export default function ThreadScreen() {
                   streaming={streaming && index === turns.length - 1}
                   mdStyles={mdStyles}
                   mdRules={mdRules}
+                  onLinkPress={onMarkdownLink}
                 />
               );
             })}
@@ -694,15 +752,17 @@ const AssistantTurnItem = memo(function AssistantTurnItem({
   streaming,
   mdStyles,
   mdRules,
+  onLinkPress,
 }: {
   text: string;
   streaming: boolean;
   mdStyles: Record<string, object>;
   mdRules: MdRules;
+  onLinkPress: (url: string) => boolean;
 }) {
   return (
     <View style={styles.assistantBlock}>
-      <Markdown style={mdStyles} rules={mdRules}>
+      <Markdown style={mdStyles} rules={mdRules} onLinkPress={onLinkPress}>
         {streaming ? `${balanceStreamingMarkdown(text)} ▍` : text}
       </Markdown>
     </View>

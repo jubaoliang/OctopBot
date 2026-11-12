@@ -26,6 +26,10 @@ import { keyboardInset } from '@/utils/keyboard-inset';
  * resizes for the IME. This library reports the keyboard frame on both
  * platforms and avoidance is driven from it.
  *
+ * Do not pass `statusBarTranslucent` / `navigationBarTranslucent` /
+ * `preserveEdgeToEdge` — with `react-native-edge-to-edge` those props are
+ * forced on already and the provider warns that they are ignored.
+ *
  * On Android we force `adjustNothing`: with edge-to-edge + `adjustResize` the
  * IME inset is often reported as 0, so nothing would ever move.
  */
@@ -40,11 +44,7 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  return (
-    <RNKeyboardProvider statusBarTranslucent navigationBarTranslucent preserveEdgeToEdge>
-      {children}
-    </RNKeyboardProvider>
-  );
+  return <RNKeyboardProvider>{children}</RNKeyboardProvider>;
 }
 
 /**

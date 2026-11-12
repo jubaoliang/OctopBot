@@ -69,10 +69,16 @@ export function AuthProvider({
     tokenRef.current = token;
   }, [token]);
 
+  // Bumped on login / logout / drop so late renewals and 401s from a prior
+  // session cannot rewrite the active one (audit finding #3).
+  const sessionGenRef = useRef(0);
+
   const dropSession = useCallback(() => {
     // Only flag "session expired" when a token was actually present — logout
     // and post-clear 401s must not show that copy on the login screen.
     const hadSession = tokenRef.current !== null;
+    sessionGenRef.current += 1;
+    tokenRef.current = null;
     setToken(null);
     setUser(null);
     if (hadSession) {
@@ -86,7 +92,10 @@ export function AuthProvider({
   }, []);
 
   const persistToken = useCallback(
-    async (value: string) => {
+    async (value: string, expectedGen?: number) => {
+      if (expectedGen !== undefined && expectedGen !== sessionGenRef.current) {
+        return;
+      }
       tokenRef.current = value;
       setToken(value);
       await storage.set(TOKEN_KEY, value);
@@ -94,16 +103,24 @@ export function AuthProvider({
     [storage],
   );
 
-  const httpClient = useMemo(
-    () =>
-      new HttpClient({
-        baseUrl: baseUrl ?? 'http://localhost',
-        getToken: () => Promise.resolve(tokenRef.current),
-        onTokenRenewed: persistToken,
-        onUnauthorized: dropSession,
-      }),
-    [baseUrl, persistToken, dropSession],
-  );
+  // Keyed into httpClient deps so login/logout on the same baseUrl still
+  // rebuilds the client against the new session generation.
+  const sessionKey = user?.id ?? null;
+  const httpClient = useMemo(() => {
+    void sessionKey;
+    const gen = sessionGenRef.current;
+    return new HttpClient({
+      baseUrl: baseUrl ?? 'http://localhost',
+      getToken: () => Promise.resolve(tokenRef.current),
+      onTokenRenewed: value => persistToken(value, gen),
+      onUnauthorized: () => {
+        if (sessionGenRef.current !== gen) {
+          return;
+        }
+        dropSession();
+      },
+    });
+  }, [baseUrl, sessionKey, persistToken, dropSession]);
 
   // Restore a persisted session, then validate it against the server.
   useEffect(() => {
@@ -155,13 +172,17 @@ export function AuthProvider({
       setToken(storedToken);
       // A client built HERE from the restored values — the memoized one
       // still points at the pre-restore baseUrl on this render.
+      const restoreGen = sessionGenRef.current;
       const restoreClient = new HttpClient({
         baseUrl: storedBase,
-        getToken: () => Promise.resolve(storedToken),
-        onTokenRenewed: async renewed => {
-          await persistToken(renewed);
+        getToken: () => Promise.resolve(tokenRef.current),
+        onTokenRenewed: renewed => persistToken(renewed, restoreGen),
+        onUnauthorized: () => {
+          if (sessionGenRef.current !== restoreGen) {
+            return;
+          }
+          dropSession();
         },
-        onUnauthorized: dropSession,
       });
       try {
         const me = await new AuthApi(restoreClient).me();
@@ -226,6 +247,9 @@ export function AuthProvider({
         storage.set(BASE_URL_KEY, base),
         storage.set(TOKEN_KEY, result.access_token),
       ]);
+      // New generation before publishing credentials so in-flight renewals
+      // from a previous session cannot overwrite this login.
+      sessionGenRef.current += 1;
       // Ref BEFORE state: child effects (app-shell reload) run before this
       // provider's token-sync effect in the same commit — the first
       // authenticated request must already carry the fresh token.
@@ -242,6 +266,7 @@ export function AuthProvider({
     () => async () => {
       // Clear the token first so a subsequent 401 from logout() does not
       // flip sessionExpired (dropSession only flags when a token was present).
+      sessionGenRef.current += 1;
       tokenRef.current = null;
       void new AuthApi(httpClient).logout().catch(() => undefined);
       await storage.delete(TOKEN_KEY);
@@ -270,6 +295,8 @@ export function AuthProvider({
       const seededUrl = param('url');
       const seededToken = param('token');
       if (seededUrl && seededToken) {
+        sessionGenRef.current += 1;
+        const seedGen = sessionGenRef.current;
         tokenRef.current = seededToken;
         setBaseUrl(seededUrl);
         setToken(seededToken);
@@ -279,13 +306,22 @@ export function AuthProvider({
         ]).then(() => {
           const restoreClient = new HttpClient({
             baseUrl: seededUrl,
-            getToken: () => Promise.resolve(seededToken),
-            onTokenRenewed: persistToken,
-            onUnauthorized: dropSession,
+            getToken: () => Promise.resolve(tokenRef.current),
+            onTokenRenewed: value => persistToken(value, seedGen),
+            onUnauthorized: () => {
+              if (sessionGenRef.current !== seedGen) {
+                return;
+              }
+              dropSession();
+            },
           });
           new AuthApi(restoreClient)
             .me()
-            .then(me => setUser(me))
+            .then(me => {
+              if (sessionGenRef.current === seedGen) {
+                setUser(me);
+              }
+            })
             .catch(() => undefined);
         });
       }

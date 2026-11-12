@@ -47,7 +47,11 @@
         {
           "microphonePermission": "Allow OctopBot to use the microphone for voice input."
         }
-      ]
+      ],
+      "expo-font",
+      "expo-secure-store",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -59,8 +59,7 @@ export function InlineCode({
   text: string;
   inheritedStyle?: StyleProp<TextStyle>;
 }) {
-  const { tokens, resolvedMode } = useTheme();
-  const chipFill = resolvedMode === 'dark' ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.08)';
+  const { tokens } = useTheme();
   // Strip the paragraph face/weight so Android cannot keep the body font.
   const base = StyleSheet.flatten(inheritedStyle) ?? {};
   const { fontFamily: _dropFace, fontWeight: _dropWeight, ...lineMetrics } = base;
@@ -72,7 +71,7 @@ export function InlineCode({
         styles.inline,
         {
           color: tokens.textSecondary,
-          backgroundColor: chipFill,
+          backgroundColor: tokens.overlayPressed,
           fontFamily: CODE_FONT,
           fontWeight: '400',
           fontStyle: 'normal',

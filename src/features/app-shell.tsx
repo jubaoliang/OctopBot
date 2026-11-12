@@ -87,8 +87,26 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   }, [ready, user, httpClient]);
 
   useEffect(() => {
-    reload();
-  }, [reload]);
+    if (user) {
+      reload();
+      return;
+    }
+    // Clear account-scoped drawer state after logout without sync setState
+    // in the effect body (react-hooks/set-state-in-effect).
+    let cancelled = false;
+    void (async () => {
+      await Promise.resolve();
+      if (cancelled) {
+        return;
+      }
+      setGroups([]);
+      setDrawerOpen(false);
+      setDrawerPresented(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, reload]);
 
   const loadGroupThreads = useCallback(
     (group: DrawerTaskGroup) => {

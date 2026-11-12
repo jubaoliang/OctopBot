@@ -130,9 +130,12 @@ export default function ChatHomeScreen() {
     router.push({
       pathname: '/chat/[threadId]',
       params: {
-        threadId: promptText ?? 'new',
+        // Never put prompt text in the path segment — deep links can forge
+        // that and would auto-send. Internal prompts use a dedicated param.
+        threadId: 'new',
         agent: selected.agent_id,
         title: selected.name,
+        ...(promptText ? { prompt: promptText } : {}),
       },
     });
   };

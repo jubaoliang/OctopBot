@@ -109,7 +109,7 @@ function RootNavigator() {
           <ActivityIndicator color={tokens.accent} />
         </View>
       ) : !user ? (
-        <LoginScreen />
+        <LoginScreen storage={expoSecureStorage} />
       ) : (
         <>
           <Stack
