@@ -92,8 +92,8 @@ export function AuthProvider({
   }, []);
 
   const persistToken = useCallback(
-    async (value: string, expectedGen?: number) => {
-      if (expectedGen !== undefined && expectedGen !== sessionGenRef.current) {
+    async (value: string, expectedGen: number) => {
+      if (expectedGen !== sessionGenRef.current) {
         return;
       }
       tokenRef.current = value;
@@ -243,13 +243,13 @@ export function AuthProvider({
       if (isMfaChallenge(result)) {
         throw new LoginFlowError('mfa_required', 'mfa challenge not supported yet');
       }
+      // New generation before publishing credentials so in-flight renewals
+      // from a previous session cannot overwrite this login.
+      sessionGenRef.current += 1;
       await Promise.all([
         storage.set(BASE_URL_KEY, base),
         storage.set(TOKEN_KEY, result.access_token),
       ]);
-      // New generation before publishing credentials so in-flight renewals
-      // from a previous session cannot overwrite this login.
-      sessionGenRef.current += 1;
       // Ref BEFORE state: child effects (app-shell reload) run before this
       // provider's token-sync effect in the same commit — the first
       // authenticated request must already carry the fresh token.

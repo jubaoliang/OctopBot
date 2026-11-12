@@ -23,15 +23,16 @@ export interface LinkConfirmCopy {
  * Returns whether the link was accepted (useful for Markdown `onLinkPress`).
  */
 export function confirmOpenHttpUrl(url: string, copy: LinkConfirmCopy): boolean {
-  if (!isHttpUrl(url)) {
+  const target = url.trim();
+  if (!isHttpUrl(target)) {
     return false;
   }
-  Alert.alert(copy.title, copy.message(url), [
+  Alert.alert(copy.title, copy.message(target), [
     { text: copy.cancel, style: 'cancel' },
     {
       text: copy.open,
       onPress: () => {
-        void Linking.openURL(url).catch(() => undefined);
+        void Linking.openURL(target).catch(() => undefined);
       },
     },
   ]);

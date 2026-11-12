@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -43,6 +44,10 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerPresented, setDrawerPresented] = useState(false);
   const [groups, setGroups] = useState<DrawerTaskGroup[]>([]);
+  const activeUserIdRef = useRef<string | null>(user?.id ?? null);
+  useEffect(() => {
+    activeUserIdRef.current = user?.id ?? null;
+  }, [user?.id]);
 
   // Live agent tree for the drawer: experts with at least one thread,
   // fetched in parallel — experts without conversations stay out of the
@@ -51,6 +56,7 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
     if (!ready || !user) {
       return;
     }
+    const forUserId = user.id;
     void (async () => {
       try {
         const agents = await fetchAgents(httpClient);
@@ -61,8 +67,12 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
             threads: await threadsApi.list(a.agent_id).catch(() => []),
           })),
         );
-        setGroups(prev =>
-          populated
+        setGroups(prev => {
+          // Ignore results that finished after logout / account switch.
+          if (activeUserIdRef.current !== forUserId) {
+            return prev;
+          }
+          return populated
             .filter(({ threads }) => threads.length > 0)
             .map(({ agent, threads }) => {
               const existing = prev.find(g => g.agentId === agent.agent_id);
@@ -78,8 +88,8 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
                 iconName: agent.icon_name,
                 color: agent.color,
               };
-            }),
-        );
+            });
+        });
       } catch {
         // Drawer keeps the previous tree on refresh failures.
       }
