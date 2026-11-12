@@ -28,3 +28,6 @@ coverage/
 
 # Editor
 .vscode/
+
+# Local emulator / screenshot scratch (never commit)
+.tmp-audit/
