@@ -14,10 +14,10 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AppDrawer, type DrawerRoute } from '@/components/AppDrawer';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { registerLastAgentStore } from '@/app/(tabs)/chat/index';
 import { AuthProvider, useAuth } from '@/features/auth';
 import { LoginScreen } from '@/features/LoginScreen';
 import { AppShellProvider, useAppShell } from '@/features/app-shell';
+import { registerLastAgentStore } from '@/features/last-agent-store';
 import { I18nProvider, useI18n } from '@/i18n/I18nProvider';
 import { expoSecureStorage } from '@/platform/secure-store';
 import { KeyboardProvider } from '@/platform/keyboard';

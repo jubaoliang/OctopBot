@@ -1,13 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -15,37 +6,11 @@ import type { DrawerRoute, DrawerTaskGroup, DrawerThread } from '@/components/Ap
 import { OctopApiError } from '@/core/api/errors';
 import { ThreadsApi } from '@/core/api/threads';
 import { fetchAgents, useAuth } from '@/features/auth';
+import { AppShellContext, type AppShellValue, useAppShell } from '@/features/app-shell-context';
 import { useI18n } from '@/i18n/I18nProvider';
 
 export type { DrawerRoute };
-
-interface AppShellValue {
-  /** Requested drawer state — the drawer animates toward it. */
-  drawerOpen: boolean;
-  /**
-   * True from the moment the drawer opens until its close animation has
-   * finished. Chrome that must not overlap the drawer keys on this.
-   */
-  drawerPresented: boolean;
-  openDrawer: () => void;
-  closeDrawer: () => void;
-  /** Called by the drawer once its close animation completes. */
-  finishDrawerClose: () => void;
-  drawerGroups: DrawerTaskGroup[];
-  navigate: (route: DrawerRoute) => void;
-  /** Loads an expert's threads into the drawer tree (first expand). */
-  loadGroupThreads: (group: DrawerTaskGroup) => void;
-  /** Opens an existing conversation thread. */
-  openThread: (group: DrawerTaskGroup, thread: { threadId: string; title: string }) => void;
-  /** Chat screens register the conversation currently on screen. */
-  setActiveChat: (chat: { agentId: string; threadId: string } | null) => void;
-  /** Clear only if `chat` is still the registered active conversation. */
-  clearActiveChatIf: (chat: { agentId: string; threadId: string }) => void;
-  pinThread: (group: DrawerTaskGroup, thread: DrawerThread) => void;
-  deleteThread: (group: DrawerTaskGroup, thread: DrawerThread) => void;
-}
-
-const AppShellContext = createContext<AppShellValue | null>(null);
+export { useAppShell };
 
 function mapThread(t: { thread_id: string; title?: string | null; pinned: boolean }): DrawerThread {
   return {
@@ -341,12 +306,4 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   );
 
   return <AppShellContext.Provider value={value}>{children}</AppShellContext.Provider>;
-}
-
-export function useAppShell(): AppShellValue {
-  const value = useContext(AppShellContext);
-  if (!value) {
-    throw new Error('useAppShell must be used inside AppShellProvider');
-  }
-  return value;
 }

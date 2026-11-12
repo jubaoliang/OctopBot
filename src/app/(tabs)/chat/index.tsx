@@ -16,6 +16,7 @@ import { AgentsApi } from '@/core/api/agents';
 import { useAuth } from '@/features/auth';
 import { useAppShell } from '@/features/app-shell';
 import { putChatHandoff } from '@/features/chat-handoff';
+import { readLastAgentId, writeLastAgentId } from '@/features/last-agent-store';
 import { useImageAttachments } from '@/features/useImageAttachments';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
@@ -70,7 +71,7 @@ export default function ChatHomeScreen() {
         if (cancelled) {
           return;
         }
-        const last = await httpClientLastAgent();
+        const last = await readLastAgentId();
         const pick =
           agents.find(a => a.agent_id === last) ??
           agents.find(a => a.agent_id === 'main') ??
@@ -124,7 +125,7 @@ export default function ChatHomeScreen() {
     haptics.selection();
     setSelected(agent);
     setPickerOpen(false);
-    void storageSetLastAgent(agent.agent_id);
+    void writeLastAgentId(agent.agent_id);
   }, []);
 
   const startChat = (promptText: string | null, attachments?: TurnAttachment[]) => {
@@ -302,28 +303,6 @@ export default function ChatHomeScreen() {
       </SafeAreaView>
     </View>
   );
-}
-
-// Secure-storage helpers for the last-used expert id (module-scoped so the
-// mount effect can read without prop drilling).
-let lastAgentGetter: (() => Promise<string | null>) | null = null;
-let lastAgentSetter: ((id: string) => Promise<void>) | null = null;
-
-/** Injected by AppShellProvider once storage is available. */
-export function registerLastAgentStore(
-  get: () => Promise<string | null>,
-  set: (id: string) => Promise<void>,
-): void {
-  lastAgentGetter = get;
-  lastAgentSetter = set;
-}
-
-function httpClientLastAgent(): Promise<string | null> {
-  return lastAgentGetter ? lastAgentGetter() : Promise.resolve(null);
-}
-
-function storageSetLastAgent(id: string): Promise<void> {
-  return lastAgentSetter ? lastAgentSetter(id) : Promise.resolve();
 }
 
 const styles = StyleSheet.create({
