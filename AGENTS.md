@@ -1,13 +1,14 @@
 # OctopBot — Agent Instructions
 
-Official mobile client for [TencentCloud/Octop](https://github.com/TencentCloud/Octop), a self-hosted AI assistant platform. It replaces the earlier separate client project; this repo is the product's mobile app. Built with Expo SDK 58 + React Native + TypeScript (strict) + expo-router, with every native/platform capability isolated behind wrapper modules so a HarmonyOS target can later be added via per-module shims.
+Official mobile client for [TencentCloud/Octop](https://github.com/TencentCloud/Octop), a self-hosted AI assistant platform. It replaces the earlier separate client project; this repo is the product's mobile app. Built with Expo SDK 58 + React Native + TypeScript (strict) + expo-router, with every native/platform capability isolated behind wrapper modules so each target (Android, iOS, HarmonyOS) plugs in through per-module implementations.
 
 ## Platform strategy
 
-- **iOS and Android are the primary platforms.** Build them to production quality with the best available Expo/RN solutions — polish (Liquid Glass navigation, streaming chat UX, animations, accessibility) is the priority. **HarmonyOS is an additional target and must never degrade iOS/Android decisions.** When the best iOS/Android choice conflicts with HarmonyOS compatibility, iOS/Android wins; note the divergence in the relevant `src/platform/` wrapper for the future shim.
-- **HarmonyOS plan (fast-follow, same JS codebase):** use the community [expo-harmony](https://github.com/renbaoshuo/expo-harmony) toolkit — it ports Expo modules (including expo-router) to RNOH, with autolinking, CNG, and a debug→HAP toolchain. It pins an (Expo SDK ↔ RNOH) version pair that lags the latest SDK (SDK 55 + RNOH 0.84 today, SDK 57 + RNOH 0.86 pending), so when HarmonyOS work starts: check its supported pair and align the app's Expo SDK to it. Expo has no official HarmonyOS support; this toolkit is the path.
-- **Wrapper hygiene (cheap insurance, not a cage):** Expo/native capabilities (secure storage, image, splash, glass effect, haptics, linking, …) are accessed through interfaces in `src/platform/` rather than imported directly in screens/components. This keeps future shims mechanical without limiting iOS/Android implementation choices.
-- Prefer RN-core APIs (e.g. WebSocket) and libraries with `@react-native-ohos/*` ports **when quality is equal**; otherwise pick the best library for iOS/Android and wrap it.
+- **Cross-platform comes first.** Android, iOS and HarmonyOS are all targets of this one JS codebase, and every decision has to work on all three: prefer the solution that runs everywhere over one that is better on a single platform. A WeChat mini program is an undecided nice-to-have; it cannot run React Native screens, so the only thing it could reuse is the pure-TypeScript core — one more reason to keep logic out of components.
+- **Platform-specific polish lives behind `src/platform/` only.** A capability that exists on one platform (Liquid Glass, haptics, …) is exposed through a wrapper interface with a working equivalent or a graceful fallback on every other target. No screen or feature may depend on a single-platform API.
+- **HarmonyOS plan (same JS codebase):** use the community [expo-harmony](https://github.com/renbaoshuo/expo-harmony) toolkit — it ports Expo modules (including expo-router) to RNOH, with autolinking, CNG, and a debug→HAP toolchain. It pins an (Expo SDK ↔ RNOH) version pair that lags the latest SDK (SDK 55 + RNOH 0.84 today, SDK 57 + RNOH 0.86 pending), so when HarmonyOS work starts: check its supported pair and align the app's Expo SDK to it. Expo has no official HarmonyOS support; this toolkit is the path.
+- **Wrapper hygiene:** Expo/native capabilities (secure storage, image, splash, glass effect, haptics, linking, …) are accessed through interfaces in `src/platform/` rather than imported directly in screens/components, so each target supplies its own implementation mechanically.
+- **Library choice:** prefer RN-core APIs (e.g. WebSocket), pure-JS libraries, and libraries with `@react-native-ohos/*` ports. A library with no HarmonyOS path is added only behind a `src/platform/` wrapper with its fallback stated there.
 - Business core (API clients, chat WebSocket, state, i18n, utils) stays pure TypeScript — no `react-native` imports.
 - **expo-router on HarmonyOS:** a port exists in expo-harmony, so routing should carry over; if the port lags our SDK at integration time, fall back to re-expressing routes in react-navigation. Keep route files thin (exports + wiring) either way.
 
@@ -15,7 +16,7 @@ Official mobile client for [TencentCloud/Octop](https://github.com/TencentCloud/
 
 ## Layout & commands
 
-- `src/core/` — pure TypeScript (no `react-native` imports): `api/` (http client, contract types, auth/agents/threads/knowledge/cron modules), `chat/` (ChatSocket with heartbeat + reconnect). `src/platform/` — capability interfaces (secure storage). `src/app/` — expo-router file routes; `src/components/` for shared UI; `assets/` for images/fonts.
+- `src/core/` — pure TypeScript (no `react-native` imports): `api/` (http client, contract types, auth/agents/threads/knowledge/cron/usage modules), `chat/` (ChatSocket with heartbeat + reconnect). `src/platform/` — capability interfaces (secure storage). `src/app/` — expo-router file routes; `src/components/` for shared UI; `assets/` for images/fonts.
 - Scripts: `npm start` / `npm run ios` / `npm run android` / `npm run web`, `npm run lint` (eslint, strict), `npm run typecheck`, `npm test` (jest), `npm run format` (prettier), `npm run reset-project` (template helper — never run casually).
 - Import aliases (tsconfig paths): `@/*` → `src/*`, `@/assets/*` → `assets/*`. Use them; no deep relative imports.
 
@@ -45,6 +46,7 @@ The contract is pinned in `docs/api-contract.md` (Octop **1.0.3b4**, upstream `d
 - TypeScript strict everywhere; no `any` unless justified in a comment explaining why.
 - File-based routing via expo-router under `src/app/`.
 - i18n: zh + en, no hardcoded UI strings.
+- **Charts are drawn with `react-native-svg`, not a chart library**: geometry (scales, ticks, bar rects) is pure TypeScript in `src/utils/bar-chart.ts` with tests, and `src/components/BarChart.tsx` only draws it. ECharts and Swift Charts were considered and rejected (look, and iOS-only respectively). New chart types follow the same split.
 - Unit tests (Jest) for parsers/formatters/API clients; E2E via Maestro — see the Testing section. Features are not done until their E2E flow passes.
 - **Commits follow Conventional Commits**, enforced by the commit-msg hook (commitlint + `@commitlint/config-conventional`). Author interactive commits with `npm run commit` (commitizen); `pre-commit` runs lint-staged (eslint --fix + prettier on staged files). Hooks are installed by husky via the `prepare` script — they self-heal on every `npm install`.
 
