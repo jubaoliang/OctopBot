@@ -6,6 +6,7 @@ const zh = {
   drawer: { tokens: 'Token 统计', tasks: '任务' },
   a11y: {
     menu: '菜单',
+    back: '返回',
     more: '更多',
     closeMenu: '关闭菜单',
     attach: '添加附件',
@@ -106,6 +107,7 @@ const en: Dict = {
   drawer: { tokens: 'Token usage', tasks: 'Tasks' },
   a11y: {
     menu: 'Menu',
+    back: 'Back',
     more: 'More',
     closeMenu: 'Close menu',
     attach: 'Add attachment',
