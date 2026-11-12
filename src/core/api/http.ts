@@ -16,6 +16,11 @@ interface RequestOptions {
   body?: unknown;
   /** Auth-exempt calls (health check, login) skip the Authorization header. */
   anonymous?: boolean;
+  /**
+   * When true, 401/TOKEN_EXPIRED still throw but do not call `onUnauthorized`
+   * (e.g. wrong current password on change-password must not sign the user out).
+   */
+  suppressUnauthorized?: boolean;
   signal?: AbortSignal;
 }
 
@@ -36,7 +41,11 @@ export class HttpClient {
     return this.request<T>(path, { method: 'GET', ...options });
   }
 
-  post<T>(path: string, body?: unknown, options: { anonymous?: boolean } = {}): Promise<T> {
+  post<T>(
+    path: string,
+    body?: unknown,
+    options: { anonymous?: boolean; suppressUnauthorized?: boolean } = {},
+  ): Promise<T> {
     return this.request<T>(path, { method: 'POST', body, ...options });
   }
 
@@ -127,12 +136,19 @@ export class HttpClient {
   }
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-    const { method = 'GET', body, anonymous = false, signal } = options;
+    const {
+      method = 'GET',
+      body,
+      anonymous = false,
+      suppressUnauthorized = false,
+      signal,
+    } = options;
     return this.sendJson<T>(path, {
       method,
       body: body === undefined ? undefined : JSON.stringify(body),
       contentType: body === undefined ? undefined : 'application/json',
       anonymous,
+      suppressUnauthorized,
       signal,
     });
   }
@@ -163,11 +179,13 @@ export class HttpClient {
       body?: string | FormData;
       contentType?: string;
       anonymous: boolean;
+      suppressUnauthorized?: boolean;
       signal?: AbortSignal;
       timeoutMs?: number;
     },
   ): Promise<T> {
-    const { method, body, contentType, anonymous, signal, timeoutMs } = options;
+    const { method, body, contentType, anonymous, suppressUnauthorized, signal, timeoutMs } =
+      options;
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (contentType) {
       headers['Content-Type'] = contentType;
@@ -220,7 +238,9 @@ export class HttpClient {
 
     if (!response.ok) {
       const error = parseApiError(response.status, parsed);
-      if (error.isAuthFailure) {
+      // Wrong-password AUTH_FAILED on change-password must not sign out;
+      // a genuinely expired token still clears the session.
+      if (error.isAuthFailure && !(suppressUnauthorized && error.code === 'AUTH_FAILED')) {
         this.options.onUnauthorized();
       }
       throw error;

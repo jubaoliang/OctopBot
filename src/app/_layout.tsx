@@ -29,17 +29,14 @@ void SplashScreen.preventAutoHideAsync().catch(() => {
 
 /** Maps the current path to the drawer row that should read as selected. */
 function drawerRouteFor(pathname: string): DrawerRoute | null {
-  if (pathname.startsWith('/experts')) {
-    return 'experts';
-  }
-  if (pathname.startsWith('/automation')) {
-    return 'automation';
+  if (pathname.startsWith('/knowledge')) {
+    return 'knowledge';
   }
   if (pathname.startsWith('/usage')) {
     return 'usage';
   }
-  if (pathname === '/' || pathname.startsWith('/chat')) {
-    return 'chat';
+  if (pathname.startsWith('/settings') || pathname.startsWith('/licenses')) {
+    return 'settings';
   }
   return null;
 }
@@ -55,6 +52,8 @@ function RootNavigator() {
     navigate,
     loadGroupThreads,
     openThread,
+    pinThread,
+    deleteThread,
   } = useAppShell();
   const { ready, user } = useAuth();
   const pathname = usePathname();
@@ -125,6 +124,8 @@ function RootNavigator() {
               groups={drawerGroups}
               onGroupPress={loadGroupThreads}
               onThreadPress={openThread}
+              onThreadPin={pinThread}
+              onThreadDelete={deleteThread}
             />
           ) : null}
         </>

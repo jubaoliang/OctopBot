@@ -104,7 +104,7 @@ Server → client (broadcast frames carry `thread_id`):
 ## Knowledge bases (`src/octop/api/routers/knowledge_bases.py`)
 
 - `GET /api/knowledge-bases` → visible KBs (`{knowledge_base_id, name, description, visibility fields, owner_username…}`).
-- `GET /{kb_id}/documents?prefix=` (tree), `GET /{kb_id}/documents/{doc_id}/preview` (extracted text), `GET …/chunks`, `GET …/file?disposition=`, `GET/PUT …/content`.
+- `GET /{kb_id}/documents?prefix=` → immediate children of that relative path (empty/`omit` = roots). Each row includes `{id, path, filename, is_dir, byte_size, …}` (`is_dir: true` for folders). `GET /{kb_id}/documents/{doc_id}/preview` (extracted text for files only), `GET …/chunks`, `GET …/file?disposition=`, `GET/PUT …/content`.
 - Mutations: `POST /{kb_id}/documents` (multipart), `POST …/text`, `POST …/rename`, `DELETE …/{doc_id}`, `POST …/reindex`.
 - No HTTP semantic search — retrieval happens via the agent's `search_knowledge` tool during a turn.
 

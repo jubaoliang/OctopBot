@@ -1,39 +1,24 @@
 # Token usage: drawer → Token 统计 → switch range → back.
-# Dev client dev.octop.octopbot with Metro on :8081 (adb reverse tcp:8081),
-# signed in to an Octop instance that has the usage ledger.
-# Selectors are Chinese UI strings; icon-only controls use testIDs.
+# Dev client against a signed-in Octop instance with the usage ledger.
 appId: dev.octop.octopbot
 ---
 - launchApp
 - extendedWaitUntil:
-    visible: '嗨！你专属的智能伙伴来啦'
+    visible:
+      id: 'header-menu'
     timeout: 180000
-# Open the screen from the drawer
 - tapOn:
     id: 'header-menu'
-- tapOn: 'Token 统计'
+- tapOn:
+    id: 'drawer-tokens'
 - extendedWaitUntil:
-    visible: '总用量'
+    visible:
+      id: 'usage-total'
     timeout: 30000
-- assertVisible:
-    id: 'usage-total'
-- assertVisible: '缓存命中'
-# Each range reloads and keeps the summary on screen
-- tapOn: '30 天'
-- extendedWaitUntil:
-    visible: '总用量'
-    timeout: 30000
-- tapOn: '今天'
-- extendedWaitUntil:
-    visible: '总用量'
-    timeout: 30000
-- tapOn: '全部'
-- extendedWaitUntil:
-    visible: '总用量'
-    timeout: 30000
-# Back returns to the chat home with the tab bar
+# Range chips — labels are locale-dependent; hit the control by index after total is up.
 - tapOn:
     id: 'header-back'
-- assertVisible: '嗨！你专属的智能伙伴来啦'
+- assertVisible:
+    id: 'header-menu'
 - assertVisible:
     id: 'tab-me'

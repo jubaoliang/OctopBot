@@ -1,0 +1,29 @@
+# Thread pin/delete via long-press action menu (more reliable than swipe).
+# Requires at least one task-tree thread in the drawer.
+appId: dev.octop.octopbot
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'header-menu'
+    timeout: 180000
+- tapOn:
+    id: 'header-menu'
+- extendedWaitUntil:
+    visible: 'Tasks'
+    timeout: 15000
+# Expand the first expert group under Tasks (name varies by server).
+- tapOn:
+    below: 'Tasks'
+- scrollUntilVisible:
+    element:
+      id: '.*drawer-thread-.*'
+    direction: DOWN
+    timeout: 20000
+- longPressOn:
+    id: '.*drawer-thread-.*'
+- extendedWaitUntil:
+    visible: 'Pin'
+    timeout: 8000
+- assertVisible: 'Delete'
+- tapOn: 'Cancel'

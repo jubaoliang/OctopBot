@@ -67,6 +67,7 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "jest",
+    "licenses": "node ./scripts/generate-licenses.mjs",
     "commit": "cz",
     "prepare": "husky"
   },

@@ -18,7 +18,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import Markdown from 'react-native-markdown-display';
 
 import { AppHeader } from '@/components/AppHeader';
@@ -77,7 +77,7 @@ const TOKEN_FLUSH_MS = 120;
 export default function ThreadScreen() {
   const { tokens } = useTheme();
   const { t: strings } = useI18n();
-  const { openDrawer } = useAppShell();
+  const { openDrawer, setActiveChat, clearActiveChatIf } = useAppShell();
   const { baseUrl, token, httpClient, user, dropSession, sessionGeneration } = useAuth();
   // Route params: `threadId` is a path segment (`new` / `open` / forged deep
   // link). Internal suggestion pills pass `prompt` — never put user text in
@@ -418,6 +418,7 @@ export default function ThreadScreen() {
         // Socket was rebuilt for the same thread — re-attach.
         dispatch({ type: 'threadReady', threadId: threadRef.current });
         socket.subscribe(threadRef.current);
+        setActiveChat({ agentId, threadId: threadRef.current });
         return threadRef.current;
       }
       const threads = new ThreadsApi(httpClientRef.current);
@@ -455,6 +456,7 @@ export default function ThreadScreen() {
         });
         socket.subscribe(threadId);
         threadRef.current = threadId;
+        setActiveChat({ agentId, threadId });
         return threadId;
       }
       const created = await threads.create(agentId);
@@ -464,6 +466,7 @@ export default function ThreadScreen() {
       dispatch({ type: 'threadReady', threadId: created.thread_id });
       socket.subscribe(created.thread_id);
       threadRef.current = created.thread_id;
+      setActiveChat({ agentId, threadId: created.thread_id });
       return created.thread_id;
     };
 
@@ -553,7 +556,24 @@ export default function ThreadScreen() {
     handleFrame,
     agentId,
     sessionGeneration,
+    setActiveChat,
   ]);
+
+  // Focus-aware registration so stacked threads do not clobber each other.
+  useFocusEffect(
+    useCallback(() => {
+      const threadId = threadRef.current;
+      if (threadId) {
+        setActiveChat({ agentId, threadId });
+      }
+      return () => {
+        const id = threadRef.current;
+        if (id) {
+          clearActiveChatIf({ agentId, threadId: id });
+        }
+      };
+    }, [agentId, setActiveChat, clearActiveChatIf]),
+  );
 
   const send = (text: string, attachments?: TurnAttachment[]) => {
     dispatch({ type: 'userSend', text, attachments });

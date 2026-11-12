@@ -36,4 +36,21 @@ export class AuthApi {
   logout(): Promise<void> {
     return this.http.post('/api/auth/logout');
   }
+
+  /**
+   * Updates the signed-in user's password. Server responds 204 and may slide
+   * a fresh token via `X-Octop-Access-Token` (handled by HttpClient).
+   */
+  changePassword(oldPassword: string, newPassword: string): Promise<void> {
+    // Wrong current password must not clear the session (HttpClient would
+    // otherwise treat AUTH_FAILED / 401 as a dead token).
+    return this.http.post(
+      '/api/auth/change-password',
+      {
+        old_password: oldPassword,
+        new_password: newPassword,
+      },
+      { suppressUnauthorized: true },
+    );
+  }
 }

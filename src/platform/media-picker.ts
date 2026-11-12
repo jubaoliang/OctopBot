@@ -1,16 +1,12 @@
-import * as ImagePicker from 'expo-image-picker';
-// Legacy entry keeps `getInfoAsync` (size via stat) available on SDK 58.
-import { getInfoAsync } from 'expo-file-system/legacy';
-
 import type { AttachSource } from '@/core/api/attachments';
 
 /**
  * Image selection for chat attachments.
  *
  * The ONLY place expo-image-picker / expo-file-system are imported for
- * attachments (AGENTS.md wrapper hygiene). Screens receive plain data and a
- * typed error, so a target without the native modules degrades to a message
- * instead of crashing.
+ * attachments (AGENTS.md wrapper hygiene). Native modules are required lazily
+ * so a rebuild lag does not crash the app at import time — pick then fails
+ * closed with `unavailable`.
  */
 
 export interface PickedImage {
@@ -42,6 +38,21 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   heif: 'image/heif',
 };
 
+const PICKER_OPTIONS = { mediaTypes: ['images' as const], quality: 0.85 };
+
+type ImagePickerModule = typeof import('expo-image-picker');
+type ImagePickerResult = import('expo-image-picker').ImagePickerResult;
+
+function loadImagePicker(): ImagePickerModule {
+  try {
+    // Lazy: ExpoImagePicker is only linked after a native rebuild.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('expo-image-picker') as ImagePickerModule;
+  } catch {
+    throw new MediaPickerError('unavailable');
+  }
+}
+
 function extensionOf(name: string): string | null {
   const match = /\.([a-z0-9]+)(?:\?|$)/i.exec(name);
   return match?.[1]?.toLowerCase() ?? null;
@@ -68,6 +79,9 @@ async function withByteSize(image: PickedImage): Promise<PickedImage> {
     return image;
   }
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getInfoAsync } =
+      require('expo-file-system/legacy') as typeof import('expo-file-system/legacy');
     const info = await getInfoAsync(image.uri);
     return info.exists ? { ...image, byteSize: info.size } : image;
   } catch {
@@ -76,7 +90,7 @@ async function withByteSize(image: PickedImage): Promise<PickedImage> {
   }
 }
 
-async function finish(result: ImagePicker.ImagePickerResult): Promise<PickedImage[]> {
+async function finish(result: ImagePickerResult): Promise<PickedImage[]> {
   if (result.canceled) {
     return [];
   }
@@ -93,21 +107,19 @@ async function finish(result: ImagePicker.ImagePickerResult): Promise<PickedImag
  */
 export async function pickImages(source: AttachSource): Promise<PickedImage[]> {
   try {
+    const ImagePicker = loadImagePicker();
     if (source === 'camera') {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
         throw new MediaPickerError('denied');
       }
-      return await finish(
-        await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.85 }),
-      );
+      return await finish(await ImagePicker.launchCameraAsync({ ...PICKER_OPTIONS }));
     }
     // The system photo picker needs no library permission to read picks.
     return await finish(
       await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
+        ...PICKER_OPTIONS,
         allowsMultipleSelection: true,
-        quality: 0.85,
       }),
     );
   } catch (cause) {

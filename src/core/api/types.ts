@@ -236,11 +236,17 @@ export interface KnowledgeBase {
 }
 
 export interface KnowledgeDocument {
-  id: string;
-  name: string;
+  /** Primary id; some payloads only send `document_id`. */
+  id?: string;
   path: string;
-  size_bytes?: number;
-  updated_at?: string | null;
+  /** Basename; folders and files both carry this. */
+  filename: string;
+  /** True for folder rows; omit/false = file. */
+  is_dir?: boolean;
+  byte_size?: number;
+  updated_at?: number | string | null;
+  /** Alias of `id` on some payloads. */
+  document_id?: string;
 }
 
 export type CronTrigger = string; // "cron:0 9 * * *" | "interval:3600" | "date:…" | "agently:…"

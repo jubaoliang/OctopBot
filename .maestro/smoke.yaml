@@ -1,4 +1,4 @@
-# Smoke: logged-in shell — chat home, composer, experts, drawer.
+# Smoke: logged-in shell — chat home, drawer knowledge/tokens/settings, tabs.
 # Dev client dev.octop.octopbot with Metro on :8081 (adb reverse tcp:8081).
 # Seed a session first via octopbot://dev-session?url=…&token=… when needed.
 appId: dev.octop.octopbot
@@ -15,20 +15,24 @@ appId: dev.octop.octopbot
 - tapOn:
     id: 'header-menu'
 - assertVisible:
-    id: 'drawer-tokens'
-# Navigate via drawer (closes it) — tab bar is hidden while drawerPresented
-- tapOn:
-    id: 'drawer-experts'
-- assertNotVisible:
-    id: 'composer-input'
+    id: 'drawer-knowledge'
 - assertVisible:
-    id: 'header-menu'
-# Return to chat home via drawer (more reliable than the floating tab pill)
+    id: 'drawer-tokens'
+- assertVisible:
+    id: 'drawer-settings'
+# Navigate via drawer (closes it) — tab bar is hidden while a pushed screen is open
 - tapOn:
-    id: 'header-menu'
+    id: 'drawer-settings'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-licenses'
+    timeout: 30000
+# Back to chat home (pushed Settings sits above tabs)
 - tapOn:
-    id: 'drawer-chat'
+    id: 'header-back'
 - extendedWaitUntil:
     visible:
       id: 'composer-input'
     timeout: 30000
+- assertVisible:
+    id: 'tab-me'

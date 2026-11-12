@@ -13,10 +13,11 @@ appId: dev.octop.octopbot
 - inputText: 'ping from maestro'
 - tapOn:
     id: 'composer-send'
-# While streaming, stop may appear; wait for a terminal idle composer.
+# After send the draft clears, so idle trailing control is the mic (not send).
+# While streaming, stop may appear; wait until the composer is idle again.
 - extendedWaitUntil:
     visible:
-      id: 'composer-send'
+      id: 'composer-voice'
     timeout: 120000
 - assertNotVisible:
     id: 'composer-stop'

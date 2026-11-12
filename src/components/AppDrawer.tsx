@@ -13,19 +13,13 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
+import { BookOpen, Settings } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import {
-  IconChevronDown,
-  IconTaskWindow,
-  LogoHeader,
-  MenuAutomation,
-  MenuChat,
-  MenuExperts,
-  MenuTokens,
-} from '@/components/icons';
+import { IconChevronDown, IconTaskWindow, LogoHeader, MenuTokens } from '@/components/icons';
 import { AgentAvatar } from '@/components/AgentAvatar';
+import { DrawerThreadRow } from '@/components/DrawerThreadRow';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
 import { continuousCorners, layout, motion, radius, typeScale, useTokens } from '@/theme';
@@ -54,6 +48,7 @@ export interface DrawerThread {
   threadId: string;
   /** Server title; empty when the conversation has none yet. */
   title: string;
+  pinned: boolean;
 }
 
 export interface DrawerTaskGroup {
@@ -68,7 +63,7 @@ export interface DrawerTaskGroup {
   color?: string | null;
 }
 
-export type DrawerRoute = 'chat' | 'experts' | 'automation' | 'usage';
+export type DrawerRoute = 'knowledge' | 'usage' | 'settings';
 
 interface AppDrawerProps {
   /** Requested state; the drawer animates toward it. */
@@ -76,9 +71,8 @@ interface AppDrawerProps {
   onClose: () => void;
   /** Fired once the close animation has finished — the parent unmounts then. */
   onDismissed: () => void;
-  /** The tab the user is on, so the matching nav row is highlighted. */
+  /** The secondary route that should read as selected. */
   activeRoute: DrawerRoute | null;
-  /** Drawer nav mirrors the tab bar routes; Token 统计 (`usage`) is drawer-only. */
   onNavigate: (route: DrawerRoute) => void;
   /** Task tree = agent groups with their threads. */
   groups: DrawerTaskGroup[];
@@ -86,6 +80,8 @@ interface AppDrawerProps {
   onGroupPress: (group: DrawerTaskGroup) => void;
   /** Opens an existing conversation. */
   onThreadPress: (group: DrawerTaskGroup, thread: DrawerThread) => void;
+  onThreadPin: (group: DrawerTaskGroup, thread: DrawerThread) => void;
+  onThreadDelete: (group: DrawerTaskGroup, thread: DrawerThread) => void;
 }
 
 const PANEL_WIDTH = 313;
@@ -116,6 +112,8 @@ export function AppDrawer({
   groups,
   onGroupPress,
   onThreadPress,
+  onThreadPin,
+  onThreadDelete,
 }: AppDrawerProps) {
   const t = useTokens();
   const { t: strings } = useI18n();
@@ -277,25 +275,11 @@ export function AppDrawer({
 
             <View style={styles.menuList}>
               <NavRow
-                icon={<MenuChat width={20} height={20} color={t.textBody} />}
-                label={strings.tabs.chat}
-                active={activeRoute === 'chat'}
-                testID="drawer-chat"
-                onPress={() => onNavigate('chat')}
-              />
-              <NavRow
-                icon={<MenuExperts width={20} height={20} color={t.textBody} />}
-                label={strings.tabs.experts}
-                active={activeRoute === 'experts'}
-                testID="drawer-experts"
-                onPress={() => onNavigate('experts')}
-              />
-              <NavRow
-                icon={<MenuAutomation width={20} height={20} color={t.textBody} />}
-                label={strings.tabs.automation}
-                active={activeRoute === 'automation'}
-                testID="drawer-automation"
-                onPress={() => onNavigate('automation')}
+                icon={<BookOpen size={20} color={t.textBody} />}
+                label={strings.drawer.knowledge}
+                active={activeRoute === 'knowledge'}
+                testID="drawer-knowledge"
+                onPress={() => onNavigate('knowledge')}
               />
               <NavRow
                 icon={<MenuTokens width={20} height={20} color={t.textBody} />}
@@ -303,6 +287,13 @@ export function AppDrawer({
                 active={activeRoute === 'usage'}
                 testID="drawer-tokens"
                 onPress={() => onNavigate('usage')}
+              />
+              <NavRow
+                icon={<Settings size={20} color={t.textBody} />}
+                label={strings.drawer.settings}
+                active={activeRoute === 'settings'}
+                testID="drawer-settings"
+                onPress={() => onNavigate('settings')}
               />
             </View>
 
@@ -366,23 +357,13 @@ export function AppDrawer({
                                 entering={FadeInDown.delay(index * 20).duration(180)}
                                 exiting={FadeOutUp.duration(120)}
                               >
-                                <Pressable
-                                  accessibilityRole="button"
-                                  accessibilityLabel={title}
-                                  style={({ pressed }) => [
-                                    styles.childRow,
-                                    pressed ? { backgroundColor: t.overlayPressed } : null,
-                                  ]}
-                                  onPress={() => onThreadPress(group, { ...item, title })}
-                                >
-                                  <Text
-                                    style={[styles.childName, { color: t.textBody }]}
-                                    numberOfLines={1}
-                                    ellipsizeMode="tail"
-                                  >
-                                    {title}
-                                  </Text>
-                                </Pressable>
+                                <DrawerThreadRow
+                                  thread={item}
+                                  title={title}
+                                  onOpen={() => onThreadPress(group, { ...item, title })}
+                                  onPin={() => onThreadPin(group, item)}
+                                  onDelete={() => onThreadDelete(group, item)}
+                                />
                               </Animated.View>
                             );
                           })
@@ -516,23 +497,9 @@ const styles = StyleSheet.create({
     flex: 1,
     ...typeScale.body,
   },
-  childRow: {
-    // Design: children indent 40, aligning with the group label
-    // (12 pad + 20 avatar + 8 gap).
-    minHeight: layout.rowMinHeight,
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-    ...continuousCorners,
-    paddingLeft: 40,
-    paddingRight: 12,
-    paddingVertical: 8,
-  },
   childEmpty: {
     paddingLeft: 40,
     paddingVertical: 8,
-    ...typeScale.callout,
-  },
-  childName: {
     ...typeScale.callout,
   },
 });

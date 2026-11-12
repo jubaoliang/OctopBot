@@ -1,0 +1,20 @@
+# Knowledge browse: drawer → knowledge list → back.
+appId: dev.octop.octopbot
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'header-menu'
+    timeout: 180000
+- tapOn:
+    id: 'header-menu'
+- tapOn:
+    id: 'drawer-knowledge'
+- extendedWaitUntil:
+    visible:
+      id: 'knowledge-list'
+    timeout: 30000
+- tapOn:
+    id: 'header-back'
+- assertVisible:
+    id: 'header-menu'

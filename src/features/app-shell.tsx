@@ -8,11 +8,14 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import type { DrawerRoute, DrawerTaskGroup } from '@/components/AppDrawer';
+import type { DrawerRoute, DrawerTaskGroup, DrawerThread } from '@/components/AppDrawer';
+import { OctopApiError } from '@/core/api/errors';
 import { ThreadsApi } from '@/core/api/threads';
 import { fetchAgents, useAuth } from '@/features/auth';
+import { useI18n } from '@/i18n/I18nProvider';
 
 export type { DrawerRoute };
 
@@ -34,17 +37,43 @@ interface AppShellValue {
   loadGroupThreads: (group: DrawerTaskGroup) => void;
   /** Opens an existing conversation thread. */
   openThread: (group: DrawerTaskGroup, thread: { threadId: string; title: string }) => void;
+  /** Chat screens register the conversation currently on screen. */
+  setActiveChat: (chat: { agentId: string; threadId: string } | null) => void;
+  /** Clear only if `chat` is still the registered active conversation. */
+  clearActiveChatIf: (chat: { agentId: string; threadId: string }) => void;
+  pinThread: (group: DrawerTaskGroup, thread: DrawerThread) => void;
+  deleteThread: (group: DrawerTaskGroup, thread: DrawerThread) => void;
 }
 
 const AppShellContext = createContext<AppShellValue | null>(null);
 
+function mapThread(t: { thread_id: string; title?: string | null; pinned: boolean }): DrawerThread {
+  return {
+    threadId: t.thread_id,
+    title: t.title?.trim() ?? '',
+    pinned: t.pinned,
+  };
+}
+
+function sortThreads(items: DrawerThread[]): DrawerThread[] {
+  return [...items].sort((a, b) => {
+    if (a.pinned !== b.pinned) {
+      return a.pinned ? -1 : 1;
+    }
+    return 0;
+  });
+}
+
 export function AppShellProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { user, ready, httpClient } = useAuth();
+  const { t: strings } = useI18n();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerPresented, setDrawerPresented] = useState(false);
   const [groups, setGroups] = useState<DrawerTaskGroup[]>([]);
   const activeUserIdRef = useRef<string | null>(user?.id ?? null);
+  const openChatRef = useRef<{ agentId: string; threadId: string } | null>(null);
+
   useEffect(() => {
     activeUserIdRef.current = user?.id ?? null;
   }, [user?.id]);
@@ -79,10 +108,7 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
               return {
                 name: agent.name,
                 agentId: agent.agent_id,
-                items: threads.map(t => ({
-                  threadId: t.thread_id,
-                  title: t.title?.trim() ?? '',
-                })),
+                items: sortThreads(threads.map(mapThread)),
                 expanded: existing?.expanded ?? false,
                 threadsLoaded: true,
                 iconName: agent.icon_name,
@@ -112,6 +138,7 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       setGroups([]);
       setDrawerOpen(false);
       setDrawerPresented(false);
+      openChatRef.current = null;
     })();
     return () => {
       cancelled = true;
@@ -134,10 +161,7 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
                 ? {
                     ...g,
                     threadsLoaded: true,
-                    items: threads.map(t => ({
-                      threadId: t.thread_id,
-                      title: t.title?.trim() ?? '',
-                    })),
+                    items: sortThreads(threads.map(mapThread)),
                   }
                 : g,
             ),
@@ -166,6 +190,103 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
     [router],
   );
 
+  const setActiveChat = useCallback((chat: { agentId: string; threadId: string } | null) => {
+    openChatRef.current = chat;
+  }, []);
+
+  const clearActiveChatIf = useCallback((chat: { agentId: string; threadId: string }) => {
+    const open = openChatRef.current;
+    if (open && open.agentId === chat.agentId && open.threadId === chat.threadId) {
+      openChatRef.current = null;
+    }
+  }, []);
+
+  const pinThread = useCallback(
+    (group: DrawerTaskGroup, thread: DrawerThread) => {
+      const previous = thread.pinned;
+      const next = !previous;
+      setGroups(prev =>
+        prev.map(g =>
+          g.agentId !== group.agentId
+            ? g
+            : {
+                ...g,
+                items: sortThreads(
+                  g.items.map(item =>
+                    item.threadId === thread.threadId ? { ...item, pinned: next } : item,
+                  ),
+                ),
+              },
+        ),
+      );
+      void new ThreadsApi(httpClient)
+        .update(group.agentId, thread.threadId, { pinned: next })
+        .catch(() => {
+          setGroups(prev =>
+            prev.map(g =>
+              g.agentId !== group.agentId
+                ? g
+                : {
+                    ...g,
+                    items: sortThreads(
+                      g.items.map(item =>
+                        item.threadId === thread.threadId ? { ...item, pinned: previous } : item,
+                      ),
+                    ),
+                  },
+            ),
+          );
+          Alert.alert(strings.drawer.pin, strings.drawer.pinFailed);
+        });
+    },
+    [httpClient, strings.drawer.pin, strings.drawer.pinFailed],
+  );
+
+  const deleteThread = useCallback(
+    (group: DrawerTaskGroup, thread: DrawerThread) => {
+      void (async () => {
+        try {
+          await new ThreadsApi(httpClient).remove(group.agentId, thread.threadId);
+        } catch (error) {
+          const active =
+            error instanceof OctopApiError &&
+            (error.code === 'THREAD_TURN_ACTIVE' || error.status === 409);
+          Alert.alert(
+            strings.drawer.deleteThreadTitle,
+            active ? strings.drawer.deleteThreadActive : strings.drawer.deleteThreadFailed,
+          );
+          return;
+        }
+
+        setGroups(prev =>
+          prev
+            .map(g =>
+              g.agentId !== group.agentId
+                ? g
+                : {
+                    ...g,
+                    items: g.items.filter(item => item.threadId !== thread.threadId),
+                  },
+            )
+            .filter(g => g.items.length > 0),
+        );
+
+        const open = openChatRef.current;
+        if (open?.agentId === group.agentId && open.threadId === thread.threadId) {
+          openChatRef.current = null;
+          router.replace('/chat');
+        }
+      })();
+    },
+    [
+      httpClient,
+      router,
+      strings.drawer.deleteThreadActive,
+      strings.drawer.deleteThreadFailed,
+      strings.drawer.deleteThreadTitle,
+    ],
+  );
+
   const openDrawer = useCallback(() => {
     setDrawerPresented(true);
     setDrawerOpen(true);
@@ -184,17 +305,22 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       drawerGroups: user ? groups : [],
       navigate: route => {
         setDrawerOpen(false);
+        if (route === 'knowledge') {
+          router.push('/knowledge');
+          return;
+        }
         if (route === 'usage') {
-          // A detail screen pushed above the tabs; it has its own back button.
           router.push('/usage');
           return;
         }
-        router.push({
-          pathname: route === 'chat' ? '/chat' : `/(tabs)/${route}`,
-        });
+        router.push('/settings');
       },
       loadGroupThreads,
       openThread,
+      setActiveChat,
+      clearActiveChatIf,
+      pinThread,
+      deleteThread,
     }),
     [
       drawerOpen,
@@ -207,6 +333,10 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       router,
       loadGroupThreads,
       openThread,
+      setActiveChat,
+      clearActiveChatIf,
+      pinThread,
+      deleteThread,
     ],
   );
 

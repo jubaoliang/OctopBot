@@ -32,6 +32,8 @@ interface AuthContextValue {
   dropSession: () => void;
   login: (rawBaseUrl: string, username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Updates password; HttpClient persists any slid token automatically. */
+  changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
   /** Thrown errors from login carry a stable code for the UI. */
   httpClient: HttpClient;
   /** Bumps when login/logout/drop run — callers scope in-flight work to it. */
@@ -288,6 +290,13 @@ export function AuthProvider({
     [httpClient, storage, bumpSessionGeneration],
   );
 
+  const changePassword = useCallback(
+    async (oldPassword: string, newPassword: string) => {
+      await new AuthApi(httpClient).changePassword(oldPassword, newPassword);
+    },
+    [httpClient],
+  );
+
   // Warm-launch seeds: the cold-start path reads getInitialURL, but an
   // intent delivered while the app is running arrives as a `url` event.
   useEffect(() => {
@@ -351,6 +360,7 @@ export function AuthProvider({
       dropSession,
       login,
       logout,
+      changePassword,
       httpClient,
       sessionGeneration,
     }),
@@ -364,6 +374,7 @@ export function AuthProvider({
       dropSession,
       login,
       logout,
+      changePassword,
       httpClient,
       sessionGeneration,
     ],
