@@ -40,6 +40,7 @@ const zh = {
     sendFailed: '发送失败',
     retrySend: '重试',
     hitlFailed: '确认提交失败，请重试',
+    stopTimedOut: '停止未得到响应，请稍后重试',
     hitlTitle: '需要你的确认',
     hitlApprove: '批准',
     hitlReject: '拒绝',
@@ -108,6 +109,10 @@ const zh = {
     signIn: '登录',
     signingIn: '登录中…',
     note: '局域网 HTTP 可用（首次会有一次性的明文提示），证书校验不会跳过。',
+    cleartextTitle: '使用明文 HTTP？',
+    cleartextMessage:
+      '此服务器地址使用 HTTP，登录与令牌将不以 TLS 加密传输。仅在受信任的局域网继续。',
+    cleartextContinue: '继续',
     errors: {
       invalid_url: '服务器地址无效',
       unreachable: '无法连接服务器，请检查地址与网络',
@@ -162,6 +167,19 @@ const zh = {
     unsupportedHint: '请将 Octop 服务器升级到包含用量统计的版本',
     retry: '重试',
   },
+  attachments: {
+    sourceTitle: '添加图片',
+    library: '从相册选择',
+    camera: '拍照',
+    remove: '移除图片',
+    uploading: '正在上传',
+    failed: '上传失败',
+    errorTitle: '图片附件',
+    permissionDenied: '需要相机权限才能拍照，请在系统设置中允许',
+    unavailable: '此设备暂不支持选择图片',
+    oversize: (names: string, maxMb: number) => `${names} 超过 ${maxMb} MB 的上传上限`,
+    uploadFailed: (names: string) => `${names} 上传失败，请重试`,
+  },
   common: { pendingDesign: '该页面待设计', cancel: '取消', loading: '加载中' },
 };
 
@@ -212,6 +230,7 @@ const en: Dict = {
     sendFailed: 'Could not send',
     retrySend: 'Retry',
     hitlFailed: 'Could not submit confirmation — try again',
+    stopTimedOut: 'Stop did not complete — try again shortly',
     hitlTitle: 'Confirmation needed',
     hitlApprove: 'Approve',
     hitlReject: 'Reject',
@@ -281,6 +300,10 @@ const en: Dict = {
     signIn: 'Sign in',
     signingIn: 'Signing in…',
     note: 'LAN HTTP is supported with a one-time warning. Certificates are never bypassed.',
+    cleartextTitle: 'Use cleartext HTTP?',
+    cleartextMessage:
+      'This server URL uses HTTP. Login and tokens will not be TLS-encrypted. Continue only on a trusted LAN.',
+    cleartextContinue: 'Continue',
     errors: {
       invalid_url: 'Invalid server URL',
       unreachable: 'Cannot reach the server — check the address and network',
@@ -335,6 +358,19 @@ const en: Dict = {
     unsupportedTitle: 'This server has no token statistics',
     unsupportedHint: 'Upgrade the Octop server to a version that includes usage statistics',
     retry: 'Try again',
+  },
+  attachments: {
+    sourceTitle: 'Add image',
+    library: 'Photo library',
+    camera: 'Take photo',
+    remove: 'Remove image',
+    uploading: 'Uploading',
+    failed: 'Upload failed',
+    errorTitle: 'Image attachments',
+    permissionDenied: 'Camera access is needed to take a photo — allow it in system settings',
+    unavailable: 'Picking images is not available on this device',
+    oversize: (names: string, maxMb: number) => `${names} exceeds the ${maxMb} MB upload limit`,
+    uploadFailed: (names: string) => `${names} could not be uploaded — try again`,
   },
   common: { pendingDesign: 'Screen design pending', cancel: 'Cancel', loading: 'Loading' },
 };

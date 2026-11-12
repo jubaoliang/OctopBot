@@ -190,6 +190,30 @@ describe('ChatSocket', () => {
     expect(FakeSocket.created).toHaveLength(1);
   });
 
+  it('aborts connect when close() runs while the token is being fetched', async () => {
+    let releaseToken: (token: string) => void = () => undefined;
+    const statuses: ChatConnectionStatus[] = [];
+    const socket = new ChatSocket({
+      baseUrl: 'https://octop.example.com',
+      path: '/api/agents/a1/chat/ws',
+      tokenFactory: () =>
+        new Promise<string>(resolve => {
+          releaseToken = resolve;
+        }),
+      onFrame: () => undefined,
+      onStatus: status => statuses.push(status),
+      socketFactory: url => new FakeSocket(url) as unknown as WebSocket,
+    });
+    const connecting = socket.connect();
+    const settled = expect(connecting).rejects.toThrow('connect aborted');
+    socket.close();
+    releaseToken('late-token');
+    await settled;
+    expect(FakeSocket.created).toHaveLength(0);
+    expect(statuses.at(-1)).toBe('closed');
+    expect(socket.status).toBe('closed');
+  });
+
   it('rejects connect and stays terminal when the handshake is refused', async () => {
     const { socket, statuses } = makeSocket();
     const connecting = socket.connect();

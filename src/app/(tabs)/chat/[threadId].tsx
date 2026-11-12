@@ -3,16 +3,16 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
-  type ComponentRef,
   type ReactNode,
 } from 'react';
 import {
   Alert,
+  FlatList,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -31,15 +31,14 @@ import { PressableScale } from '@/components/PressableScale';
 import { TypingDots } from '@/components/TypingDots';
 import { ChatApi } from '@/core/api/chat';
 import { processCountsFromHistory, readableText, ThreadsApi } from '@/core/api/threads';
-import type { ServerFrame } from '@/core/api/types';
+import type { ServerFrame, TurnAttachment } from '@/core/api/types';
 import { ChatSocket, type ChatConnectionStatus } from '@/core/chat/chat-socket';
-import {
-  applyProcessFrame,
-  emptyProcessCounts,
-  type CountableFrame,
-} from '@/core/chat/process-counts';
+import { emptyProcessCounts } from '@/core/chat/process-counts';
+import { initialChatTurnState, reduceChatTurn, type ChatTurn } from '@/core/chat/turn-reducer';
 import { useAppShell } from '@/features/app-shell';
 import { useAuth } from '@/features/auth';
+import { takeChatHandoff } from '@/features/chat-handoff';
+import { useImageAttachments } from '@/features/useImageAttachments';
 import { useI18n } from '@/i18n/I18nProvider';
 import { KeyboardInsetView } from '@/platform/keyboard';
 import { confirmOpenHttpUrl } from '@/platform/linking';
@@ -64,11 +63,11 @@ type MdRule = (
 
 type MdRules = Record<string, MdRule>;
 
-type Turn =
-  | { kind: 'user'; text: string }
-  | { kind: 'assistant'; text: string }
-  | { kind: 'error'; text: string; retryText?: string }
-  | { kind: 'hitl'; pendingId: string; summary: string };
+/** Stop waits this long for a terminal frame before surfacing an error. */
+const STOP_TIMEOUT_MS = 45_000;
+/** A HITL resume request is abandoned after this long. */
+const HITL_TIMEOUT_MS = 120_000;
+const TOKEN_FLUSH_MS = 120;
 
 /**
  * 主聊天 — a real chat turn over the WebSocket contract: create thread,
@@ -79,7 +78,7 @@ export default function ThreadScreen() {
   const { tokens } = useTheme();
   const { t: strings } = useI18n();
   const { openDrawer } = useAppShell();
-  const { baseUrl, token, httpClient, user } = useAuth();
+  const { baseUrl, token, httpClient, user, dropSession, sessionGeneration } = useAuth();
   // Route params: `threadId` is a path segment (`new` / `open` / forged deep
   // link). Internal suggestion pills pass `prompt` — never put user text in
   // the path, or an external `octopbot://chat/…` URL would auto-send.
@@ -89,29 +88,39 @@ export default function ThreadScreen() {
     thread?: string;
     title?: string;
     prompt?: string;
+    handoff?: string;
   }>();
   const internalPrompt =
     typeof params.prompt === 'string' && params.prompt.trim().length > 0 ? params.prompt : null;
+  // Consume once so remount / StrictMode cannot re-send the home handoff.
+  const [handoff] = useState(() => takeChatHandoff(params.handoff));
+  const autoText = internalPrompt ?? handoff?.text ?? null;
+  const autoAttachments = handoff?.attachments;
   const externalDraft =
     !internalPrompt && !params.thread && params.threadId !== 'new' && params.threadId !== 'open'
       ? params.threadId
       : null;
   const tabBarFootprint = useTabBarFootprint();
+  // Defaults to the default expert on a fresh server install.
+  const agentId = params.agent ?? 'main';
+  const attachmentFlow = useImageAttachments(agentId);
 
-  const [turns, setTurns] = useState<Turn[]>([]);
-  const [toolCount, setToolCount] = useState(0);
-  const [thinkingCount, setThinkingCount] = useState(0);
-  const [streaming, setStreaming] = useState(false);
+  const [chat, dispatch] = useReducer(reduceChatTurn, undefined, initialChatTurnState);
   const [connection, setConnection] = useState<ChatConnectionStatus>('idle');
-  const [hitl, setHitl] = useState<{ pendingId: string; summary: string } | null>(null);
   const socketRef = useRef<ChatSocket | null>(null);
   const threadRef = useRef<string | null>(null);
-  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const scrollRef = useRef<FlatList<ChatTurn>>(null);
   const ensureThreadRef = useRef<(() => Promise<string | null>) | null>(null);
   const nearBottomRef = useRef(true);
-  // Process-card counters fold streaming deltas into session/tool units;
-  // the ref holds the fold state so chunk bursts do not inflate the UI.
-  const processCountsRef = useRef(emptyProcessCounts());
+  // Latest reducer state for timers / async callbacks that must not close
+  // over a stale snapshot.
+  const chatRef = useRef(chat);
+  useEffect(() => {
+    chatRef.current = chat;
+  }, [chat]);
+  const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hitlAbortRef = useRef<AbortController | null>(null);
+  const decidingRef = useRef(false);
   // Locale copy via ref so handleFrame identity stays stable across language
   // switches (otherwise the socket effect tears down mid-conversation).
   const stringsRef = useRef(strings);
@@ -274,9 +283,6 @@ export default function ThreadScreen() {
   useEffect(() => {
     tokenRef.current = token;
   }, [token]);
-  // Defaults to the default expert on a fresh server install.
-  const agentId = params.agent ?? 'main';
-
   // Streamed tokens buffer in a ref and flush ~8x/s — per-token renders
   // re-render the whole screen (incl. full markdown re-parse) at model
   // speed and visibly jank scrolling/animations.
@@ -285,110 +291,86 @@ export default function ThreadScreen() {
     const delta = pendingTokensRef.current;
     if (delta) {
       pendingTokensRef.current = '';
-      setTurns(prev => appendAssistant(prev, delta));
+      dispatch({ type: 'flushTokens', delta });
     }
   }, []);
 
-  // Flush cadence while the screen is mounted; a final flush on unmount.
+  // Flush cadence while the screen is mounted.
   useEffect(() => {
-    const timer = setInterval(() => flushTokens(), 120);
+    const timer = setInterval(flushTokens, TOKEN_FLUSH_MS);
     return () => {
       clearInterval(timer);
-      flushTokens();
     };
   }, [flushTokens]);
 
+  // Unmount: drop the stop watchdog and abandon any in-flight HITL resume.
+  useEffect(
+    () => () => {
+      if (stopTimerRef.current !== null) {
+        clearTimeout(stopTimerRef.current);
+        stopTimerRef.current = null;
+      }
+      hitlAbortRef.current?.abort();
+    },
+    [],
+  );
+
+  // A terminal frame (or timeout) ends the stop wait — disarm the watchdog.
+  useEffect(() => {
+    if (!chat.stopRequested && stopTimerRef.current !== null) {
+      clearTimeout(stopTimerRef.current);
+      stopTimerRef.current = null;
+    }
+  }, [chat.stopRequested]);
+
+  // An expired / rejected token ends the session instead of looping.
+  useEffect(() => {
+    if (connection === 'unauthorized') {
+      dropSession();
+    }
+  }, [connection, dropSession]);
+
+  // Mirror busy/streaming for the frame path so token bursts don't re-render.
+  const streamingRef = useRef(chat.streaming);
+  useEffect(() => {
+    streamingRef.current = chat.streaming;
+  }, [chat.streaming]);
+
   const handleFrame = useCallback(
     (frame: ServerFrame) => {
-      const foldProcess = (countable: CountableFrame) => {
-        const next = applyProcessFrame(processCountsRef.current, countable);
-        if (
-          next.tools !== processCountsRef.current.tools ||
-          next.thinking !== processCountsRef.current.thinking
-        ) {
-          setToolCount(next.tools);
-          setThinkingCount(next.thinking);
-        }
-        processCountsRef.current = next;
-      };
-
-      switch (frame.type) {
-        case 'token': {
-          const delta = (frame as { content?: unknown }).content;
-          if (typeof delta === 'string') {
-            setStreaming(true);
-            pendingTokensRef.current += delta;
-            foldProcess({ type: 'token' });
+      const frameThread = (frame as { thread_id?: unknown }).thread_id;
+      const foreign =
+        typeof frameThread === 'string' &&
+        threadRef.current !== null &&
+        frameThread !== threadRef.current;
+      if (frame.type === 'token') {
+        if (!foreign && typeof frame.content === 'string') {
+          pendingTokensRef.current += frame.content;
+          // First token still marks busy; later tokens only buffer text.
+          if (!streamingRef.current) {
+            dispatch({
+              type: 'frame',
+              frame,
+              defaults: {
+                hitlTitle: stringsRef.current.chat.hitlTitle,
+                sendFailed: stringsRef.current.chat.sendFailed,
+              },
+            });
+            streamingRef.current = true;
           }
-          break;
         }
-        case 'reasoning':
-          foldProcess({ type: 'reasoning' });
-          break;
-        case 'tool_call_chunk': {
-          const index = (frame as { index?: unknown }).index;
-          if (typeof index === 'number') {
-            foldProcess({ type: 'tool_call_chunk', index });
-          }
-          break;
-        }
-        case 'tool_result':
-          foldProcess({ type: 'tool_result' });
-          break;
-        case 'turn.started':
-          foldProcess({ type: 'turn.started' });
-          setStreaming(true);
-          setHitl(null);
-          setTurns(prev => prev.filter(t => t.kind !== 'hitl'));
-          break;
-        case 'turn.ended':
-          foldProcess({ type: 'turn.ended' });
-          flushTokens();
-          setStreaming(false);
-          break;
-        case 'done':
-          foldProcess({ type: 'done' });
-          flushTokens();
-          setStreaming(false);
-          break;
-        case 'hitl_required': {
-          flushTokens();
-          setStreaming(false);
-          const request = (frame as { request?: { pending_id?: unknown; [key: string]: unknown } })
-            .request;
-          const pendingId =
-            request && typeof request.pending_id === 'string' ? request.pending_id : null;
-          if (pendingId && request) {
-            let summary = stringsRef.current.chat.hitlTitle;
-            if (typeof request.message === 'string') {
-              summary = request.message;
-            } else if (typeof request.description === 'string') {
-              summary = request.description;
-            }
-            setHitl({ pendingId, summary });
-            setTurns(prev => [
-              ...prev.filter(t => t.kind !== 'hitl'),
-              { kind: 'hitl', pendingId, summary },
-            ]);
-          }
-          break;
-        }
-        case 'error': {
-          const message = (frame as { message?: unknown }).message;
-          flushTokens();
-          setStreaming(false);
-          setTurns(prev => [
-            ...prev,
-            {
-              kind: 'error',
-              text: typeof message === 'string' ? message : stringsRef.current.chat.sendFailed,
-            },
-          ]);
-          break;
-        }
-        default:
-          break;
+        return;
       }
+      // Buffered text lands before any terminal / structural frame.
+      flushTokens();
+      dispatch({
+        type: 'frame',
+        frame,
+        defaults: {
+          hitlTitle: stringsRef.current.chat.hitlTitle,
+          sendFailed: stringsRef.current.chat.sendFailed,
+        },
+      });
     },
     [flushTokens],
   );
@@ -422,95 +404,117 @@ export default function ThreadScreen() {
     });
     socketRef.current = socket;
 
+    // One thread bootstrap per (agent, session) scope; concurrent callers
+    // share the in-flight promise and a failure clears it for the next try.
+    const scope = `${agentId}:${sessionGeneration}`;
+    let inflight: { scope: string; promise: Promise<string | null> } | null = null;
+
+    const loadThread = async (): Promise<string | null> => {
+      await socket.connect();
+      if (disposed) {
+        return null;
+      }
+      if (threadRef.current) {
+        // Socket was rebuilt for the same thread — re-attach.
+        dispatch({ type: 'threadReady', threadId: threadRef.current });
+        socket.subscribe(threadRef.current);
+        return threadRef.current;
+      }
+      const threads = new ThreadsApi(httpClientRef.current);
+      if (params.thread) {
+        // Opening an existing conversation: replay history, then attach.
+        const threadId = params.thread;
+        dispatch({ type: 'threadReady', threadId });
+        const page = await threads.history(agentId, threadId, { limit: 50 });
+        if (disposed) {
+          return null;
+        }
+        const replay: ChatTurn[] = [];
+        for (const m of page.messages) {
+          if (m.role !== 'user' && m.role !== 'assistant') {
+            continue;
+          }
+          const text = readableText(m.content);
+          if (!text) {
+            continue;
+          }
+          const id = `hist-${replay.length}`;
+          replay.push(
+            m.status === 'error' ? { kind: 'error', id, text } : { kind: m.role, id, text },
+          );
+        }
+        const counts = processCountsFromHistory(page.messages);
+        dispatch({
+          type: 'historyLoaded',
+          threadId,
+          turns: replay,
+          // History only says "pending" without a pending_id — nothing
+          // actionable to show, so fail closed (no card).
+          hitl: null,
+          process: { ...emptyProcessCounts(), tools: counts.tools, thinking: counts.thinking },
+        });
+        socket.subscribe(threadId);
+        threadRef.current = threadId;
+        return threadId;
+      }
+      const created = await threads.create(agentId);
+      if (disposed) {
+        return null;
+      }
+      dispatch({ type: 'threadReady', threadId: created.thread_id });
+      socket.subscribe(created.thread_id);
+      threadRef.current = created.thread_id;
+      return created.thread_id;
+    };
+
     // Threads are created lazily on first send — visiting the screen never
     // leaves empty orphan threads behind on the server. Connection first,
     // then thread, then send: the socket must be open before subscribe or
     // the first turn is silently dropped.
-    const ensureThread = async (): Promise<string | null> => {
-      try {
-        await socket.connect();
-        if (disposed) {
-          return null;
+    const ensureThread = (): Promise<string | null> => {
+      if (inflight?.scope === scope) {
+        return inflight.promise;
+      }
+      const promise: Promise<string | null> = loadThread().catch(() => {
+        if (inflight?.promise === promise) {
+          inflight = null;
         }
-        if (threadRef.current) {
-          return threadRef.current;
-        }
-        if (params.thread) {
-          // Opening an existing conversation: attach + replay history.
-          threadRef.current = params.thread;
-          socket.subscribe(params.thread);
-          const page = await new ThreadsApi(httpClientRef.current).history(agentId, params.thread, {
-            limit: 50,
-          });
-          if (disposed) {
-            return null;
-          }
-          const replay: Turn[] = [];
-          for (const m of page.messages) {
-            if (m.role !== 'user' && m.role !== 'assistant') {
-              continue;
-            }
-            const text = readableText(m.content);
-            if (!text) {
-              continue;
-            }
-            if (m.status === 'error') {
-              replay.push({ kind: 'error', text });
-            } else {
-              replay.push({ kind: m.role, text });
-            }
-          }
-          if (page.hitl_pending) {
-            const pendingId = 'history-pending';
-            const summary = stringsRef.current.chat.hitlTitle;
-            replay.push({ kind: 'hitl', pendingId, summary });
-            setHitl({ pendingId, summary });
-          }
-          if (replay.length > 0) {
-            setTurns(replay);
-          }
-          const counts = processCountsFromHistory(page.messages);
-          if (counts.tools + counts.thinking > 0) {
-            processCountsRef.current = {
-              ...emptyProcessCounts(),
-              tools: counts.tools,
-              thinking: counts.thinking,
-            };
-            setToolCount(counts.tools);
-            setThinkingCount(counts.thinking);
-          }
-          return params.thread;
-        }
-        const created = await new ThreadsApi(httpClientRef.current).create(agentId);
-        if (disposed) {
-          return null;
-        }
-        threadRef.current = created.thread_id;
-        socket.subscribe(created.thread_id);
-        return created.thread_id;
-      } catch {
-        if (!disposed) {
+        // An auth rejection keeps its own status so the session drops.
+        if (!disposed && socket.status !== 'unauthorized') {
           setConnection('closed');
         }
         return null;
-      }
+      });
+      inflight = { scope, promise };
+      return promise;
     };
     ensureThreadRef.current = ensureThread;
 
-    if (internalPrompt) {
-      void (async () => {
-        // Async continuation keeps setState out of the effect body.
-        setTurns([{ kind: 'user', text: internalPrompt }]);
-        const threadId = await ensureThread();
-        if (threadId && !disposed) {
-          socket.sendUserTurn({ text: internalPrompt, thread_id: threadId });
-        } else if (!disposed) {
-          setTurns(prev => [
-            ...prev,
-            { kind: 'error', text: strings.chat.sendFailed, retryText: internalPrompt },
-          ]);
-        }
-      })();
+    const deliver = async (
+      text: string,
+      attachments: TurnAttachment[] | undefined,
+    ): Promise<void> => {
+      const threadId = await ensureThread();
+      if (disposed) {
+        return;
+      }
+      if (threadId && socket.sendUserTurn({ text, thread_id: threadId, attachments })) {
+        return;
+      }
+      dispatch({
+        type: 'sendFailed',
+        message: stringsRef.current.chat.sendFailed,
+        retryText: text,
+        retryAttachments: attachments,
+      });
+    };
+
+    if (autoText !== null) {
+      const attachments =
+        autoAttachments && autoAttachments.length > 0 ? autoAttachments : undefined;
+      dispatch({ type: 'reset' });
+      dispatch({ type: 'userSend', text: autoText, attachments });
+      void deliver(autoText, attachments);
     } else if (externalDraft) {
       // Deep-linked path text is a draft — never auto-send without consent.
       void ensureThread();
@@ -519,23 +523,8 @@ export default function ThreadScreen() {
         {
           text: strings.chat.externalPromptSend,
           onPress: () => {
-            void (async () => {
-              setTurns([{ kind: 'user', text: externalDraft }]);
-              const threadId = await ensureThreadRef.current?.();
-              const live = socketRef.current;
-              if (threadId && live) {
-                live.sendUserTurn({ text: externalDraft, thread_id: threadId });
-              } else {
-                setTurns(prev => [
-                  ...prev,
-                  {
-                    kind: 'error',
-                    text: stringsRef.current.chat.sendFailed,
-                    retryText: externalDraft,
-                  },
-                ]);
-              }
-            })();
+            dispatch({ type: 'userSend', text: externalDraft });
+            void deliver(externalDraft, undefined);
           },
         },
       ]);
@@ -555,79 +544,191 @@ export default function ThreadScreen() {
     };
     // agentId / params.thread are stable for the life of this route instance.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseUrl, user, internalPrompt, externalDraft, handleFrame, agentId]);
+  }, [
+    baseUrl,
+    user,
+    autoText,
+    autoAttachments,
+    externalDraft,
+    handleFrame,
+    agentId,
+    sessionGeneration,
+  ]);
 
-  const send = (text: string) => {
-    setTurns(prev => [...prev, { kind: 'user', text }]);
+  const send = (text: string, attachments?: TurnAttachment[]) => {
+    dispatch({ type: 'userSend', text, attachments });
     void (async () => {
       const threadId = await ensureThreadRef.current?.();
-      if (threadId && socketRef.current?.sendUserTurn({ text, thread_id: threadId })) {
+      if (threadId && socketRef.current?.sendUserTurn({ text, thread_id: threadId, attachments })) {
         return;
       }
-      setTurns(prev => [
-        ...prev,
-        { kind: 'error', text: strings.chat.sendFailed, retryText: text },
-      ]);
+      dispatch({
+        type: 'sendFailed',
+        message: stringsRef.current.chat.sendFailed,
+        retryText: text,
+        retryAttachments: attachments,
+      });
     })();
   };
 
   const stop = () => {
+    if (chatRef.current.stopRequested) {
+      return;
+    }
+    dispatch({ type: 'stopRequested' });
     const threadId = threadRef.current;
     if (threadId) {
       socketRef.current?.cancel(threadId);
       void new ThreadsApi(httpClientRef.current).cancel(agentId, threadId).catch(() => undefined);
     }
-    setStreaming(false);
+    // Stay busy until the server confirms with a terminal frame; if it never
+    // does, release the composer with an error rather than hanging forever.
+    if (stopTimerRef.current !== null) {
+      clearTimeout(stopTimerRef.current);
+    }
+    stopTimerRef.current = setTimeout(() => {
+      stopTimerRef.current = null;
+      if (chatRef.current.stopRequested) {
+        dispatch({ type: 'stopTimedOut', message: stringsRef.current.chat.stopTimedOut });
+      }
+    }, STOP_TIMEOUT_MS);
   };
 
-  const retrySend = (text: string) => {
-    setTurns(prev => prev.filter(t => !(t.kind === 'error' && t.retryText === text)));
-    send(text);
+  const sendWithAttachments = (text: string, attachments?: TurnAttachment[]) => {
+    send(text, attachments);
+    // Chips were uploaded for this turn; the composer starts fresh.
+    attachmentFlow.clear();
+  };
+
+  const retrySend = (text: string, attachments?: TurnAttachment[]) => {
+    dispatch({ type: 'clearRetry', retryText: text });
+    send(text, attachments);
   };
 
   const decideHitl = (decision: 'approve' | 'reject') => {
-    const pending = hitl;
+    const pendingId = chatRef.current.hitl?.pendingId;
     const threadId = threadRef.current;
-    if (!pending || !threadId) {
+    // No real pending id → nothing actionable (fail closed).
+    if (!pendingId || !threadId || decidingRef.current) {
       return;
     }
-    setHitl(null);
-    setTurns(prev => prev.filter(t => t.kind !== 'hitl'));
-    setStreaming(true);
-    let sawTerminal = false;
-    void new ChatApi(httpClientRef.current)
-      .resumeHitl(
-        agentId,
-        {
-          thread_id: threadId,
-          pending_id: pending.pendingId === 'history-pending' ? undefined : pending.pendingId,
-          decisions: [{ type: decision }],
-        },
-        frame => {
-          if (
-            frame.type === 'turn.ended' ||
-            frame.type === 'done' ||
-            frame.type === 'hitl_required'
-          ) {
-            sawTerminal = true;
-          }
-          handleFrame(frame);
-        },
-      )
-      .catch(() => {
-        setStreaming(false);
-        setTurns(prev => [...prev, { kind: 'error', text: strings.chat.hitlFailed }]);
-      })
-      .finally(() => {
-        if (!sawTerminal) {
-          setStreaming(false);
+    decidingRef.current = true;
+    dispatch({ type: 'hitlDecide' });
+    const controller = new AbortController();
+    hitlAbortRef.current = controller;
+    const run = { timedOut: false, sawTerminal: false };
+    const timeout = setTimeout(() => {
+      run.timedOut = true;
+      controller.abort();
+    }, HITL_TIMEOUT_MS);
+    void (async () => {
+      try {
+        await new ChatApi(httpClientRef.current).resumeHitl(
+          agentId,
+          { thread_id: threadId, pending_id: pendingId, decisions: [{ type: decision }] },
+          frame => {
+            // Late frames after abort / unmount are ignored.
+            if (controller.signal.aborted) {
+              return;
+            }
+            if (
+              frame.type === 'turn.ended' ||
+              frame.type === 'done' ||
+              frame.type === 'hitl_required'
+            ) {
+              run.sawTerminal = true;
+            }
+            handleFrame(frame);
+          },
+          { signal: controller.signal },
+        );
+        if (controller.signal.aborted) {
+          return;
         }
-      });
+        if (!run.sawTerminal) {
+          // Stream closed without a terminal frame — release the busy state.
+          handleFrame({ type: 'turn_status', thread_id: threadId, active: false });
+        }
+      } catch {
+        // Unmount aborts silently; a timeout or network error surfaces.
+        if (!controller.signal.aborted || run.timedOut) {
+          dispatch({ type: 'hitlFailed', message: stringsRef.current.chat.hitlFailed });
+        }
+      } finally {
+        clearTimeout(timeout);
+        if (hitlAbortRef.current === controller) {
+          hitlAbortRef.current = null;
+        }
+        decidingRef.current = false;
+      }
+    })();
   };
 
   const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     nearBottomRef.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - 96;
+  };
+
+  const lastTurn = chat.turns.length > 0 ? chat.turns[chat.turns.length - 1] : null;
+  const processVisible = chat.process.tools + chat.process.thinking > 0;
+  const showHint = chat.turns.length === 0;
+  const showTyping =
+    chat.streaming && (lastTurn === null || lastTurn.kind === 'user' || lastTurn.kind === 'hitl');
+  const footer =
+    processVisible || showHint || showTyping ? (
+      <View style={styles.footer}>
+        {processVisible ? (
+          <ProcessCard tools={chat.process.tools} thinking={chat.process.thinking} />
+        ) : null}
+        {showHint ? (
+          <Text style={[styles.hintText, { color: tokens.textTertiary }]}>
+            {connection === 'open' ? strings.chat.waiting : strings.chat.connecting}
+          </Text>
+        ) : null}
+        {showTyping ? <TypingDots label={strings.chat.replying} /> : null}
+      </View>
+    ) : null;
+
+  const renderTurn = ({ item, index }: { item: ChatTurn; index: number }) => {
+    switch (item.kind) {
+      case 'user':
+        return <UserTurnItem text={item.text} attachments={item.attachments} />;
+      case 'error': {
+        const retryText = item.retryText;
+        return (
+          <ErrorTurnItem
+            text={item.text}
+            retryLabel={strings.chat.retrySend}
+            onRetry={
+              retryText !== undefined
+                ? () => retrySend(retryText, item.retryAttachments)
+                : undefined
+            }
+          />
+        );
+      }
+      case 'hitl':
+        return (
+          <HitlCard
+            summary={item.summary}
+            detail={item.detail}
+            approveLabel={strings.chat.hitlApprove}
+            rejectLabel={strings.chat.hitlReject}
+            onApprove={() => decideHitl('approve')}
+            onReject={() => decideHitl('reject')}
+          />
+        );
+      case 'assistant':
+        return (
+          <AssistantTurnItem
+            text={item.text}
+            streaming={chat.streaming && index === chat.turns.length - 1}
+            mdStyles={mdStyles}
+            mdRules={mdRules}
+            onLinkPress={onMarkdownLink}
+          />
+        );
+    }
   };
 
   const headerSubtitle = useMemo(() => {
@@ -655,8 +756,13 @@ export default function ThreadScreen() {
             subtitle={headerSubtitle}
             onMenu={openDrawer}
           />
-          <ScrollView
+          <FlatList
             ref={scrollRef}
+            data={chat.turns}
+            keyExtractor={turnKey}
+            renderItem={renderTurn}
+            ItemSeparatorComponent={TurnSeparator}
+            ListFooterComponent={footer ?? undefined}
             onScroll={onScroll}
             scrollEventThrottle={16}
             onContentSizeChange={() => {
@@ -671,66 +777,17 @@ export default function ThreadScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             showsHorizontalScrollIndicator={false}
-          >
-            {turns.map((turn, index) => {
-              if (turn.kind === 'user') {
-                return <UserTurnItem key={`u-${index}`} text={turn.text} />;
-              }
-              if (turn.kind === 'error') {
-                return (
-                  <ErrorTurnItem
-                    key={`e-${index}`}
-                    text={turn.text}
-                    retryLabel={strings.chat.retrySend}
-                    onRetry={turn.retryText ? () => retrySend(turn.retryText!) : undefined}
-                  />
-                );
-              }
-              if (turn.kind === 'hitl') {
-                return (
-                  <HitlCard
-                    key={`h-${turn.pendingId}`}
-                    summary={turn.summary}
-                    approveLabel={strings.chat.hitlApprove}
-                    rejectLabel={strings.chat.hitlReject}
-                    onApprove={() => decideHitl('approve')}
-                    onReject={() => decideHitl('reject')}
-                  />
-                );
-              }
-              return (
-                <AssistantTurnItem
-                  key={`a-${index}`}
-                  text={turn.text}
-                  streaming={streaming && index === turns.length - 1}
-                  mdStyles={mdStyles}
-                  mdRules={mdRules}
-                  onLinkPress={onMarkdownLink}
-                />
-              );
-            })}
-            {toolCount + thinkingCount > 0 ? (
-              <ProcessCard tools={toolCount} thinking={thinkingCount} />
-            ) : null}
-            {turns.length === 0 ? (
-              <Text style={[styles.hintText, { color: tokens.textTertiary }]}>
-                {connection === 'open' ? strings.chat.waiting : strings.chat.connecting}
-              </Text>
-            ) : null}
-            {streaming &&
-            (turns.length === 0 ||
-              turns[turns.length - 1].kind === 'user' ||
-              turns[turns.length - 1].kind === 'hitl') ? (
-              <TypingDots label={strings.chat.replying} />
-            ) : null}
-          </ScrollView>
+          />
           <View style={styles.inputWrap}>
             <ChatInput
-              onSend={send}
+              onSend={sendWithAttachments}
+              onPickImages={attachmentFlow.pick}
+              pendingAttachments={attachmentFlow.pending}
+              onRemovePending={attachmentFlow.remove}
               onStop={stop}
-              streaming={streaming}
+              streaming={chat.streaming || chat.stopRequested}
               canSend={
-                !hitl &&
+                !chat.busy &&
                 (connection === 'open' || connection === 'connecting' || connection === 'idle')
               }
             />
@@ -743,8 +800,15 @@ export default function ThreadScreen() {
 
 // Completed turns keep their object identity across flushes, so these
 // memoized items skip re-rendering while the streaming tail updates.
-const UserTurnItem = memo(function UserTurnItem({ text }: { text: string }) {
-  return <UserBubble text={text} />;
+const UserTurnItem = memo(function UserTurnItem({
+  text,
+  attachments,
+}: {
+  text: string;
+  attachments?: TurnAttachment[];
+}) {
+  const names = attachments?.map(a => a.filename ?? a.workspace_path);
+  return <UserBubble text={text} attachmentNames={names} />;
 });
 
 const AssistantTurnItem = memo(function AssistantTurnItem({
@@ -803,12 +867,14 @@ const ErrorTurnItem = memo(function ErrorTurnItem({
 
 const HitlCard = memo(function HitlCard({
   summary,
+  detail,
   approveLabel,
   rejectLabel,
   onApprove,
   onReject,
 }: {
   summary: string;
+  detail?: string;
   approveLabel: string;
   rejectLabel: string;
   onApprove: () => void;
@@ -823,6 +889,9 @@ const HitlCard = memo(function HitlCard({
       ]}
     >
       <Text style={[styles.hitlSummary, { color: tokens.textPrimary }]}>{summary}</Text>
+      {detail ? (
+        <Text style={[styles.hitlDetail, { color: tokens.textSecondary }]}>{detail}</Text>
+      ) : null}
       <View style={styles.hitlActions}>
         <PressableScale
           accessibilityRole="button"
@@ -847,17 +916,12 @@ const HitlCard = memo(function HitlCard({
   );
 });
 
-function appendAssistant(prev: Turn[], delta: string): Turn[] {
-  if (prev.length === 0 || prev[prev.length - 1].kind !== 'assistant') {
-    return [...prev, { kind: 'assistant', text: delta }];
-  }
-  const next = prev.slice();
-  const last = next[next.length - 1];
-  if (last.kind !== 'assistant') {
-    return [...prev, { kind: 'assistant', text: delta }];
-  }
-  next[next.length - 1] = { kind: 'assistant', text: last.text + delta };
-  return next;
+function turnKey(turn: ChatTurn): string {
+  return turn.id;
+}
+
+function TurnSeparator() {
+  return <View style={styles.turnSeparator} />;
 }
 
 const styles = StyleSheet.create({
@@ -868,9 +932,10 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: layout.screenMargin,
     paddingTop: 24,
-    gap: 20,
     paddingBottom: 24,
   },
+  turnSeparator: { height: 20 },
+  footer: { gap: 20, marginTop: 20 },
   assistantBlock: {
     alignSelf: 'stretch',
   },
@@ -907,6 +972,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   hitlSummary: { ...typeScale.reading },
+  hitlDetail: { ...typeScale.footnote },
   hitlActions: { flexDirection: 'row', gap: 10, justifyContent: 'flex-end' },
   hitlButton: {
     minHeight: layout.hitTarget,

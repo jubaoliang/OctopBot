@@ -28,10 +28,14 @@ interface AuthContextValue {
   /** True after the server rejected a token — LoginScreen shows session_expired. */
   sessionExpired: boolean;
   clearSessionExpired: () => void;
+  /** Drop the active session (socket 4001 / explicit invalidate). */
+  dropSession: () => void;
   login: (rawBaseUrl: string, username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   /** Thrown errors from login carry a stable code for the UI. */
   httpClient: HttpClient;
+  /** Bumps when login/logout/drop run — callers scope in-flight work to it. */
+  sessionGeneration: number;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -61,6 +65,8 @@ export function AuthProvider({
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<OctopUser | null>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
+  // Mirrored to React state so consumers can re-scope in-flight work.
+  const [sessionGeneration, setSessionGeneration] = useState(0);
 
   // Token lives in a ref so the client identity is stable across sliding
   // renewals — a new client would tear down live chat sockets mid-turn.
@@ -73,11 +79,16 @@ export function AuthProvider({
   // session cannot rewrite the active one (audit finding #3).
   const sessionGenRef = useRef(0);
 
+  const bumpSessionGeneration = useCallback(() => {
+    sessionGenRef.current += 1;
+    setSessionGeneration(sessionGenRef.current);
+  }, []);
+
   const dropSession = useCallback(() => {
     // Only flag "session expired" when a token was actually present — logout
     // and post-clear 401s must not show that copy on the login screen.
     const hadSession = tokenRef.current !== null;
-    sessionGenRef.current += 1;
+    bumpSessionGeneration();
     tokenRef.current = null;
     setToken(null);
     setUser(null);
@@ -85,7 +96,7 @@ export function AuthProvider({
       setSessionExpired(true);
     }
     void storage.delete(TOKEN_KEY);
-  }, [storage]);
+  }, [storage, bumpSessionGeneration]);
 
   const clearSessionExpired = useCallback(() => {
     setSessionExpired(false);
@@ -245,7 +256,7 @@ export function AuthProvider({
       }
       // New generation before publishing credentials so in-flight renewals
       // from a previous session cannot overwrite this login.
-      sessionGenRef.current += 1;
+      bumpSessionGeneration();
       await Promise.all([
         storage.set(BASE_URL_KEY, base),
         storage.set(TOKEN_KEY, result.access_token),
@@ -259,14 +270,14 @@ export function AuthProvider({
       setUser(result.user);
       setSessionExpired(false);
     },
-    [storage],
+    [storage, bumpSessionGeneration],
   );
 
   const logout = useMemo<AuthContextValue['logout']>(
     () => async () => {
       // Clear the token first so a subsequent 401 from logout() does not
       // flip sessionExpired (dropSession only flags when a token was present).
-      sessionGenRef.current += 1;
+      bumpSessionGeneration();
       tokenRef.current = null;
       void new AuthApi(httpClient).logout().catch(() => undefined);
       await storage.delete(TOKEN_KEY);
@@ -274,7 +285,7 @@ export function AuthProvider({
       setUser(null);
       setSessionExpired(false);
     },
-    [httpClient, storage],
+    [httpClient, storage, bumpSessionGeneration],
   );
 
   // Warm-launch seeds: the cold-start path reads getInitialURL, but an
@@ -295,7 +306,7 @@ export function AuthProvider({
       const seededUrl = param('url');
       const seededToken = param('token');
       if (seededUrl && seededToken) {
-        sessionGenRef.current += 1;
+        bumpSessionGeneration();
         const seedGen = sessionGenRef.current;
         tokenRef.current = seededToken;
         setBaseUrl(seededUrl);
@@ -327,7 +338,7 @@ export function AuthProvider({
       }
     });
     return () => sub.remove();
-  }, [storage, persistToken, dropSession]);
+  }, [storage, persistToken, dropSession, bumpSessionGeneration]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -337,11 +348,25 @@ export function AuthProvider({
       user,
       sessionExpired,
       clearSessionExpired,
+      dropSession,
       login,
       logout,
       httpClient,
+      sessionGeneration,
     }),
-    [ready, baseUrl, token, user, sessionExpired, clearSessionExpired, login, logout, httpClient],
+    [
+      ready,
+      baseUrl,
+      token,
+      user,
+      sessionExpired,
+      clearSessionExpired,
+      dropSession,
+      login,
+      logout,
+      httpClient,
+      sessionGeneration,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

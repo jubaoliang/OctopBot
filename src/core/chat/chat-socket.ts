@@ -37,6 +37,8 @@ export class ChatSocket {
   private subscribedThread: string | null = null;
   private everOpened = false;
   private connectPromise: Promise<void> | null = null;
+  /** Bumped on close so a late open after teardown cannot stick. */
+  private connectGeneration = 0;
 
   constructor(options: ChatSocketOptions) {
     this.options = {
@@ -66,17 +68,38 @@ export class ChatSocket {
     return this.connectPromise;
   }
 
+  private clearConnectPromiseIfCurrent(generation: number): void {
+    // Never clobber a newer connect()'s shared promise from a stale attempt.
+    if (generation === this.connectGeneration) {
+      this.connectPromise = null;
+    }
+  }
+
   private async openSocket(): Promise<void> {
+    const generation = this.connectGeneration;
     this.setStatus('connecting');
     const token = await this.options.tokenFactory();
+    if (generation !== this.connectGeneration) {
+      this.clearConnectPromiseIfCurrent(generation);
+      throw new Error('connect aborted');
+    }
     if (!token) {
-      this.connectPromise = null;
+      this.clearConnectPromiseIfCurrent(generation);
       this.setStatus('unauthorized');
       throw new Error('no access token');
     }
     const url = this.wsUrl(this.options.baseUrl, this.options.path, token);
     const factory = this.options.socketFactory ?? ((u: string) => new WebSocket(u));
     const socket = factory(url);
+    if (generation !== this.connectGeneration) {
+      this.clearConnectPromiseIfCurrent(generation);
+      try {
+        socket.close(1000, 'connect aborted');
+      } catch {
+        // ignore
+      }
+      throw new Error('connect aborted');
+    }
     this.socket = socket;
 
     let settleOpen: () => void = () => undefined;
@@ -86,7 +109,18 @@ export class ChatSocket {
       settleFail = reject;
     });
 
+    const isCurrent = () => generation === this.connectGeneration && this.socket === socket;
+
     socket.addEventListener('open', () => {
+      if (!isCurrent()) {
+        try {
+          socket.close(1000, 'connect aborted');
+        } catch {
+          // ignore
+        }
+        settleFail(new Error('connect aborted'));
+        return;
+      }
       this.everOpened = true;
       this.attempt = 0;
       this.setStatus('open');
@@ -98,6 +132,9 @@ export class ChatSocket {
     });
 
     socket.addEventListener('message', event => {
+      if (!isCurrent()) {
+        return;
+      }
       const frame = parseFrame(event.data);
       if (frame) {
         this.options.onFrame(frame);
@@ -105,10 +142,17 @@ export class ChatSocket {
     });
 
     socket.addEventListener('close', event => {
+      if (!isCurrent() && generation !== this.connectGeneration) {
+        // Stale socket from an aborted generation — ignore entirely.
+        settleFail(new Error('connect aborted'));
+        return;
+      }
       this.stopHeartbeat();
-      this.socket = null;
-      this.connectPromise = null;
-      if (this.state === 'closed') {
+      if (this.socket === socket) {
+        this.socket = null;
+      }
+      this.clearConnectPromiseIfCurrent(generation);
+      if (this.state === 'closed' || generation !== this.connectGeneration) {
         return;
       }
       if (!this.everOpened) {
@@ -164,6 +208,7 @@ export class ChatSocket {
   }
 
   close(): void {
+    this.connectGeneration += 1;
     this.connectPromise = null;
     this.setStatus('closed');
     this.stopHeartbeat();
