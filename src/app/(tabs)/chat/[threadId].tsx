@@ -24,13 +24,19 @@ import Markdown from 'react-native-markdown-display';
 import { AppHeader } from '@/components/AppHeader';
 import { useTabBarFootprint } from '@/components/DesignTabBar';
 import { ChatInput } from '@/components/ChatInput';
-import { ProcessCard, UserBubble } from '@/components/ChatPieces';
+import { ProcessCard, UserBubble, type BubbleImage } from '@/components/ChatPieces';
 import { CodeFence, InlineCode } from '@/components/MarkdownCode';
 import { MarkdownTable } from '@/components/MarkdownTable';
 import { PressableScale } from '@/components/PressableScale';
 import { TypingDots } from '@/components/TypingDots';
+import { mediaPreviewPath } from '@/core/api/attachments';
 import { ChatApi } from '@/core/api/chat';
-import { processCountsFromHistory, readableText, ThreadsApi } from '@/core/api/threads';
+import {
+  historyAttachments,
+  processCountsFromHistory,
+  readableText,
+  ThreadsApi,
+} from '@/core/api/threads';
 import type { ServerFrame, TurnAttachment } from '@/core/api/types';
 import { ChatSocket, type ChatConnectionStatus } from '@/core/chat/chat-socket';
 import { emptyProcessCounts } from '@/core/chat/process-counts';
@@ -436,13 +442,18 @@ export default function ThreadScreen() {
             continue;
           }
           const text = readableText(m.content);
-          if (!text) {
+          const attachments = m.role === 'user' ? historyAttachments(agentId, m) : undefined;
+          if (!text && (attachments === undefined || attachments.length === 0)) {
             continue;
           }
           const id = `hist-${replay.length}`;
-          replay.push(
-            m.status === 'error' ? { kind: 'error', id, text } : { kind: m.role, id, text },
-          );
+          if (m.status === 'error') {
+            replay.push({ kind: 'error', id, text: text || (attachments?.[0]?.filename ?? '') });
+          } else if (m.role === 'user') {
+            replay.push({ kind: 'user', id, text, attachments });
+          } else {
+            replay.push({ kind: 'assistant', id, text });
+          }
         }
         const counts = processCountsFromHistory(page.messages);
         dispatch({
@@ -712,7 +723,15 @@ export default function ThreadScreen() {
   const renderTurn = ({ item, index }: { item: ChatTurn; index: number }) => {
     switch (item.kind) {
       case 'user':
-        return <UserTurnItem text={item.text} attachments={item.attachments} />;
+        return (
+          <UserTurnItem
+            text={item.text}
+            attachments={item.attachments}
+            agentId={agentId}
+            baseUrl={baseUrl}
+            token={token}
+          />
+        );
       case 'error': {
         const retryText = item.retryText;
         return (
@@ -823,12 +842,50 @@ export default function ThreadScreen() {
 const UserTurnItem = memo(function UserTurnItem({
   text,
   attachments,
+  agentId,
+  baseUrl,
+  token,
 }: {
   text: string;
   attachments?: TurnAttachment[];
+  agentId: string;
+  baseUrl: string | null;
+  token: string | null;
 }) {
-  const names = attachments?.map(a => a.filename ?? a.workspace_path);
-  return <UserBubble text={text} attachmentNames={names} />;
+  const images: BubbleImage[] = [];
+  const names: string[] = [];
+  const authHeaders =
+    token !== null && token.length > 0 ? { Authorization: `Bearer ${token}` } : undefined;
+  for (const attachment of attachments ?? []) {
+    const label = attachment.filename ?? attachment.workspace_path;
+    if (attachment.type === 'image') {
+      const local = attachment.local_uri;
+      if (local) {
+        images.push({ uri: local, label });
+        continue;
+      }
+      if (baseUrl) {
+        const relative =
+          attachment.url ??
+          mediaPreviewPath(agentId, attachment.workspace_path, attachment.media_type);
+        const path = relative.startsWith('/') ? relative : `/${relative}`;
+        images.push({
+          uri: `${baseUrl}${path}`,
+          headers: authHeaders,
+          label,
+        });
+        continue;
+      }
+    }
+    names.push(label);
+  }
+  return (
+    <UserBubble
+      text={text}
+      images={images.length > 0 ? images : undefined}
+      attachmentNames={names.length > 0 ? names : undefined}
+    />
+  );
 });
 
 const AssistantTurnItem = memo(function AssistantTurnItem({

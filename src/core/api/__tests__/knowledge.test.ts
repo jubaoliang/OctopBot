@@ -37,6 +37,25 @@ describe('KnowledgeApi request shapes', () => {
       '/api/knowledge-bases/kb1/documents?prefix=docs%2Fsub%20folder',
     ]);
   });
+
+  it('unwraps preview JSON envelope to plain text', async () => {
+    const http = {
+      get: jest.fn().mockResolvedValue({
+        id: 'd1',
+        filename: 'note.md',
+        text: '# Hello\n\nbody',
+      }),
+    } as unknown as HttpClient;
+    await expect(new KnowledgeApi(http).preview('kb1', 'd1')).resolves.toBe('# Hello\n\nbody');
+    expect(http.get).toHaveBeenCalledWith('/api/knowledge-bases/kb1/documents/d1/preview');
+  });
+
+  it('accepts a plain-string preview response', async () => {
+    const http = {
+      get: jest.fn().mockResolvedValue('raw preview'),
+    } as unknown as HttpClient;
+    await expect(new KnowledgeApi(http).preview('kb1', 'd1')).resolves.toBe('raw preview');
+  });
 });
 
 describe('CronApi request shapes', () => {

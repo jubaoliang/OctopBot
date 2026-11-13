@@ -1,3 +1,4 @@
+import { serializeUserTurn } from '../api/attachments';
 import type { ClientFrame, ServerFrame, UserTurnFrame } from '../api/types';
 
 export type ChatConnectionStatus =
@@ -190,7 +191,10 @@ export class ChatSocket {
 
   /** Sends a user turn; returns false when the socket is not open. */
   sendUserTurn(frame: Omit<UserTurnFrame, 'type'>): boolean {
-    return this.rawSend({ type: 'user_turn', ...frame });
+    // Attachments must travel as `messages[].content` blocks — the server
+    // drops a top-level `attachments` field on ChatTurnBody.
+    const body: UserTurnFrame = { type: 'user_turn', ...serializeUserTurn(frame) };
+    return this.rawSend(body);
   }
 
   /** (Re)attaches this connection to a thread — used on reconnect and screen switches. */

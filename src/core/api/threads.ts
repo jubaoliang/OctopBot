@@ -1,7 +1,9 @@
+import { turnAttachmentsFromInbound } from './attachments';
 import type { HttpClient } from './http';
 import type {
   ContentBlock,
   ConversationMode,
+  HistoryMessage,
   HistoryPage,
   ReasoningMode,
   ThreadSummary,
@@ -58,6 +60,14 @@ export function readableText(content: ContentBlock[]): string {
     .filter((block): block is Extract<ContentBlock, { type: 'text' }> => block.type === 'text')
     .map(block => block.text)
     .join('');
+}
+
+/** User-turn attachments from a history row (empty when the turn had none). */
+export function historyAttachments(
+  agentId: string,
+  message: Pick<HistoryMessage, 'inbound_attachments'>,
+): TurnAttachment[] | undefined {
+  return turnAttachmentsFromInbound(agentId, message.inbound_attachments);
 }
 
 /** Tallies thinking / tool_use blocks across a history page for the process card. */

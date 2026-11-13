@@ -68,6 +68,7 @@
     "format": "prettier --write .",
     "test": "jest",
     "licenses": "node ./scripts/generate-licenses.mjs",
+    "check:version": "node ./scripts/check-version.mjs",
     "commit": "cz",
     "prepare": "husky"
   },

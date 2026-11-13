@@ -106,6 +106,14 @@ export type ContentBlock =
       error_code?: string;
     };
 
+/** History UI metadata for files the user attached on a prior turn. */
+export interface InboundAttachmentMeta {
+  filename: string;
+  media_type: string;
+  kind: 'image' | 'file' | string;
+  workspace_path: string;
+}
+
 export interface HistoryMessage {
   id?: string;
   role: ChatRole;
@@ -115,6 +123,8 @@ export interface HistoryMessage {
   error_code?: string;
   agent_id?: string;
   duration_ms?: number;
+  /** Present on user turns that carried inbound uploads (dashboard history). */
+  inbound_attachments?: InboundAttachmentMeta[];
 }
 
 export interface HistoryPage {
@@ -135,11 +145,23 @@ export interface TurnAttachment {
   workspace_path: string;
   filename?: string;
   media_type?: string;
+  /**
+   * JWT-protected relative preview/download path from the upload response
+   * (`/api/agents/…/media/preview?…`). Used when building vision content
+   * blocks and when rendering thumbnails; never a host absolute URL.
+   */
+  url?: string;
+  /**
+   * Local file URI for optimistic bubble thumbnails. Client-only — stripped
+   * before the WebSocket frame is sent.
+   */
+  local_uri?: string;
 }
 
 export interface UserTurnFrame {
   type: 'user_turn';
-  text: string;
+  /** Plain-text shorthand; omit when `messages` already carries the text block. */
+  text?: string;
   thread_id?: string;
   model?: string;
   reasoning_mode?: ReasoningMode;
@@ -149,7 +171,14 @@ export interface UserTurnFrame {
   delivery?: 'auto' | 'steer' | 'follow_up';
   client_pending_id?: string;
   expected_turn_id?: string;
+  /**
+   * Convenience list — `ChatSocket.sendUserTurn` rewrites these into
+   * OpenAI-style `messages[].content` image/file blocks (the server ignores
+   * a top-level `attachments` field).
+   */
   attachments?: TurnAttachment[];
+  /** OpenAI-style messages; preferred wire form when attachments are present. */
+  messages?: { role: string; content: unknown; id?: string }[];
 }
 
 export type ClientFrame =
@@ -347,8 +376,11 @@ export interface Preferences {
 export interface UploadResult {
   workspace_path: string;
   url: string;
+  /** Alias of `url` on newer servers. */
+  access_url?: string;
   filename: string;
   media_type: string;
+  path?: string;
 }
 
 // ---------------------------------------------------------------------------

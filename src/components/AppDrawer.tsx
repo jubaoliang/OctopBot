@@ -1,36 +1,64 @@
-import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  BackHandler,
+  type GestureResponderEvent,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Animated, {
   Easing,
-  FadeIn,
-  FadeInDown,
-  FadeOut,
-  FadeOutUp,
   cubicBezier,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import { BookOpen, Settings } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { IconChevronDown, IconTaskWindow, LogoHeader, MenuTokens } from '@/components/icons';
+import { IconChevronDown, LogoHeader, MenuTokens } from '@/components/icons';
 import { AgentAvatar } from '@/components/AgentAvatar';
+import { Collapsible } from '@/components/Collapsible';
 import { DrawerThreadRow } from '@/components/DrawerThreadRow';
 import { useI18n } from '@/i18n/I18nProvider';
-import { haptics } from '@/platform/haptics';
 import { continuousCorners, layout, motion, radius, typeScale, useTokens } from '@/theme';
 
 /** iOS sheet curve — the drawer is a sheet that enters from the leading edge. */
 const EASE_SHEET = Easing.bezier(0.32, 0.72, 0, 1);
 
-/** Where a flick would come to rest (Apple's exponential-decay projection). */
-function project(velocity: number, decelerationRate = 0.998): number {
-  'worklet';
-  return ((velocity / 1000) * decelerationRate) / (1 - decelerationRate);
+/** A touch that travels further than this (pt) is a drag, not a tap. */
+const TAP_SLOP = 10;
+
+/**
+ * Press handlers for a drawer row that only fire for a real tap.
+ *
+ * The panel does not move under a sideways drag, and a vertical-only scroll
+ * view does not claim one either — so without this a swipe across a row
+ * that ends inside it would count as a press and navigate.
+ */
+function useTap(onTap: () => void) {
+  const origin = useRef<{ x: number; y: number } | null>(null);
+  return {
+    onPressIn: (event: GestureResponderEvent) => {
+      origin.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY };
+    },
+    onPress: (event: GestureResponderEvent) => {
+      // No origin means the press did not come from a touch (accessibility
+      // activation, keyboard) — those always count.
+      const from = origin.current;
+      origin.current = null;
+      if (
+        from &&
+        Math.hypot(event.nativeEvent.pageX - from.x, event.nativeEvent.pageY - from.y) > TAP_SLOP
+      ) {
+        return;
+      }
+      onTap();
+    },
+  };
 }
 
 /** Chevron that turns with the expand state (UI-thread CSS transition). */
@@ -96,12 +124,9 @@ const chevronTransition = {
 
 /**
  * Left drawer per design: 40% scrim, 313-wide panel on tokens.bg —
- * logo, nav rows (active = 4% overlay pill), 任务 section with agent
- * groups (40px indented children).
- *
- * One shared value (`progress`, 0 closed → 1 open) drives the panel and the
- * scrim, whether it is animating or under the finger: swipe left anywhere to
- * dismiss, and a flick is enough.
+ * fixed logo + nav rows, then a 任务 section whose group list alone scrolls
+ * (40px indented thread children). Open/close is `visible` timing plus
+ * scrim tap / Android back — no pan-to-drag on the panel.
  */
 export function AppDrawer({
   visible,
@@ -119,28 +144,13 @@ export function AppDrawer({
   const { t: strings } = useI18n();
   const insets = useSafeAreaInsets();
   const progress = useSharedValue(0);
-  const dragStart = useSharedValue(0);
-  // True once a close has been committed (by tap, navigation or a swipe).
-  // The pan ignores touches from then on: grabbing a closing drawer and
-  // dragging it back open would leave it on screen while the app believes
-  // it is closed.
-  const closing = useSharedValue(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  // Set when the swipe gesture already started the closing spring, so the
-  // `visible` effect does not restart it with a timing curve.
-  const gestureClosing = useRef(false);
 
   useEffect(() => {
     if (visible) {
-      gestureClosing.current = false;
-      closing.set(false);
       progress.set(withTiming(1, { duration: motion.sheet, easing: EASE_SHEET }));
       return;
     }
-    if (gestureClosing.current) {
-      return;
-    }
-    closing.set(true);
     progress.set(
       withTiming(0, { duration: 240, easing: EASE_SHEET }, finished => {
         if (finished) {
@@ -148,7 +158,7 @@ export function AppDrawer({
         }
       }),
     );
-  }, [visible, progress, closing, onDismissed]);
+  }, [visible, progress, onDismissed]);
 
   // Android hardware back closes the drawer before it leaves the screen.
   useEffect(() => {
@@ -162,69 +172,10 @@ export function AppDrawer({
     return () => subscription.remove();
   }, [visible, onClose]);
 
-  const closeFromGesture = useCallback(() => {
-    gestureClosing.current = true;
-    haptics.impact('light');
-    onClose();
-  }, [onClose]);
-
-  const pan = usePanGesture({
-    // Declare the axis so vertical scrolling of the task tree always wins.
-    activeOffsetX: [-12, 12],
-    failOffsetY: [-12, 12],
-    onActivate: () => {
-      'worklet';
-      if (closing.get()) {
-        return;
-      }
-      // Continue from where the eye last saw the panel, not from fully open.
-      dragStart.set(progress.get());
-    },
-    onUpdate: event => {
-      'worklet';
-      if (closing.get()) {
-        return;
-      }
-      const next = dragStart.get() + event.translationX / PANEL_WIDTH;
-      progress.set(Math.min(1, Math.max(0, next)));
-    },
-    onDeactivate: event => {
-      'worklet';
-      if (closing.get()) {
-        return;
-      }
-      const velocity = event.velocityX / PANEL_WIDTH;
-      // Decide from the release event itself — the last onUpdate can trail
-      // the finger by a frame or more, which under-reads a quick drag.
-      const released = Math.min(1, Math.max(0, dragStart.get() + event.translationX / PANEL_WIDTH));
-      const projected = released + project(event.velocityX) / PANEL_WIDTH;
-      if (projected < 0.5) {
-        closing.set(true);
-        progress.set(
-          withSpring(
-            0,
-            { duration: motion.sheet, dampingRatio: 1, velocity, overshootClamping: true },
-            finished => {
-              if (finished) {
-                scheduleOnRN(onDismissed);
-              }
-            },
-          ),
-        );
-        scheduleOnRN(closeFromGesture);
-      } else {
-        progress.set(
-          withSpring(1, {
-            duration: motion.sheet,
-            dampingRatio: 1,
-            velocity,
-            overshootClamping: true,
-          }),
-        );
-      }
-    },
-  });
-
+  // Scrim and panel are both driven by compositor-only props (opacity,
+  // transform) off the one shared value, so they land in the same frame.
+  // Never animate a layout prop here: it is committed on a different path
+  // and trails the transform, which opens a seam between the two.
   const scrimStyle = useAnimatedStyle(() => ({
     opacity: progress.get(),
   }));
@@ -233,159 +184,167 @@ export function AppDrawer({
   }));
 
   return (
-    <GestureDetector gesture={pan}>
-      <View style={StyleSheet.absoluteFill}>
-        <Animated.View style={[StyleSheet.absoluteFill, scrimStyle, { backgroundColor: t.scrim }]}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={onClose}
-            accessibilityRole="button"
-            accessibilityLabel={strings.a11y.closeMenu}
-            testID="drawer-scrim"
+    <View style={StyleSheet.absoluteFill}>
+      <Animated.View style={[StyleSheet.absoluteFill, scrimStyle, { backgroundColor: t.scrim }]}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel={strings.a11y.closeMenu}
+          testID="drawer-scrim"
+        />
+      </Animated.View>
+      <Animated.View
+        accessibilityViewIsModal
+        style={[
+          styles.panel,
+          {
+            backgroundColor: t.bg,
+            borderRightColor: t.borderSubtle,
+            // Design's 40pt top assumes a flat status bar; clear the notch.
+            paddingTop: Math.max(40, insets.top + 8),
+            paddingBottom: Math.max(20, insets.bottom + 16),
+          },
+          panelStyle,
+        ]}
+      >
+        {/* Fixed chrome — only the task groups below scroll. */}
+        <View style={styles.logoRow}>
+          <LogoHeader width={62} height={21} color={t.textBody} />
+        </View>
+
+        <View style={styles.menuList}>
+          <NavRow
+            icon={<BookOpen size={20} color={t.textBody} />}
+            label={strings.drawer.knowledge}
+            active={activeRoute === 'knowledge'}
+            testID="drawer-knowledge"
+            onPress={() => onNavigate('knowledge')}
           />
-        </Animated.View>
-        <Animated.View
-          accessibilityViewIsModal
-          style={[
-            styles.panel,
-            { backgroundColor: t.bg, borderRightColor: t.borderSubtle },
-            panelStyle,
-          ]}
-        >
-          <ScrollView
-            // Pin the content to the panel width — an unconstrained long
-            // thread title otherwise widens the whole content container,
-            // every row with it, and ellipsis never engages.
-            contentContainerStyle={[
-              styles.panelContent,
-              {
-                width: PANEL_WIDTH,
-                // The design's 40pt top padding assumes a flat status bar;
-                // clear the notch/Dynamic Island on notched devices.
-                paddingTop: Math.max(40, insets.top + 8),
-                paddingBottom: Math.max(20, insets.bottom + 16),
-              },
-            ]}
-            showsVerticalScrollIndicator={false}
-            showsHorizontalScrollIndicator={false}
-          >
-            <View style={styles.logoRow}>
-              <LogoHeader width={62} height={21} color={t.textBody} />
-            </View>
+          <NavRow
+            icon={<MenuTokens width={20} height={20} color={t.textBody} />}
+            label={strings.drawer.tokens}
+            active={activeRoute === 'usage'}
+            testID="drawer-tokens"
+            onPress={() => onNavigate('usage')}
+          />
+          <NavRow
+            icon={<Settings size={20} color={t.textBody} />}
+            label={strings.drawer.settings}
+            active={activeRoute === 'settings'}
+            testID="drawer-settings"
+            onPress={() => onNavigate('settings')}
+          />
+        </View>
 
-            <View style={styles.menuList}>
-              <NavRow
-                icon={<BookOpen size={20} color={t.textBody} />}
-                label={strings.drawer.knowledge}
-                active={activeRoute === 'knowledge'}
-                testID="drawer-knowledge"
-                onPress={() => onNavigate('knowledge')}
-              />
-              <NavRow
-                icon={<MenuTokens width={20} height={20} color={t.textBody} />}
-                label={strings.drawer.tokens}
-                active={activeRoute === 'usage'}
-                testID="drawer-tokens"
-                onPress={() => onNavigate('usage')}
-              />
-              <NavRow
-                icon={<Settings size={20} color={t.textBody} />}
-                label={strings.drawer.settings}
-                active={activeRoute === 'settings'}
-                testID="drawer-settings"
-                onPress={() => onNavigate('settings')}
-              />
-            </View>
-
-            {groups.length > 0 ? (
-              <View style={styles.tasksSection}>
-                <View style={styles.tasksHeader}>
-                  <View style={styles.tasksHeaderLeft}>
-                    <Text
-                      accessibilityRole="header"
-                      style={[styles.tasksTitle, { color: t.textTertiary }]}
-                    >
-                      {strings.drawer.tasks}
-                    </Text>
-                    <IconChevronDown width={16} height={16} color={t.textTertiary} />
-                  </View>
-                  <IconTaskWindow width={16} height={16} color={t.textTertiary} />
-                </View>
-
-                {groups.map(group => {
-                  const expanded = collapsed[group.name] ?? group.expanded;
-                  return (
-                    <View key={group.agentId}>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={group.name}
-                        accessibilityState={{ expanded }}
-                        style={({ pressed }) => [
-                          styles.groupRow,
-                          expanded ? { backgroundColor: t.overlaySubtle } : null,
-                          pressed ? { backgroundColor: t.overlayPressed } : null,
-                        ]}
-                        onPress={() => {
-                          setCollapsed(prev => ({ ...prev, [group.name]: !expanded }));
-                          if (!expanded) {
-                            onGroupPress(group);
-                          }
-                        }}
-                      >
-                        <AgentAvatar
-                          name={group.name}
-                          iconName={group.iconName}
-                          color={group.color}
-                          size={20}
-                          fallbackTextSecondary={t.textBody}
-                        />
-                        <Text
-                          style={[styles.groupName, { color: t.textBody }]}
-                          numberOfLines={1}
-                          ellipsizeMode="tail"
-                        >
-                          {group.name}
-                        </Text>
-                        <Chevron expanded={expanded} color={t.textTertiary} />
-                      </Pressable>
-                      {expanded
-                        ? group.items.map((item, index) => {
-                            const title = item.title || strings.chat.newThread;
-                            return (
-                              <Animated.View
-                                key={item.threadId}
-                                entering={FadeInDown.delay(index * 20).duration(180)}
-                                exiting={FadeOutUp.duration(120)}
-                              >
-                                <DrawerThreadRow
-                                  thread={item}
-                                  title={title}
-                                  onOpen={() => onThreadPress(group, { ...item, title })}
-                                  onPin={() => onThreadPin(group, item)}
-                                  onDelete={() => onThreadDelete(group, item)}
-                                />
-                              </Animated.View>
-                            );
-                          })
-                        : null}
-                      {expanded && group.threadsLoaded && group.items.length === 0 ? (
-                        <Animated.Text
-                          entering={FadeIn.duration(150)}
-                          exiting={FadeOut.duration(100)}
-                          style={[styles.childEmpty, { color: t.textTertiary }]}
-                        >
-                          —
-                        </Animated.Text>
-                      ) : null}
-                    </View>
-                  );
-                })}
+        {groups.length > 0 ? (
+          <View style={styles.tasksSection} testID="drawer-tasks">
+            <View style={styles.tasksHeader}>
+              <View style={styles.tasksHeaderLeft}>
+                <Text
+                  accessibilityRole="header"
+                  style={[styles.tasksTitle, { color: t.textTertiary }]}
+                >
+                  {strings.drawer.tasks}
+                </Text>
+                <IconChevronDown width={16} height={16} color={t.textTertiary} />
               </View>
-            ) : null}
-          </ScrollView>
-        </Animated.View>
-      </View>
-    </GestureDetector>
+            </View>
+
+            <ScrollView
+              style={styles.tasksScroll}
+              // Content width follows the scroll view — a fixed 313pt pin
+              // was a hairline wider than the bordered viewport and let
+              // iOS rubber-band the whole panel sideways.
+              alwaysBounceHorizontal={false}
+              contentContainerStyle={styles.tasksScrollContent}
+              showsVerticalScrollIndicator={false}
+              showsHorizontalScrollIndicator={false}
+            >
+              {groups.map(group => {
+                const expanded = collapsed[group.name] ?? group.expanded;
+                return (
+                  <View key={group.agentId}>
+                    <GroupRow
+                      group={group}
+                      expanded={expanded}
+                      onPress={() => {
+                        setCollapsed(prev => ({ ...prev, [group.name]: !expanded }));
+                        if (!expanded) {
+                          onGroupPress(group);
+                        }
+                      }}
+                    />
+                    <Collapsible expanded={expanded}>
+                      {group.items.map(item => {
+                        const title = item.title || strings.chat.newThread;
+                        return (
+                          <DrawerThreadRow
+                            key={item.threadId}
+                            thread={item}
+                            title={title}
+                            onOpen={() => onThreadPress(group, { ...item, title })}
+                            onPin={() => onThreadPin(group, item)}
+                            onDelete={() => onThreadDelete(group, item)}
+                          />
+                        );
+                      })}
+                      {group.threadsLoaded && group.items.length === 0 ? (
+                        <Text style={[styles.childEmpty, { color: t.textTertiary }]}>—</Text>
+                      ) : null}
+                    </Collapsible>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : null}
+      </Animated.View>
+    </View>
+  );
+}
+
+/** Agent group header: avatar, name and the disclosure chevron. */
+function GroupRow({
+  group,
+  expanded,
+  onPress,
+}: {
+  group: DrawerTaskGroup;
+  expanded: boolean;
+  onPress: () => void;
+}) {
+  const t = useTokens();
+  const tap = useTap(onPress);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={group.name}
+      accessibilityState={{ expanded }}
+      testID={`drawer-group-${group.agentId}`}
+      style={({ pressed }) => [
+        styles.groupRow,
+        expanded ? { backgroundColor: t.overlaySubtle } : null,
+        pressed ? { backgroundColor: t.overlayPressed } : null,
+      ]}
+      {...tap}
+    >
+      <AgentAvatar
+        name={group.name}
+        iconName={group.iconName}
+        color={group.color}
+        size={20}
+        fallbackTextSecondary={t.textBody}
+      />
+      <Text
+        style={[styles.groupName, { color: t.textBody }]}
+        numberOfLines={1}
+        ellipsizeMode="tail"
+      >
+        {group.name}
+      </Text>
+      <Chevron expanded={expanded} color={t.textTertiary} />
+    </Pressable>
   );
 }
 
@@ -399,23 +358,23 @@ function NavRow({
   icon: ReactNode;
   label: string;
   active?: boolean;
-  onPress?: () => void;
+  onPress: () => void;
   testID?: string;
 }) {
   const t = useTokens();
+  const tap = useTap(onPress);
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ selected: active, disabled: !onPress }}
+      accessibilityState={{ selected: active }}
       accessibilityLabel={label}
-      disabled={!onPress}
       testID={testID}
       style={({ pressed }) => [
         styles.navRow,
         active ? { backgroundColor: t.overlaySubtle } : null,
         pressed ? { backgroundColor: t.overlayPressed } : null,
       ]}
-      onPress={onPress}
+      {...tap}
     >
       {icon}
       <Text style={[styles.navLabel, { color: t.textBody }]} numberOfLines={1}>
@@ -433,10 +392,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: PANEL_WIDTH,
     borderRightWidth: StyleSheet.hairlineWidth,
-  },
-  panelContent: {
-    paddingTop: 40,
-    paddingBottom: 20,
+    overflow: 'hidden',
   },
   logoRow: {
     paddingHorizontal: 24,
@@ -463,9 +419,10 @@ const styles = StyleSheet.create({
   },
   tasksSection: {
     // Design Frame 2147231496: section gap 4; rows carry their own rhythm.
+    flex: 1,
     marginTop: 12,
-    gap: 2,
     paddingHorizontal: 12,
+    minHeight: 0,
   },
   tasksHeader: {
     flexDirection: 'row',
@@ -482,6 +439,14 @@ const styles = StyleSheet.create({
   },
   tasksTitle: {
     ...typeScale.footnote,
+  },
+  tasksScroll: {
+    flex: 1,
+  },
+  tasksScrollContent: {
+    width: '100%',
+    gap: 2,
+    paddingBottom: 8,
   },
   groupRow: {
     flexDirection: 'row',

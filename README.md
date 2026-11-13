@@ -112,7 +112,7 @@ The app is a thin client to **your** server: no telemetry, no analytics, no thir
 
 ## 🤝 Contributing
 
-Conventional Commits; `lint`, `typecheck`, and `test` gates must pass; one logical change per PR. Interactive commit authoring: `npm run commit`. For server-side feature discussions, join the [Octop community](https://github.com/TencentCloud/Octop#-community).
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, commit style, E2E expectations, and the **Acknowledgements / `npm run licenses`** rule (every production dependency must appear on the in-app Acknowledgements screen). For server-side feature discussions, join the [Octop community](https://github.com/TencentCloud/Octop#-community).
 
 ## 📄 License
 

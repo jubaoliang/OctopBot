@@ -10,6 +10,7 @@ import { VoiceApi } from '@/core/api/voice';
 import type { ActiveVoice, VoiceProvider } from '@/core/api/types';
 import { useAuth } from '@/features/auth';
 import { useI18n, localeNames, type Locale, type UserLocaleMode } from '@/i18n/I18nProvider';
+import { formatAppVersion } from '@/platform/app-version';
 import { haptics } from '@/platform/haptics';
 import { layout, palettes, useTheme, useTokens } from '@/theme';
 import type { UserThemeMode } from '@/theme/ThemeProvider';
@@ -225,7 +226,13 @@ export function SettingsScreen() {
             </SettingsSection>
           ) : null}
 
-          <SettingsSection>
+          <SettingsSection title={strings.settings.about}>
+            <SettingsRow
+              title={strings.settings.version}
+              value={formatAppVersion()}
+              last={false}
+              testID="settings-version"
+            />
             <SettingsRow
               title={strings.settings.licenses}
               disclosure

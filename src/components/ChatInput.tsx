@@ -1,25 +1,26 @@
 import {
   ActivityIndicator,
-  Alert,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  type LayoutRectangle,
 } from 'react-native';
-import { useRef, useState } from 'react';
+import { useRef, useState, type ElementRef } from 'react';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Svg, Path, Rect } from 'react-native-svg';
 import { X } from 'lucide-react-native';
 
 import { IconButton } from '@/components/IconButton';
 import { IconMic, IconPlus } from '@/components/icons';
+import { PopoverMenu } from '@/components/PopoverMenu';
 import type { AttachSource, PendingAttachment } from '@/core/api/attachments';
 import type { TurnAttachment } from '@/core/api/types';
 import { useVoiceInput } from '@/features/useVoiceInput';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
+import { RemoteImage } from '@/platform/remote-image';
 import { continuousCorners, radius, typeScale, useTokens } from '@/theme';
 
 interface ChatInputProps {
@@ -50,6 +51,7 @@ const GLYPH_FRAME = 28;
 /**
  * Chat composer: field + mic / send / stop. Voice uses hybrid STT
  * (system dictation by default; cloud upload when `active.stt` is set).
+ * Attach uses PopoverMenu (HIG pull-down), not ActionSheet.
  */
 export function ChatInput({
   onSend,
@@ -63,6 +65,9 @@ export function ChatInput({
   const t = useTokens();
   const { t: strings } = useI18n();
   const [text, setText] = useState('');
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [attachAnchor, setAttachAnchor] = useState<LayoutRectangle | null>(null);
+  const attachRef = useRef<ElementRef<typeof View>>(null);
   const baseBeforeVoice = useRef('');
   const pending = pendingAttachments ?? [];
   const hasPending = pending.length > 0;
@@ -112,11 +117,15 @@ export function ChatInput({
 
   const onAttach = () => {
     haptics.impact('light');
-    Alert.alert(strings.attachments.sourceTitle, undefined, [
-      { text: strings.attachments.library, onPress: () => onPickImages?.('library') },
-      { text: strings.attachments.camera, onPress: () => onPickImages?.('camera') },
-      { text: strings.common.cancel, style: 'cancel' },
-    ]);
+    // HIG pull-down menu next to + (disambiguation), not a bottom sheet.
+    attachRef.current?.measureInWindow((x, y, width, height) => {
+      setAttachAnchor({ x, y, width, height });
+      setAttachMenuOpen(true);
+    });
+  };
+
+  const pickSource = (source: AttachSource) => {
+    onPickImages?.(source);
   };
 
   const onMic = () => {
@@ -223,15 +232,17 @@ export function ChatInput({
       ) : null}
       <View style={styles.bar}>
         {onPickImages ? (
-          <IconButton
-            label={strings.a11y.attach}
-            testID="composer-attach"
-            size={GLYPH_FRAME}
-            disabled={streaming || voice.busy}
-            onPress={onAttach}
-          >
-            <IconPlus width={22} height={22} color={t.textSecondary} />
-          </IconButton>
+          <View ref={attachRef} collapsable={false}>
+            <IconButton
+              label={strings.a11y.attach}
+              testID="composer-attach"
+              size={GLYPH_FRAME}
+              disabled={streaming || voice.busy}
+              onPress={onAttach}
+            >
+              <IconPlus width={22} height={22} color={t.textSecondary} />
+            </IconButton>
+          </View>
         ) : null}
         <TextInput
           style={[styles.input, { color: t.textBody }]}
@@ -253,6 +264,25 @@ export function ChatInput({
         />
         {trailing}
       </View>
+      <PopoverMenu
+        visible={attachMenuOpen}
+        anchor={attachAnchor}
+        onClose={() => setAttachMenuOpen(false)}
+        dismissLabel={strings.common.cancel}
+        testID="composer-attach-menu"
+        items={[
+          {
+            label: strings.attachments.library,
+            testID: 'composer-attach-library',
+            onPress: () => pickSource('library'),
+          },
+          {
+            label: strings.attachments.camera,
+            testID: 'composer-attach-camera',
+            onPress: () => pickSource('camera'),
+          },
+        ]}
+      />
     </View>
   );
 }
@@ -281,10 +311,10 @@ function PendingChip({
         },
       ]}
     >
-      <Image
-        source={{ uri: item.uri }}
+      <RemoteImage
+        uri={item.uri}
         style={styles.thumb}
-        resizeMode="cover"
+        contentFit="cover"
         accessibilityLabel={statusLabel ? `${item.filename}, ${statusLabel}` : item.filename}
       />
       {item.status === 'uploading' ? (

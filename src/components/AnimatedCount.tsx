@@ -39,17 +39,20 @@ export function AnimatedCount({ value, format, ...textProps }: AnimatedCountProp
   const [shown, setShown] = useState(() => format(safeValue));
   // First paint counts up from 0; later updates count from the previous total.
   const hasPlayed = useRef(false);
+  // Keep format fresh without putting a deps array on useAnimatedReaction —
+  // Reanimated ignores those on native and warns (web-only).
+  const formatRef = useRef(format);
+  useEffect(() => {
+    formatRef.current = format;
+  }, [format]);
 
   const progress = useSharedValue(1);
   const fromValue = useSharedValue(0);
   const toValue = useSharedValue(safeValue);
 
-  const paint = useCallback(
-    (next: number) => {
-      setShown(format(next));
-    },
-    [format],
-  );
+  const paint = useCallback((next: number) => {
+    setShown(formatRef.current(next));
+  }, []);
 
   useEffect(() => {
     if (reduceMotion) {
@@ -84,7 +87,6 @@ export function AnimatedCount({ value, format, ...textProps }: AnimatedCountProp
       const next = Math.round(fromValue.get() + (toValue.get() - fromValue.get()) * t);
       scheduleOnRN(paint, next);
     },
-    [paint],
   );
 
   // Reduce Motion: show the final figure immediately (HIG — no roll / spin).

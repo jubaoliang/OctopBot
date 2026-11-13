@@ -1,0 +1,40 @@
+# iOS fallback smoke — RN testIDs are often missing from the XCUITest tree on
+# iOS 27 (upstream AX bug). Drive by visible labels instead.
+appId: dev.octop.octopbot
+---
+- launchApp
+- runFlow:
+    when:
+      visible: '.*Expo Go.*'
+    commands:
+      - tapOn: 'Cancel'
+- extendedWaitUntil:
+    visible: '.*Octop.*'
+    timeout: 60000
+# Chat home greeting (en or zh)
+- assertVisible: '.*(personal AI companion|专属 AI 伙伴|Hi!).*'
+# Tab bar labels
+- assertVisible: '.*(Chats|对话).*'
+- assertVisible: '.*(Experts|专家).*'
+- assertVisible: '.*(Automation|自动化).*'
+- assertVisible: '.*(Me|我的).*'
+# Composer chrome
+- assertVisible: '.*(Message your AI assistant|给 AI 助手发消息).*'
+
+# Experts tab
+- tapOn: '.*(Experts|专家).*'
+- extendedWaitUntil:
+    visible: '.*Case Support Desk.*'
+    timeout: 30000
+
+# Me → Settings → version/licenses (labels)
+- tapOn: '.*(Me|我的).*'
+- extendedWaitUntil:
+    visible: '.*(Settings|设置).*'
+    timeout: 15000
+- tapOn: '.*(Settings|设置).*'
+- extendedWaitUntil:
+    visible: '.*(Version|版本).*'
+    timeout: 15000
+- assertVisible: '.*(Acknowledgements|开源许可).*'
+- tapOn: '.*(Back|返回).*'

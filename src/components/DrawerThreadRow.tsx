@@ -2,7 +2,11 @@ import { useRef } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import Swipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { Pin } from 'lucide-react-native';
-import { useReducedMotion } from 'react-native-reanimated';
+import Animated, {
+  type SharedValue,
+  useAnimatedStyle,
+  useReducedMotion,
+} from 'react-native-reanimated';
 
 import type { DrawerThread } from '@/components/AppDrawer';
 import { useI18n } from '@/i18n/I18nProvider';
@@ -15,6 +19,55 @@ interface DrawerThreadRowProps {
   onOpen: () => void;
   onPin: () => void;
   onDelete: () => void;
+}
+
+/**
+ * Action rail under the row. Both rails sit behind every row all the time
+ * (the swipeable stacks them as absolute fills), so a rail paints only
+ * while the row is actually dragged off its own side — solid then, and
+ * not at all at rest. That keeps Pin/Delete from showing through whenever
+ * an ancestor is drawn translucent or the row is not opaque for a frame.
+ */
+function ActionRail({
+  side,
+  translation,
+  backgroundColor,
+  label,
+  accessibilityLabel,
+  testID,
+  onPress,
+}: {
+  side: 'left' | 'right';
+  /** Row offset in points: positive uncovers the left rail, negative the right. */
+  translation: SharedValue<number>;
+  backgroundColor: string;
+  label: string;
+  accessibilityLabel: string;
+  testID: string;
+  onPress: () => void;
+}) {
+  const t = useTokens();
+  const style = useAnimatedStyle(() => {
+    const offset = translation.get();
+    const uncovered = side === 'left' ? offset > 0 : offset < 0;
+    return { opacity: uncovered ? 1 : 0 };
+  });
+
+  return (
+    <Animated.View style={[styles.actionRail, { backgroundColor }, style]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        testID={testID}
+        onPress={onPress}
+        style={styles.actionHit}
+      >
+        <Text style={[styles.actionLabel, { color: t.textInverse }]} numberOfLines={1}>
+          {label}
+        </Text>
+      </Pressable>
+    </Animated.View>
+  );
 }
 
 /**
@@ -50,6 +103,7 @@ export function DrawerThreadRow({ thread, title, onOpen, onPin, onDelete }: Draw
   };
 
   const showActions = () => {
+    swipeRef.current?.close();
     haptics.selection();
     Alert.alert(title, undefined, [
       {
@@ -68,66 +122,33 @@ export function DrawerThreadRow({ thread, title, onOpen, onPin, onDelete }: Draw
     ]);
   };
 
-  const renderLeft = () => (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={thread.pinned ? strings.drawer.unpin : strings.drawer.pin}
-      testID={`drawer-pin-${thread.threadId}`}
-      onPress={pin}
-      style={[styles.action, { backgroundColor: t.accent }]}
-    >
-      <Text style={[styles.actionLabel, { color: t.textInverse }]} numberOfLines={1}>
-        {thread.pinned ? strings.drawer.unpin : strings.drawer.pin}
-      </Text>
-    </Pressable>
-  );
-
-  const renderRight = () => (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={strings.drawer.deleteThread}
-      testID={`drawer-delete-${thread.threadId}`}
-      onPress={confirmDelete}
-      style={[styles.action, { backgroundColor: t.danger }]}
-    >
-      <Text style={[styles.actionLabel, { color: t.textInverse }]} numberOfLines={1}>
-        {strings.drawer.deleteThread}
-      </Text>
-    </Pressable>
-  );
-
-  const row = (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={title}
-      testID={`drawer-thread-${thread.threadId}`}
-      style={({ pressed }) => [
-        styles.childRow,
-        // Opaque fill so swipe actions stay hidden behind the row at rest.
-        { backgroundColor: pressed ? t.overlayPressed : t.bg },
-      ]}
-      onPress={onOpen}
-      onLongPress={showActions}
-      delayLongPress={350}
-    >
-      <View style={styles.childInner}>
-        {thread.pinned ? <Pin size={14} color={t.textTertiary} /> : null}
-        <Text
-          style={[styles.childName, { color: t.textBody }]}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-        >
-          {title}
-        </Text>
-      </View>
-    </Pressable>
-  );
+  const pinLabel = thread.pinned ? strings.drawer.unpin : strings.drawer.pin;
 
   return (
     <Swipeable
       ref={swipeRef}
-      renderLeftActions={renderLeft}
-      renderRightActions={renderRight}
+      renderLeftActions={(_progress, translation) => (
+        <ActionRail
+          side="left"
+          translation={translation}
+          backgroundColor={t.accent}
+          label={pinLabel}
+          accessibilityLabel={pinLabel}
+          testID={`drawer-pin-${thread.threadId}`}
+          onPress={pin}
+        />
+      )}
+      renderRightActions={(_progress, translation) => (
+        <ActionRail
+          side="right"
+          translation={translation}
+          backgroundColor={t.danger}
+          label={strings.drawer.deleteThread}
+          accessibilityLabel={strings.drawer.deleteThread}
+          testID={`drawer-delete-${thread.threadId}`}
+          onPress={confirmDelete}
+        />
+      )}
       overshootLeft={false}
       overshootRight={false}
       overshootFriction={reduceMotion ? 1 : 8}
@@ -135,15 +156,47 @@ export function DrawerThreadRow({ thread, title, onOpen, onPin, onDelete }: Draw
       dragOffsetFromLeft={12}
       dragOffsetFromRight={-12}
       animationOptions={reduceMotion ? { duration: 1 } : undefined}
+      childrenContainerStyle={[styles.childrenContainer, { backgroundColor: t.bg }]}
+      containerStyle={[styles.swipeContainer, { backgroundColor: t.bg }]}
     >
-      {row}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        testID={`drawer-thread-${thread.threadId}`}
+        style={({ pressed }) => [
+          styles.childRow,
+          { backgroundColor: pressed ? t.overlayPressed : t.bg },
+        ]}
+        onPress={onOpen}
+        onLongPress={showActions}
+        delayLongPress={350}
+      >
+        <View style={styles.childInner}>
+          {thread.pinned ? <Pin size={14} color={t.textTertiary} /> : null}
+          <Text
+            style={[styles.childName, { color: t.textBody }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {title}
+          </Text>
+        </View>
+      </Pressable>
     </Swipeable>
   );
 }
 
 const styles = StyleSheet.create({
+  swipeContainer: {
+    width: '100%',
+    overflow: 'hidden',
+  },
+  childrenContainer: {
+    width: '100%',
+  },
   childRow: {
     // Align with AppDrawer group label (12 pad + 20 avatar + 8 gap = 40).
+    width: '100%',
     minHeight: layout.hitTarget,
     paddingLeft: 40,
     paddingRight: 12,
@@ -158,8 +211,14 @@ const styles = StyleSheet.create({
     ...typeScale.subheadline,
     flexShrink: 1,
   },
-  action: {
+  actionRail: {
     width: 88,
+    alignSelf: 'stretch',
+    justifyContent: 'center',
+  },
+  actionHit: {
+    flex: 1,
+    minHeight: layout.hitTarget,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 8,

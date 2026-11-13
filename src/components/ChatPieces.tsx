@@ -1,10 +1,18 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PressableScale } from '@/components/PressableScale';
 import { IconArrowRight, IconChevronSmall, IconGlobe } from '@/components/icons';
 import { useI18n } from '@/i18n/I18nProvider';
+import { RemoteImage } from '@/platform/remote-image';
 import { CODE_FONT } from '@/theme/code-font';
 import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
+
+/** One thumbnail rendered inside a user bubble (local URI or auth-gated URL). */
+export interface BubbleImage {
+  uri: string;
+  headers?: Record<string, string>;
+  label: string;
+}
 
 /** Suggestion pill per design: white surface, radius 8, trailing arrow — 44pt tall. */
 export function SuggestionPill({ label, onPress }: { label: string; onPress?: () => void }) {
@@ -24,15 +32,33 @@ export function SuggestionPill({ label, onPress }: { label: string; onPress?: ()
 /** User bubble per design: 4% overlay, tailed corner, body text; long-press to copy. */
 export function UserBubble({
   text,
+  images,
   attachmentNames,
 }: {
   text: string;
-  /** Filenames of images sent with this turn, shown above the text. */
+  /** Inline image thumbnails (preferred over filename-only chips). */
+  images?: BubbleImage[];
+  /** Non-image filenames (or image fallback when no resolvable URI). */
   attachmentNames?: string[];
 }) {
   const t = useTokens();
+  const hasImages = images !== undefined && images.length > 0;
   return (
     <View style={[styles.bubble, { backgroundColor: t.overlaySubtle }]}>
+      {hasImages ? (
+        <View style={styles.bubbleImages}>
+          {images.map((image, index) => (
+            <RemoteImage
+              key={`${image.uri}-${index}`}
+              uri={image.uri}
+              headers={image.headers}
+              accessibilityLabel={image.label}
+              style={styles.bubbleThumb}
+              contentFit="cover"
+            />
+          ))}
+        </View>
+      ) : null}
       {attachmentNames?.map((name, index) => (
         <Text
           key={`${name}-${index}`}
@@ -116,8 +142,8 @@ export function LinkRow({ label, onPress }: { label: string; onPress?: () => voi
 }
 
 /** Artifact image per design: 240×138, radius 8, in a gap-8 row. */
-export function ArtifactImage({ uri }: { uri: string }) {
-  return <Image source={{ uri }} accessibilityIgnoresInvertColors style={styles.artifact} />;
+export function ArtifactImage({ uri, headers }: { uri: string; headers?: Record<string, string> }) {
+  return <RemoteImage uri={uri} headers={headers} style={styles.artifact} contentFit="cover" />;
 }
 
 const styles = StyleSheet.create({
@@ -154,6 +180,18 @@ const styles = StyleSheet.create({
   },
   bubbleText: {
     ...typeScale.reading,
+  },
+  bubbleImages: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 6,
+  },
+  bubbleThumb: {
+    width: 120,
+    height: 120,
+    borderRadius: radius.pill,
+    ...continuousCorners,
   },
   bubbleAttachment: {
     ...typeScale.footnote,

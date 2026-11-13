@@ -140,6 +140,36 @@ describe('ChatSocket', () => {
     const sent = socket.sendUserTurn({ text: 'ping?' });
     expect(sent).toBe(true);
     expect(JSON.parse(first.sent[0])).toMatchObject({ type: 'user_turn', text: 'ping?' });
+
+    expect(
+      socket.sendUserTurn({
+        text: 'with pic',
+        thread_id: 't1',
+        attachments: [
+          {
+            type: 'image',
+            workspace_path: 'inbound/a.png',
+            filename: 'a.png',
+            media_type: 'image/png',
+            url: '/api/agents/a1/media/preview?source=a',
+            local_uri: 'file:///x',
+          },
+        ],
+      }),
+    ).toBe(true);
+    const withPic = JSON.parse(first.sent[1]) as {
+      type: string;
+      attachments?: unknown;
+      messages?: { role: string; content: { type: string; workspace_path?: string }[] }[];
+    };
+    expect(withPic.type).toBe('user_turn');
+    expect(withPic.attachments).toBeUndefined();
+    expect(withPic.messages?.[0]?.role).toBe('user');
+    expect(withPic.messages?.[0]?.content[0]).toEqual({ type: 'text', text: 'with pic' });
+    expect(withPic.messages?.[0]?.content[1]).toMatchObject({
+      type: 'image',
+      workspace_path: 'inbound/a.png',
+    });
     socket.close();
   });
 

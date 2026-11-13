@@ -1,0 +1,65 @@
+# Tab shell coverage: Chat / Experts / Automation / Me (+ Settings entry).
+# Dev client with a seeded session (octopbot://dev-session when needed).
+appId: dev.octop.octopbot
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'composer-input'
+    timeout: 180000
+- assertVisible:
+    id: 'tab-chat'
+- assertVisible:
+    id: 'tab-experts'
+- assertVisible:
+    id: 'tab-automation'
+- assertVisible:
+    id: 'tab-me'
+
+- tapOn:
+    id: 'tab-experts'
+- extendedWaitUntil:
+    visible:
+      id: 'experts-list'
+    timeout: 30000
+
+- tapOn:
+    id: 'tab-automation'
+- extendedWaitUntil:
+    visible:
+      id: 'header-menu'
+    timeout: 30000
+
+- tapOn:
+    id: 'tab-me'
+- extendedWaitUntil:
+    visible:
+      id: 'me-settings'
+    timeout: 30000
+- assertVisible:
+    id: 'logout'
+- tapOn:
+    id: 'me-settings'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-version'
+    timeout: 30000
+- assertVisible:
+    id: 'settings-licenses'
+- tapOn:
+    id: 'header-back'
+- extendedWaitUntil:
+    visible:
+      id: 'me-settings'
+    timeout: 30000
+
+- tapOn:
+    id: 'tab-chat'
+- extendedWaitUntil:
+    visible:
+      id: 'composer-input'
+    timeout: 30000
+- assertVisible:
+    id: 'composer-attach'
+- assertVisible:
+    id: 'composer-voice'

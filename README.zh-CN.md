@@ -112,7 +112,7 @@ docs/           # 锁定的 API 契约 + 设计快照
 
 ## 🤝 参与贡献
 
-遵循 Conventional Commits；`lint`、`typecheck`、`test` 三道门禁必须通过；每个 PR 只做一件事。交互式提交：`npm run commit`。服务端功能讨论请加入 [Octop 社区](https://github.com/TencentCloud/Octop#-community)。
+详见 [`CONTRIBUTING.md`](CONTRIBUTING.md)：环境搭建、提交规范、E2E 预期，以及 **Acknowledgements / `npm run licenses`** 规则（每个生产依赖都必须出现在应用内「开源许可」页）。服务端功能讨论请加入 [Octop 社区](https://github.com/TencentCloud/Octop#-community)。
 
 ## 📄 许可证
 

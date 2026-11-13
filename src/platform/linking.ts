@@ -3,12 +3,18 @@ import { Alert, Linking } from 'react-native';
 import { isHttpUrl } from '@/utils/safe-url';
 
 /**
- * Outbound linking — the ONLY place RN `Linking.openURL` is called from
- * product UI (AGENTS.md wrapper hygiene).
+ * Outbound linking — the ONLY place RN `Linking.openURL` /
+ * `Linking.openSettings` are called from product UI (AGENTS.md wrapper
+ * hygiene).
  *
  * Markdown and other surfaces must go through `confirmOpenHttpUrl` so
  * model-generated links cannot invoke arbitrary schemes silently.
  */
+
+/** Opens the OS Settings page for this app (permission recovery). */
+export function openAppSettings(): void {
+  void Linking.openSettings().catch(() => undefined);
+}
 
 export interface LinkConfirmCopy {
   title: string;

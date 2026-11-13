@@ -1,0 +1,54 @@
+# Broader iOS feature coverage using visible labels (iOS 27 AX workaround).
+appId: dev.octop.octopbot
+---
+- launchApp
+- runFlow:
+    when:
+      visible: '.*Expo Go.*'
+    commands:
+      - tapOn: 'Cancel'
+- extendedWaitUntil:
+    visible: '.*(Chats|对话).*'
+    timeout: 60000
+
+# Drawer → knowledge
+- tapOn:
+    point: '8%,8%'
+- extendedWaitUntil:
+    visible: '.*(Knowledge|知识库).*'
+    timeout: 15000
+- tapOn: '.*(Knowledge|知识库).*'
+- extendedWaitUntil:
+    visible: '.*(Knowledge|知识库|Case).*'
+    timeout: 30000
+- tapOn: '.*(Back|返回).*'
+
+# Drawer → tokens
+- tapOn:
+    point: '8%,8%'
+- extendedWaitUntil:
+    visible: '.*(Token|统计).*'
+    timeout: 15000
+- tapOn: '.*(Token|统计).*'
+- extendedWaitUntil:
+    visible: '.*(Token|用量|usage|Total|合计).*'
+    timeout: 30000
+- tapOn: '.*(Back|返回).*'
+
+# Experts live
+- tapOn: '.*(Experts|专家).*'
+- extendedWaitUntil:
+    visible: '.*Case Support Desk.*'
+    timeout: 30000
+- scrollUntilVisible:
+    element: '.*Case Eng Mentor.*'
+    direction: DOWN
+    timeout: 20000
+
+# Back to chat — attach menu is covered on Android (composer-controls);
+# iOS 27 AX lacks reliable hit targets for the + glyph.
+- tapOn: '.*(Chats|对话).*'
+- extendedWaitUntil:
+    visible: '.*(Message your AI assistant|给 AI 助手发消息).*'
+    timeout: 30000
+- assertVisible: '.*(Message your AI assistant|给 AI 助手发消息).*'

@@ -1,0 +1,123 @@
+# Live experts roster + knowledge browse against a seeded Octop instance.
+# Requires a logged-in session (octopbot://dev-session when needed) and
+# Case* experts / knowledge bases on the server.
+appId: dev.octop.octopbot
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'composer-input'
+    timeout: 180000
+
+# Experts tab — roster should include seeded Case experts
+- tapOn:
+    id: 'tab-experts'
+- extendedWaitUntil:
+    visible:
+      id: 'experts-list'
+    timeout: 30000
+- assertVisible:
+    text: '.*Case Support Desk.*'
+- scrollUntilVisible:
+    element:
+      text: '.*Case Eng Mentor.*'
+    direction: DOWN
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: '.*Case Data Steward.*'
+    direction: DOWN
+    timeout: 20000
+# Scroll back up to open Support Desk near the top of the Case* block
+- scrollUntilVisible:
+    element:
+      text: '.*Case Support Desk.*'
+    direction: UP
+    timeout: 20000
+
+# Open one expert into a new chat
+- tapOn:
+    text: '.*Case Support Desk.*'
+- extendedWaitUntil:
+    visible:
+      id: 'composer-input'
+    timeout: 30000
+- assertVisible:
+    id: 'composer-attach'
+- assertVisible:
+    id: 'composer-voice'
+
+# Attachment chooser is a HIG pull-down menu next to +, not an Alert/sheet
+- tapOn:
+    id: 'composer-attach'
+- extendedWaitUntil:
+    visible:
+      id: 'composer-attach-menu'
+    timeout: 10000
+- assertVisible:
+    id: 'composer-attach-library'
+- assertVisible:
+    id: 'composer-attach-camera'
+- tapOn:
+    id: 'composer-attach-menu-dismiss'
+
+# Knowledge browse — drawer → list → open a Case KB → folder/docs
+- tapOn:
+    id: 'header-menu'
+- extendedWaitUntil:
+    visible:
+      id: 'drawer-knowledge'
+    timeout: 15000
+- tapOn:
+    id: 'drawer-knowledge'
+- extendedWaitUntil:
+    visible:
+      id: 'knowledge-list'
+    timeout: 30000
+# Pull-to-refresh if the first fetch raced the session seed.
+- swipe:
+    direction: DOWN
+    duration: 400
+- extendedWaitUntil:
+    visible:
+      text: '.*Case Product Specs.*'
+    timeout: 45000
+- assertVisible:
+    text: '.*Case Product Specs.*'
+- assertVisible:
+    text: '.*Case Engineering Docs.*'
+- scrollUntilVisible:
+    element:
+      text: '.*Case Research Archive.*'
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    text: '.*Case Product Specs.*'
+- extendedWaitUntil:
+    visible:
+      id: 'knowledge-docs'
+    timeout: 30000
+# Folders at the root of the seeded base (a11y label includes ", folder")
+- assertVisible:
+    text: '.*rfcs.*'
+- assertVisible:
+    text: '.*prds.*'
+- tapOn:
+    text: '.*rfcs.*'
+- extendedWaitUntil:
+    visible:
+      id: 'knowledge-docs'
+    timeout: 15000
+- assertVisible: 'RFC-001 Overview.md'
+- tapOn: 'RFC-001 Overview.md'
+- extendedWaitUntil:
+    visible:
+      id: 'knowledge-preview'
+    timeout: 30000
+- assertVisible:
+    id: 'knowledge-preview-text'
+# Preview is the live proof; back-stack depth varies with folder hops.
+- tapOn:
+    id: 'header-back'
+- assertVisible:
+    id: 'knowledge-docs'

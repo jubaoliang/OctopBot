@@ -14,9 +14,27 @@ export class KnowledgeApi {
     return this.http.get(`/api/knowledge-bases/${kbId}/documents${qs}`);
   }
 
-  preview(kbId: string, docId: string): Promise<string> {
-    return this.http.get(`/api/knowledge-bases/${kbId}/documents/${docId}/preview`);
+  /**
+   * Extracted plain text for a file document. The server returns a JSON
+   * envelope `{ id, filename, text }` — normalize to the text body so
+   * screens stay string-only.
+   */
+  async preview(kbId: string, docId: string): Promise<string> {
+    const raw = await this.http.get<KnowledgePreviewResponse | string>(
+      `/api/knowledge-bases/${kbId}/documents/${docId}/preview`,
+    );
+    if (typeof raw === 'string') {
+      return raw;
+    }
+    return typeof raw?.text === 'string' ? raw.text : '';
   }
+}
+
+/** Envelope for `GET …/documents/{doc_id}/preview`. */
+export interface KnowledgePreviewResponse {
+  id?: string;
+  filename?: string;
+  text?: string;
 }
 
 export interface CronJobDraft {

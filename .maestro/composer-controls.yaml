@@ -1,0 +1,38 @@
+# Composer attach + voice controls (attach needs a selected expert).
+appId: dev.octop.octopbot
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'composer-input'
+    timeout: 180000
+# Ensure an expert is selected so attach is wired on chat home.
+- tapOn:
+    id: 'tab-experts'
+- extendedWaitUntil:
+    visible:
+      id: 'experts-list'
+    timeout: 30000
+- tapOn:
+    text: '.*Case Support Desk.*'
+- extendedWaitUntil:
+    visible:
+      id: 'composer-input'
+    timeout: 60000
+- assertVisible:
+    id: 'composer-attach'
+- assertVisible:
+    id: 'composer-voice'
+- tapOn:
+    id: 'composer-attach'
+- extendedWaitUntil:
+    visible:
+      id: 'composer-attach-library'
+    timeout: 10000
+- assertVisible:
+    id: 'composer-attach-camera'
+# Dismiss via the outside-tap scrim (composer sits under the modal).
+- tapOn:
+    id: 'composer-attach-menu-dismiss'
+- assertVisible:
+    id: 'composer-attach'

@@ -8,10 +8,12 @@ import {
   type AttachSource,
   type PendingAttachment,
 } from '@/core/api/attachments';
+import { OctopApiError } from '@/core/api/errors';
 import type { HttpClient } from '@/core/api/http';
 import { SettingsApi } from '@/core/api/settings';
 import { useAuth } from '@/features/auth';
 import { useI18n } from '@/i18n/I18nProvider';
+import { openAppSettings } from '@/platform/linking';
 import { MediaPickerError, pickImages } from '@/platform/media-picker';
 
 interface PendingState {
@@ -80,6 +82,18 @@ export function useImageAttachments(agentId: string) {
     [strings.attachments.errorTitle],
   );
 
+  const alertPermissionDenied = useCallback(() => {
+    Alert.alert(strings.attachments.errorTitle, strings.attachments.permissionDenied, [
+      { text: strings.common.cancel, style: 'cancel' },
+      { text: strings.attachments.openSettings, onPress: () => openAppSettings() },
+    ]);
+  }, [
+    strings.attachments.errorTitle,
+    strings.attachments.openSettings,
+    strings.attachments.permissionDenied,
+    strings.common.cancel,
+  ]);
+
   const pickAsync = useCallback(
     async (source: AttachSource) => {
       const startScope = { ...scopeRef.current };
@@ -91,11 +105,11 @@ export function useImageAttachments(agentId: string) {
       try {
         picked = await pickImages(source);
       } catch (cause) {
-        alertProblem(
-          cause instanceof MediaPickerError && cause.code === 'denied'
-            ? strings.attachments.permissionDenied
-            : strings.attachments.unavailable,
-        );
+        if (cause instanceof MediaPickerError && cause.code === 'denied') {
+          alertPermissionDenied();
+        } else {
+          alertProblem(strings.attachments.unavailable);
+        }
         return;
       }
       if (picked.length === 0 || stale()) {
@@ -149,12 +163,16 @@ export function useImageAttachments(agentId: string) {
             if (!stale()) {
               patch(startScope.agentId, startScope.sessionGeneration, id, {
                 status: 'ready',
-                attachment: toTurnAttachment(result),
+                attachment: toTurnAttachment(result, { localUri: image.uri }),
               });
             }
-          } catch {
+          } catch (cause) {
             if (!stale()) {
-              failed.push(image.filename);
+              const detail =
+                cause instanceof OctopApiError && cause.message
+                  ? `${image.filename}: ${cause.message}`
+                  : image.filename;
+              failed.push(detail);
               patch(startScope.agentId, startScope.sessionGeneration, id, { status: 'failed' });
             }
           }
@@ -164,7 +182,7 @@ export function useImageAttachments(agentId: string) {
         alertProblem(strings.attachments.uploadFailed(failed.join(', ')));
       }
     },
-    [alertProblem, httpClient, patch, strings.attachments],
+    [alertPermissionDenied, alertProblem, httpClient, patch, strings.attachments],
   );
 
   /** Fire-and-forget for UI callbacks; problems surface as alerts. */

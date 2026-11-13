@@ -53,7 +53,7 @@ export default function ExpertsScreen() {
   };
 
   return (
-    <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
+    <View style={[styles.screen, { backgroundColor: tokens.bg }]} testID="experts-list">
       <SafeAreaView edges={['top']} style={styles.safe}>
         <AppHeader onMenu={openDrawer} />
         <ScrollView
@@ -78,6 +78,7 @@ export default function ExpertsScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={`${agent.name}, ${status}`}
                 accessibilityHint={agent.description ?? undefined}
+                testID={`expert-${agent.agent_id}`}
                 scaleTo={0.98}
                 style={[styles.card, { backgroundColor: tokens.surface }]}
                 onPress={() =>

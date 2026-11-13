@@ -27,4 +27,27 @@ module.exports = defineConfig([
       'prefer-const': 'error',
     },
   },
+  {
+    // Route files are entrypoints. Importing them from features/components/
+    // (or even from root _layout for a helper) pulls a screen into shared
+    // graphs and can split React contexts under Fast Refresh — the
+    // "useX must be used inside XProvider" class of bugs. Keep helpers in
+    // src/features|core|utils and leave src/app/* as thin wiring.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/app/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@/app', '@/app/*', '@/app/**'],
+              message:
+                'Do not import expo-router route modules outside src/app/. Put shared helpers in src/features, src/core, or src/utils instead.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]);

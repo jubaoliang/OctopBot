@@ -6,7 +6,12 @@ import { VoiceApi } from '@/core/api/voice';
 import type { ActiveVoice } from '@/core/api/types';
 import { useAuth } from '@/features/auth';
 import { useI18n } from '@/i18n/I18nProvider';
-import { createAudioRecorder, type AudioRecorderHandle } from '@/platform/audio-recorder';
+import {
+  AudioRecorderError,
+  createAudioRecorder,
+  type AudioRecorderHandle,
+} from '@/platform/audio-recorder';
+import { openAppSettings } from '@/platform/linking';
 import { speech } from '@/platform/speech';
 import { speechLocaleFromUi } from '@/utils/speech-locale';
 
@@ -106,14 +111,30 @@ export function useVoiceInput(handlers: VoiceInputHandlers) {
     }
   }, [httpClient, language, reportError, strings.voice.sttEmpty, strings.voice.sttFailed]);
 
+  const promptMicPermission = useCallback(() => {
+    // Always offer Settings — once the OS suppresses the prompt there is
+    // no other way for the user to grant access from inside the app.
+    Alert.alert(strings.voice.errorTitle, strings.voice.micDeniedSettings, [
+      { text: strings.common.cancel, style: 'cancel' },
+      { text: strings.voice.openSettings, onPress: () => openAppSettings() },
+    ]);
+  }, [
+    strings.common.cancel,
+    strings.voice.errorTitle,
+    strings.voice.micDeniedSettings,
+    strings.voice.openSettings,
+  ]);
+
   const startSystem = useCallback(async () => {
     if (!speech.isAvailable()) {
       reportError(strings.voice.micNotAvailable);
       return;
     }
+    // Ask every tap so the first undetermined state still shows the OS
+    // dialog; a permanent denial surfaces Settings instead of a dead end.
     const permission = await speech.requestPermission();
-    if (permission !== 'granted') {
-      reportError(strings.voice.micDenied);
+    if (permission.state !== 'granted') {
+      promptMicPermission();
       return;
     }
 
@@ -144,8 +165,8 @@ export function useVoiceInput(handlers: VoiceInputHandlers) {
     setRecording(true);
   }, [
     language,
+    promptMicPermission,
     reportError,
-    strings.voice.micDenied,
     strings.voice.micNotAvailable,
     strings.voice.sttFailed,
     strings.voice.sttNetworkFailed,
@@ -158,11 +179,15 @@ export function useVoiceInput(handlers: VoiceInputHandlers) {
     try {
       await recorder.start();
       setRecording(true);
-    } catch {
+    } catch (cause) {
       recorderRef.current = null;
-      reportError(strings.voice.micDenied);
+      if (cause instanceof AudioRecorderError && cause.code === 'unavailable') {
+        reportError(strings.voice.micNotAvailable);
+        return;
+      }
+      promptMicPermission();
     }
-  }, [reportError, strings.voice.micDenied]);
+  }, [promptMicPermission, reportError, strings.voice.micNotAvailable]);
 
   const start = useCallback(async () => {
     if (recording || transcribing) {

@@ -18,9 +18,11 @@ Official mobile client for [TencentCloud/Octop](https://github.com/TencentCloud/
 
 ## Layout & commands
 
-- `src/core/` — pure TypeScript (no `react-native` imports): `api/` (http client, contract types, auth/agents/threads/knowledge/cron/usage modules), `chat/` (ChatSocket with heartbeat + reconnect). `src/platform/` — capability interfaces (secure storage). `src/app/` — expo-router file routes; `src/components/` for shared UI; `assets/` for images/fonts.
-- Scripts: `npm start` / `npm run ios` / `npm run android` / `npm run web`, `npm run lint` (eslint, strict), `npm run typecheck`, `npm test` (jest), `npm run format` (prettier), `npm run reset-project` (template helper — never run casually).
+- `src/core/` — pure TypeScript (no `react-native` imports): `api/` (http client, contract types, auth/agents/threads/knowledge/cron/usage modules), `chat/` (ChatSocket with heartbeat + reconnect). `src/platform/` — capability interfaces (secure storage). `src/app/` — expo-router file routes (**thin wiring only** — screens/helpers live in `src/features/`; never import `@/app/…` from outside `src/app/`, ESLint-enforced); `src/components/` for shared UI; `assets/` for images/fonts. React contexts that providers own (`AppShellContext`, etc.) stay in a tiny dedicated module so Fast Refresh of provider logic cannot recreate the context object.
+- Scripts: `npm start` / `npm run ios` / `npm run android` / `npm run web`, `npm run lint` (eslint, strict), `npm run typecheck`, `npm test` (jest), `npm run format` (prettier), `npm run licenses` (regenerate Acknowledgements), `npm run check:version` (package.json ↔ app.json), `npm run reset-project` (template helper — never run casually).
 - Import aliases (tsconfig paths): `@/*` → `src/*`, `@/assets/*` → `assets/*`. Use them; no deep relative imports.
+- Contributor onboarding: [`CONTRIBUTING.md`](CONTRIBUTING.md).
+- **Marketing version:** `app.json` → `expo.version` is the source of truth; `package.json` `version` must match (CI: `npm run check:version`). Native build numbers are EAS remote auto-increment (`eas.json`); Settings shows them via `src/platform/app-version.ts`.
 
 ## Design source of truth
 
@@ -65,6 +67,7 @@ The contract is pinned in `docs/api-contract.md` (Octop **1.0.3b4**, upstream `d
 - **Charts are drawn with `react-native-svg`, not a chart library**: geometry (scales, ticks, bar rects) is pure TypeScript in `src/utils/bar-chart.ts` with tests, and `src/components/BarChart.tsx` only draws it. ECharts and Swift Charts were considered and rejected (look, and iOS-only respectively). New chart types follow the same split.
 - Unit tests (Jest) for parsers/formatters/API clients; E2E via Maestro — see the Testing section. Features are not done until their E2E flow passes.
 - **Commits follow Conventional Commits**, enforced by the commit-msg hook (commitlint + `@commitlint/config-conventional`). Author interactive commits with `npm run commit` (commitizen); `pre-commit` runs lint-staged (eslint --fix + prettier on staged files). Hooks are installed by husky via the `prepare` script — they self-heal on every `npm install`.
+- **Acknowledgements stay in sync with production dependencies.** The in-app Acknowledgments screen (`src/features/LicensesScreen.tsx`) reads `src/legal/licenses.json`. After any add / remove / upgrade under `dependencies` (or any package that ships in the release binary), run `npm run licenses` and commit the regenerated file in the same change. DevDependencies are excluded unless they are somehow bundled. Never hand-edit the JSON to invent rows; the generator strips personal metadata on purpose.
 
 ## Testing
 
