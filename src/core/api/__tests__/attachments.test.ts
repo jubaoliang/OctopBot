@@ -59,6 +59,7 @@ describe('sendableAttachments', () => {
     id: '1',
     uri: 'file:///1.jpg',
     filename: '1.jpg',
+    kind: 'image',
     status: 'ready',
     attachment: { type: 'image', workspace_path: 'inbound/1.jpg' },
   };

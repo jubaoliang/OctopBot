@@ -8,7 +8,7 @@
  */
 
 export interface RecordedAudio {
-  /** Local file URI the upload client can append to FormData. */
+  /** Local file URI; wrap with `localFilePart` before FormData upload. */
   uri: string;
   /** MIME type for the multipart part. */
   mimeType: string;

@@ -1,13 +1,6 @@
 import type { HttpClient } from './http';
 import type { AgentStatus, AgentSummary, UploadResult } from './types';
 
-/** RN FormData file part — fetch serializes `{ uri, name, type }` as a blob. */
-export interface UploadFilePart {
-  uri: string;
-  name: string;
-  type: string;
-}
-
 export type AgentScope = 'mine' | 'all';
 
 export class AgentsApi {
@@ -45,15 +38,17 @@ export class AgentsApi {
     return this.http.get(`/api/agents/${agentId}/chat/welcome`);
   }
 
-  /** Uploads a file into the agent workspace `inbound/` (multipart field `file`). */
+  /**
+   * Uploads a file into the agent workspace `inbound/` (multipart field `file`).
+   * Pass a Blob from `localFilePart` — Expo fetch rejects RN `{ uri, name, type }`.
+   */
   upload(
     agentId: string,
-    file: UploadFilePart,
+    file: Blob,
     options: { signal?: AbortSignal; timeoutMs?: number } = {},
   ): Promise<UploadResult> {
     const form = new FormData();
-    // React Native's FormData accepts a file descriptor object here.
-    form.append('file', file as unknown as Blob);
+    form.append('file', file);
     return this.http.postForm(`/api/agents/${agentId}/upload`, form, {
       signal: options.signal,
       // Large images on slow uplinks need more than the 60s default.

@@ -13,8 +13,10 @@ import type { HttpClient } from '@/core/api/http';
 import { SettingsApi } from '@/core/api/settings';
 import { useAuth } from '@/features/auth';
 import { useI18n } from '@/i18n/I18nProvider';
+import { pickDocuments } from '@/platform/document-picker';
 import { openAppSettings } from '@/platform/linking';
 import { MediaPickerError, pickImages } from '@/platform/media-picker';
+import { localFilePart } from '@/platform/multipart';
 
 interface PendingState {
   /** Chips belong to one expert + login generation; a switch hides them. */
@@ -39,8 +41,8 @@ function maxUploadMb(client: HttpClient, generation: number): Promise<number> {
 let nextId = 0;
 
 /**
- * Screen-level image attachment flow: pick (via the platform wrapper),
- * enforce the server size cap, upload to the expert workspace, and expose
+ * Screen-level attachment flow: system photo / camera / Files pickers
+ * (via platform wrappers), size-cap check, upload to the expert workspace,
  * chips for the composer. The composer itself stays presentational.
  */
 export function useImageAttachments(agentId: string) {
@@ -103,7 +105,7 @@ export function useImageAttachments(agentId: string) {
 
       let picked;
       try {
-        picked = await pickImages(source);
+        picked = source === 'files' ? await pickDocuments() : await pickImages(source);
       } catch (cause) {
         if (cause instanceof MediaPickerError && cause.code === 'denied') {
           alertPermissionDenied();
@@ -120,23 +122,25 @@ export function useImageAttachments(agentId: string) {
       if (stale()) {
         return;
       }
-      const oversize = picked.filter(image => exceedsUploadLimit(image.byteSize, limitMb));
+      const oversize = picked.filter(file => exceedsUploadLimit(file.byteSize, limitMb));
       if (oversize.length > 0) {
         alertProblem(
           strings.attachments.oversize(oversize.map(i => i.filename).join(', '), limitMb),
         );
       }
-      const accepted = picked.filter(image => !oversize.includes(image));
+      const accepted = picked.filter(file => !oversize.includes(file));
       if (accepted.length === 0) {
         return;
       }
 
-      const items: PendingAttachment[] = accepted.map(image => {
+      const kind = source === 'files' ? 'file' : 'image';
+      const items: PendingAttachment[] = accepted.map(file => {
         nextId += 1;
         return {
           id: `att-${nextId}`,
-          uri: image.uri,
-          filename: image.filename,
+          uri: file.uri,
+          filename: file.filename,
+          kind: file.mimeType.startsWith('image/') ? 'image' : kind,
           status: 'uploading',
         };
       });
@@ -152,26 +156,29 @@ export function useImageAttachments(agentId: string) {
       const api = new AgentsApi(httpClient);
       const failed: string[] = [];
       await Promise.all(
-        accepted.map(async (image, index) => {
+        accepted.map(async (file, index) => {
           const id = items[index].id;
           try {
-            const result = await api.upload(startScope.agentId, {
-              uri: image.uri,
-              name: image.filename,
-              type: image.mimeType,
-            });
+            const result = await api.upload(
+              startScope.agentId,
+              localFilePart({
+                uri: file.uri,
+                name: file.filename,
+                type: file.mimeType,
+              }),
+            );
             if (!stale()) {
               patch(startScope.agentId, startScope.sessionGeneration, id, {
                 status: 'ready',
-                attachment: toTurnAttachment(result, { localUri: image.uri }),
+                attachment: toTurnAttachment(result, { localUri: file.uri }),
               });
             }
           } catch (cause) {
             if (!stale()) {
               const detail =
                 cause instanceof OctopApiError && cause.message
-                  ? `${image.filename}: ${cause.message}`
-                  : image.filename;
+                  ? `${file.filename}: ${cause.message}`
+                  : file.filename;
               failed.push(detail);
               patch(startScope.agentId, startScope.sessionGeneration, id, { status: 'failed' });
             }

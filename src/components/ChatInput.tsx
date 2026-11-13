@@ -1,20 +1,12 @@
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  type LayoutRectangle,
-} from 'react-native';
-import { useRef, useState, type ElementRef } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useRef, useState } from 'react';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Svg, Path, Rect } from 'react-native-svg';
-import { X } from 'lucide-react-native';
+import { File, X } from 'lucide-react-native';
 
+import { AttachTray } from '@/components/AttachTray';
 import { IconButton } from '@/components/IconButton';
 import { IconMic, IconPlus } from '@/components/icons';
-import { PopoverMenu } from '@/components/PopoverMenu';
 import type { AttachSource, PendingAttachment } from '@/core/api/attachments';
 import type { TurnAttachment } from '@/core/api/types';
 import { useVoiceInput } from '@/features/useVoiceInput';
@@ -51,7 +43,7 @@ const GLYPH_FRAME = 28;
 /**
  * Chat composer: field + mic / send / stop. Voice uses hybrid STT
  * (system dictation by default; cloud upload when `active.stt` is set).
- * Attach uses PopoverMenu (HIG pull-down), not ActionSheet.
+ * Attach toggles an inline tray; each tile opens a system picker.
  */
 export function ChatInput({
   onSend,
@@ -65,9 +57,7 @@ export function ChatInput({
   const t = useTokens();
   const { t: strings } = useI18n();
   const [text, setText] = useState('');
-  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
-  const [attachAnchor, setAttachAnchor] = useState<LayoutRectangle | null>(null);
-  const attachRef = useRef<ElementRef<typeof View>>(null);
+  const [attachTrayOpen, setAttachTrayOpen] = useState(false);
   const baseBeforeVoice = useRef('');
   const pending = pendingAttachments ?? [];
   const hasPending = pending.length > 0;
@@ -104,6 +94,7 @@ export function ChatInput({
       return;
     }
     haptics.impact('light');
+    setAttachTrayOpen(false);
     const ready = pending.flatMap(item => (item.attachment ? [item.attachment] : []));
     onSend?.(text.trim(), ready.length > 0 ? ready : undefined);
     setText('');
@@ -117,14 +108,11 @@ export function ChatInput({
 
   const onAttach = () => {
     haptics.impact('light');
-    // HIG pull-down menu next to + (disambiguation), not a bottom sheet.
-    attachRef.current?.measureInWindow((x, y, width, height) => {
-      setAttachAnchor({ x, y, width, height });
-      setAttachMenuOpen(true);
-    });
+    setAttachTrayOpen(open => !open);
   };
 
   const pickSource = (source: AttachSource) => {
+    setAttachTrayOpen(false);
     onPickImages?.(source);
   };
 
@@ -232,17 +220,19 @@ export function ChatInput({
       ) : null}
       <View style={styles.bar}>
         {onPickImages ? (
-          <View ref={attachRef} collapsable={false}>
-            <IconButton
-              label={strings.a11y.attach}
-              testID="composer-attach"
-              size={GLYPH_FRAME}
-              disabled={streaming || voice.busy}
-              onPress={onAttach}
-            >
+          <IconButton
+            label={attachTrayOpen ? strings.common.cancel : strings.a11y.attach}
+            testID="composer-attach"
+            size={GLYPH_FRAME}
+            disabled={streaming || voice.busy}
+            onPress={onAttach}
+          >
+            {attachTrayOpen ? (
+              <X size={22} color={t.textSecondary} />
+            ) : (
               <IconPlus width={22} height={22} color={t.textSecondary} />
-            </IconButton>
-          </View>
+            )}
+          </IconButton>
         ) : null}
         <TextInput
           style={[styles.input, { color: t.textBody }]}
@@ -256,7 +246,12 @@ export function ChatInput({
           placeholderTextColor={t.textPlaceholder}
           selectionColor={t.accent}
           value={text}
-          onChangeText={setText}
+          onChangeText={next => {
+            if (attachTrayOpen) {
+              setAttachTrayOpen(false);
+            }
+            setText(next);
+          }}
           multiline
           editable={!streaming && !voice.busy}
           onSubmitEditing={submit}
@@ -264,25 +259,16 @@ export function ChatInput({
         />
         {trailing}
       </View>
-      <PopoverMenu
-        visible={attachMenuOpen}
-        anchor={attachAnchor}
-        onClose={() => setAttachMenuOpen(false)}
-        dismissLabel={strings.common.cancel}
-        testID="composer-attach-menu"
-        items={[
-          {
-            label: strings.attachments.library,
-            testID: 'composer-attach-library',
-            onPress: () => pickSource('library'),
-          },
-          {
-            label: strings.attachments.camera,
-            testID: 'composer-attach-camera',
-            onPress: () => pickSource('camera'),
-          },
-        ]}
-      />
+      {onPickImages && attachTrayOpen ? (
+        <AttachTray
+          onPick={pickSource}
+          labels={{
+            library: strings.attachments.library,
+            camera: strings.attachments.camera,
+            files: strings.attachments.files,
+          }}
+        />
+      ) : null}
     </View>
   );
 }
@@ -302,7 +288,7 @@ function PendingChip({
   const t = useTokens();
   return (
     <View
-      testID={`composer-pending-${item.id}`}
+      testID={`composer-pending-${item.status}-${item.id}`}
       style={[
         styles.chip,
         {
@@ -311,12 +297,25 @@ function PendingChip({
         },
       ]}
     >
-      <RemoteImage
-        uri={item.uri}
-        style={styles.thumb}
-        contentFit="cover"
-        accessibilityLabel={statusLabel ? `${item.filename}, ${statusLabel}` : item.filename}
-      />
+      {item.kind === 'image' ? (
+        <RemoteImage
+          uri={item.uri}
+          style={styles.thumb}
+          contentFit="cover"
+          testID={`composer-pending-image-${item.id}`}
+          accessibilityLabel={statusLabel ? `${item.filename}, ${statusLabel}` : item.filename}
+        />
+      ) : (
+        <View
+          style={[styles.fileThumb, { backgroundColor: t.overlaySubtle }]}
+          accessibilityLabel={statusLabel ? `${item.filename}, ${statusLabel}` : item.filename}
+        >
+          <File size={22} color={t.textSecondary} />
+          <Text style={[styles.fileName, { color: t.textTertiary }]} numberOfLines={1}>
+            {item.filename}
+          </Text>
+        </View>
+      )}
       {item.status === 'uploading' ? (
         <View style={[styles.thumbOverlay, { backgroundColor: t.scrim }]}>
           <ActivityIndicator color={t.textInverse} />
@@ -409,6 +408,18 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: radius.pill,
+  },
+  fileThumb: {
+    flex: 1,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    gap: 2,
+  },
+  fileName: {
+    ...typeScale.caption2,
+    textAlign: 'center',
   },
   thumbOverlay: {
     ...StyleSheet.absoluteFill,

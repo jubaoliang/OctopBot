@@ -1,4 +1,4 @@
-# Thread pin/delete via long-press action menu (more reliable than swipe).
+# Thread pin/delete: swipe reveals Mail-style actions; long-press is the AX fallback.
 # Requires at least one task-tree thread in the drawer.
 # Locale-agnostic: zh/en labels via regex.
 appId: dev.octop.octopbot
@@ -22,6 +22,38 @@ appId: dev.octop.octopbot
       id: 'drawer-thread-.*'
     direction: DOWN
     timeout: 20000
+# Leading swipe → pin action.
+- swipe:
+    from:
+      id: 'drawer-thread-.*'
+    direction: RIGHT
+    duration: 500
+- extendedWaitUntil:
+    visible:
+      id: 'drawer-pin-.*'
+    timeout: 5000
+- assertVisible: '.*(Pin|置顶|Unpin|取消置顶).*'
+- tapOn:
+    id: 'drawer-thread-.*'
+- waitForAnimationToEnd:
+    timeout: 1500
+# Trailing swipe → delete action.
+- swipe:
+    from:
+      id: 'drawer-thread-.*'
+    direction: LEFT
+    duration: 500
+- extendedWaitUntil:
+    visible:
+      id: 'drawer-delete-.*'
+    timeout: 5000
+- assertVisible: '.*(Delete|删除).*'
+- takeScreenshot: thread-swipe-delete
+# Close without deleting, then verify long-press menu still works.
+- tapOn:
+    id: 'drawer-thread-.*'
+- waitForAnimationToEnd:
+    timeout: 1500
 - longPressOn:
     id: 'drawer-thread-.*'
 - extendedWaitUntil:

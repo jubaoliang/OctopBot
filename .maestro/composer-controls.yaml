@@ -27,12 +27,18 @@ appId: dev.octop.octopbot
     id: 'composer-attach'
 - extendedWaitUntil:
     visible:
-      id: 'composer-attach-library'
+      id: 'composer-attach-tray'
     timeout: 10000
 - assertVisible:
+    id: 'composer-attach-library'
+- assertVisible:
     id: 'composer-attach-camera'
-# Dismiss via the outside-tap scrim (composer sits under the modal).
+- assertVisible:
+    id: 'composer-attach-files'
+# Dismiss by toggling + again (inline tray, not a modal scrim).
 - tapOn:
-    id: 'composer-attach-menu-dismiss'
+    id: 'composer-attach'
+- assertNotVisible:
+    id: 'composer-attach-tray'
 - assertVisible:
     id: 'composer-attach'

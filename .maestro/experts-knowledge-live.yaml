@@ -47,19 +47,21 @@ appId: dev.octop.octopbot
 - assertVisible:
     id: 'composer-voice'
 
-# Attachment chooser is a HIG pull-down menu next to +, not an Alert/sheet
+# Attachment chooser is an inline tray that launches system pickers
 - tapOn:
     id: 'composer-attach'
 - extendedWaitUntil:
     visible:
-      id: 'composer-attach-menu'
+      id: 'composer-attach-tray'
     timeout: 10000
 - assertVisible:
     id: 'composer-attach-library'
 - assertVisible:
     id: 'composer-attach-camera'
+- assertVisible:
+    id: 'composer-attach-files'
 - tapOn:
-    id: 'composer-attach-menu-dismiss'
+    id: 'composer-attach'
 
 # Knowledge browse — drawer → list → open a Case KB → folder/docs
 - tapOn:

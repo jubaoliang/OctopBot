@@ -63,7 +63,7 @@ export class HttpClient {
 
   /**
    * Multipart upload. Do not set Content-Type — fetch supplies the boundary.
-   * `body` is typically a FormData with a RN file part `{ uri, name, type }`.
+   * File parts must be Blob / expo-file-system `File` (not RN `{ uri, name, type }`).
    * Default timeout is longer than JSON calls (audio STT can exceed 15s).
    */
   postForm<T>(

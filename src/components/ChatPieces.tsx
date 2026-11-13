@@ -46,13 +46,14 @@ export function UserBubble({
   return (
     <View style={[styles.bubble, { backgroundColor: t.overlaySubtle }]}>
       {hasImages ? (
-        <View style={styles.bubbleImages}>
+        <View style={styles.bubbleImages} testID="chat-bubble-images">
           {images.map((image, index) => (
             <RemoteImage
               key={`${image.uri}-${index}`}
               uri={image.uri}
               headers={image.headers}
               accessibilityLabel={image.label}
+              testID={`chat-bubble-image-${index}`}
               style={styles.bubbleThumb}
               contentFit="cover"
             />

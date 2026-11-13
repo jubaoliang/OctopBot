@@ -52,7 +52,7 @@ describe('VoiceApi', () => {
     const postForm = jest.fn().mockResolvedValue({ text: '你好', confidence: 0.9 });
     const http = mockHttp({ postForm });
     const result = await new VoiceApi(http).transcribe(
-      { uri: 'file:///tmp/recording.m4a', name: 'recording.m4a', type: 'audio/mp4' },
+      new Blob(['fake'], { type: 'audio/mp4' }),
       'zh-CN',
       'openai',
     );

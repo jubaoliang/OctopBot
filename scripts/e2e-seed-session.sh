@@ -62,7 +62,9 @@ case "$PLATFORM" in
     ;;
   ios)
     export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
-    xcrun simctl terminate booted dev.octop.octopbot >/dev/null 2>&1 || true
+    # Never terminate/launch here. A cold start without the Expo packager URL
+    # redboxes ("No script URL provided"). Caller must already have the app
+    # attached to Metro; we only warm-deliver the seed deep link.
     xcrun simctl openurl booted "$DEEPLINK"
     ;;
 esac

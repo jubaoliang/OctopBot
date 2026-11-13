@@ -1,0 +1,75 @@
+# Camera capture → upload chip → send → image rendered in the user bubble.
+# Android baseline (emulator Camera2). Seed a session first when needed.
+# iOS simulator camera is unreliable; prefer Android for this flow.
+appId: dev.octop.octopbot
+---
+# Keep the pre-seeded session (scripts/e2e-seed-session.sh). A cold
+# launchApp would drop secure-storage before AuthProvider restores it.
+- launchApp:
+    clearState: false
+    stopApp: false
+- extendedWaitUntil:
+    visible:
+      id: 'composer-input'
+    timeout: 180000
+# Attach needs a selected expert workspace.
+- tapOn:
+    id: 'tab-experts'
+- extendedWaitUntil:
+    visible:
+      id: 'experts-list'
+    timeout: 30000
+- tapOn:
+    text: '.*Case Support Desk.*'
+- extendedWaitUntil:
+    visible:
+      id: 'composer-attach'
+    timeout: 60000
+- tapOn:
+    id: 'composer-attach'
+- extendedWaitUntil:
+    visible:
+      id: 'composer-attach-camera'
+    timeout: 10000
+- tapOn:
+    id: 'composer-attach-camera'
+# System camera (Camera2 on the API 37 emulator): Shutter → Done.
+- extendedWaitUntil:
+    visible: 'Shutter'
+    timeout: 20000
+- tapOn: 'Shutter'
+- extendedWaitUntil:
+    visible: 'Done'
+    timeout: 20000
+- tapOn: 'Done'
+# Pending chip appears, then upload finishes (ready).
+- extendedWaitUntil:
+    visible:
+      id: 'composer-pending-.*'
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: 'composer-pending-ready-.*'
+    timeout: 120000
+- assertVisible:
+    id: 'composer-pending-image-.*'
+- tapOn:
+    id: 'composer-input'
+- inputText: 'maestro camera attach'
+- tapOn:
+    id: 'composer-send'
+# Bubble image in the conversation after send.
+- extendedWaitUntil:
+    visible:
+      id: 'chat-bubble-image-0'
+    timeout: 60000
+- assertVisible:
+    id: 'chat-bubble-images'
+- takeScreenshot: camera-attach-bubble
+# Composer returns to idle mic after the turn settles.
+- extendedWaitUntil:
+    visible:
+      id: 'composer-voice'
+    timeout: 120000
+- assertNotVisible:
+    id: 'composer-stop'

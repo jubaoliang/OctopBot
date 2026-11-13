@@ -27,8 +27,8 @@ export interface ActionSheetProps {
  * HIG-style action sheet for confirmation or destructive choices (delete,
  * discard, …). Anchored to the bottom with a Cancel control.
  *
- * For routine disambiguation next to a control (attach → library / camera),
- * prefer `PopoverMenu` — Apple's current guidance for that case.
+ * For the composer attach chooser (photos / camera / files), prefer the
+ * inline `AttachTray` that launches system pickers — not this sheet.
  */
 export function ActionSheet({
   visible,

@@ -1,14 +1,19 @@
 import type { InboundAttachmentMeta, TurnAttachment, UploadResult, UserTurnFrame } from './types';
 
-/** Where a pick comes from: library allows many images, camera exactly one. */
-export type AttachSource = 'library' | 'camera';
+/**
+ * Where a pick comes from. Library / camera use the system photo UI;
+ * files uses the system document picker. All resolve through platform wrappers.
+ */
+export type AttachSource = 'library' | 'camera' | 'files';
 
-/** One composer chip: a local image plus the state of its upload. */
+/** One composer chip: a local pick plus the state of its upload. */
 export interface PendingAttachment {
   id: string;
-  /** Local file URI — used only for the thumbnail. */
+  /** Local file URI — thumbnail for images, unused for file chips. */
   uri: string;
   filename: string;
+  /** Drives chip chrome before the upload response arrives. */
+  kind: 'image' | 'file';
   status: 'uploading' | 'ready' | 'failed';
   /** Present once `status === 'ready'`. */
   attachment?: TurnAttachment;

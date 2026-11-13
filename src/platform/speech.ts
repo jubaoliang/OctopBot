@@ -6,7 +6,18 @@
  * redbox ChatInput at import time.
  */
 
+import { Platform } from 'react-native';
+
 export type SpeechPermissionState = 'granted' | 'denied' | 'undetermined';
+
+/**
+ * iOS Settings lists Microphone and Speech Recognition as separate toggles.
+ * Android App permissions only exposes Microphone for the same capability —
+ * tip copy must not send users hunting for a Speech Recognition row.
+ */
+export function hasSeparateSpeechRecognitionPermission(): boolean {
+  return Platform.OS === 'ios';
+}
 
 export interface SpeechPermissionResult {
   state: SpeechPermissionState;

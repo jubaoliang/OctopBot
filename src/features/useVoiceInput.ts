@@ -12,7 +12,8 @@ import {
   type AudioRecorderHandle,
 } from '@/platform/audio-recorder';
 import { openAppSettings } from '@/platform/linking';
-import { speech } from '@/platform/speech';
+import { localFilePart } from '@/platform/multipart';
+import { hasSeparateSpeechRecognitionPermission, speech } from '@/platform/speech';
 import { speechLocaleFromUi } from '@/utils/speech-locale';
 
 const BROWSER_STT = 'browser';
@@ -95,7 +96,7 @@ export function useVoiceInput(handlers: VoiceInputHandlers) {
         return;
       }
       const result = await new VoiceApi(httpClient).transcribe(
-        { uri: file.uri, name: file.filename, type: file.mimeType },
+        localFilePart({ uri: file.uri, name: file.filename, type: file.mimeType }),
         language,
       );
       const text = result.text?.trim() ?? '';
@@ -114,7 +115,11 @@ export function useVoiceInput(handlers: VoiceInputHandlers) {
   const promptMicPermission = useCallback(() => {
     // Always offer Settings — once the OS suppresses the prompt there is
     // no other way for the user to grant access from inside the app.
-    Alert.alert(strings.voice.errorTitle, strings.voice.micDeniedSettings, [
+    // Android has no separate Speech Recognition toggle in App permissions.
+    const message = hasSeparateSpeechRecognitionPermission()
+      ? strings.voice.micDeniedSettings
+      : strings.voice.micDeniedSettingsAndroid;
+    Alert.alert(strings.voice.errorTitle, message, [
       { text: strings.common.cancel, style: 'cancel' },
       { text: strings.voice.openSettings, onPress: () => openAppSettings() },
     ]);
@@ -122,6 +127,7 @@ export function useVoiceInput(handlers: VoiceInputHandlers) {
     strings.common.cancel,
     strings.voice.errorTitle,
     strings.voice.micDeniedSettings,
+    strings.voice.micDeniedSettingsAndroid,
     strings.voice.openSettings,
   ]);
 

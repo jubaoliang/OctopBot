@@ -79,7 +79,6 @@ async function withByteSize(image: PickedImage): Promise<PickedImage> {
     return image;
   }
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { getInfoAsync } =
       require('expo-file-system/legacy') as typeof import('expo-file-system/legacy');
     const info = await getInfoAsync(image.uri);
@@ -103,9 +102,9 @@ async function finish(result: ImagePickerResult): Promise<PickedImage[]> {
 /**
  * Library allows several images; camera captures exactly one. Resolves `[]`
  * when the user cancels; rejects with `MediaPickerError` on denial or when
- * the native module is missing.
+ * the native module is missing. Files go through `pickDocuments` instead.
  */
-export async function pickImages(source: AttachSource): Promise<PickedImage[]> {
+export async function pickImages(source: Exclude<AttachSource, 'files'>): Promise<PickedImage[]> {
   try {
     const ImagePicker = loadImagePicker();
     if (source === 'camera') {

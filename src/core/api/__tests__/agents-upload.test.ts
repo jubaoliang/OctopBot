@@ -25,11 +25,10 @@ describe('AgentsApi.upload', () => {
     };
     const postForm = jest.fn().mockResolvedValue(uploaded);
     const http = mockHttp({ postForm });
-    const result = await new AgentsApi(http).upload('main', {
-      uri: 'file:///tmp/photo.jpg',
-      name: 'photo.jpg',
-      type: 'image/jpeg',
-    });
+    const result = await new AgentsApi(http).upload(
+      'main',
+      new Blob(['fake'], { type: 'image/jpeg' }),
+    );
     expect(result).toEqual(uploaded);
     expect(postForm).toHaveBeenCalledWith('/api/agents/main/upload', expect.any(FormData), {
       signal: undefined,
@@ -43,11 +42,7 @@ describe('AgentsApi.upload', () => {
   it('propagates upload failures', async () => {
     const http = mockHttp({ postForm: jest.fn().mockRejectedValue(new Error('413')) });
     await expect(
-      new AgentsApi(http).upload('main', {
-        uri: 'file:///x.png',
-        name: 'x.png',
-        type: 'image/png',
-      }),
+      new AgentsApi(http).upload('main', new Blob(['x'], { type: 'image/png' })),
     ).rejects.toThrow('413');
   });
 });
