@@ -79,7 +79,9 @@ async function withByteSize(image: PickedImage): Promise<PickedImage> {
     return image;
   }
   try {
+    // Lazy: native module may be absent under Jest / web.
     const { getInfoAsync } =
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       require('expo-file-system/legacy') as typeof import('expo-file-system/legacy');
     const info = await getInfoAsync(image.uri);
     return info.exists ? { ...image, byteSize: info.size } : image;

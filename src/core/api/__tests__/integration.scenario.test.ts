@@ -83,6 +83,14 @@ const enabled = Boolean(BASE_URL && USERNAME && PASSWORD && typeof WebSocket !==
 
 const jestTimeout = 180_000;
 
+/** Narrow env credentials once — avoids `!` assertions that CI flags as unnecessary. */
+function e2eCreds(): { baseUrl: string; username: string; password: string } {
+  if (!BASE_URL || !USERNAME || !PASSWORD) {
+    throw new Error('OCTOP_E2E_URL / OCTOP_E2E_USER / OCTOP_E2E_PW required');
+  }
+  return { baseUrl: BASE_URL, username: USERNAME, password: PASSWORD };
+}
+
 const scenario = enabled ? describe : describe.skip;
 
 scenario('integration: multi-expert chat scenario', () => {
@@ -95,18 +103,19 @@ scenario('integration: multi-expert chat scenario', () => {
   const expertNames = [`scenario-ops-${runTag}`, `scenario-writer-${runTag}`];
 
   beforeAll(async () => {
+    const { baseUrl, username, password } = e2eCreds();
     const bootstrap = new HttpClient({
-      baseUrl: BASE_URL!,
+      baseUrl,
       getToken: () => Promise.resolve(null),
       onTokenRenewed: () => Promise.resolve(),
       onUnauthorized: () => undefined,
     });
-    const result = await new AuthApi(bootstrap).login(USERNAME!, PASSWORD!);
+    const result = await new AuthApi(bootstrap).login(username, password);
     expect(result).toMatchObject({ access_token: expect.any(String) });
     token = (result as { access_token: string }).access_token;
 
     http = new HttpClient({
-      baseUrl: BASE_URL!,
+      baseUrl,
       getToken: () => Promise.resolve(token),
       onTokenRenewed: async renewed => {
         token = renewed;
@@ -216,7 +225,7 @@ scenario('integration: multi-expert chat scenario', () => {
         reject(new Error(`no done frame within ${jestTimeout}ms`));
       }, jestTimeout - 5_000);
       const socket = new ChatSocket({
-        baseUrl: BASE_URL!,
+        baseUrl: e2eCreds().baseUrl,
         path: `/api/agents/${agentId}/chat/ws`,
         tokenFactory: () => Promise.resolve(token),
         onFrame: frame => {
