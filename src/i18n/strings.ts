@@ -136,8 +136,8 @@ const zh = {
     errorTitle: '语音输入',
     micDenied: '需要麦克风与语音识别权限才能语音输入',
     micDeniedSettings:
-      '麦克风或语音识别权限未开启。请在系统设置中允许 OctopBot 使用麦克风和语音识别。',
-    micDeniedSettingsAndroid: '麦克风权限未开启。请在系统设置 → 权限 中允许 OctopBot 使用麦克风。',
+      '麦克风或语音识别权限未开启。请在系统设置中允许 Octop 使用麦克风和语音识别。',
+    micDeniedSettingsAndroid: '麦克风权限未开启。请在系统设置 → 权限 中允许 Octop 使用麦克风。',
     openSettings: '打开设置',
     micNotAvailable: '此设备不支持语音识别',
     sttEmpty: '没有识别到内容，请再试一次',
@@ -380,9 +380,9 @@ const en: Dict = {
     errorTitle: 'Voice input',
     micDenied: 'Microphone and speech recognition permission is required for voice input',
     micDeniedSettings:
-      'Microphone or speech recognition is off. Allow OctopBot to use the microphone and speech recognition in Settings.',
+      'Microphone or speech recognition is off. Allow Octop to use the microphone and speech recognition in Settings.',
     micDeniedSettingsAndroid:
-      'Microphone is off. In Settings → Permissions, allow Microphone for OctopBot.',
+      'Microphone is off. In Settings → Permissions, allow Microphone for Octop.',
     openSettings: 'Open Settings',
     micNotAvailable: 'Speech recognition is not available on this device',
     sttEmpty: 'Nothing was recognized — try again',

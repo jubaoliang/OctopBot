@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "OctopBot",
+    "name": "Octop",
     "slug": "OctopBot",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -32,28 +32,54 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FAFAFA"
+          "backgroundColor": "#FAFAFA",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 240,
+          "resizeMode": "contain",
+          "ios": {
+            "image": "./assets/images/splash-full.png",
+            "enableFullScreenImage_legacy": true,
+            "resizeMode": "cover",
+            "backgroundColor": "#FAFAFA",
+            "dark": {
+              "backgroundColor": "#111111",
+              "image": "./assets/images/splash-full-dark.png"
+            }
+          },
+          "android": {
+            "image": "./assets/images/splash-icon.png",
+            "imageWidth": 240,
+            "backgroundColor": "#FAFAFA",
+            "dark": {
+              "backgroundColor": "#111111",
+              "image": "./assets/images/splash-icon-dark.png"
+            }
+          },
+          "dark": {
+            "backgroundColor": "#111111",
+            "image": "./assets/images/splash-icon-dark.png"
+          }
         }
       ],
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "Allow OctopBot to use the microphone for voice input.",
-          "speechRecognitionPermission": "Allow OctopBot to transcribe speech into text.",
+          "microphonePermission": "Allow Octop to use the microphone for voice input.",
+          "speechRecognitionPermission": "Allow Octop to transcribe speech into text.",
           "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
         }
       ],
       [
         "expo-audio",
         {
-          "microphonePermission": "Allow OctopBot to use the microphone for voice input."
+          "microphonePermission": "Allow Octop to use the microphone for voice input."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow OctopBot to access your photos so you can attach images to messages.",
-          "cameraPermission": "Allow OctopBot to use the camera so you can attach a photo to a message."
+          "photosPermission": "Allow Octop to access your photos so you can attach images to messages.",
+          "cameraPermission": "Allow Octop to use the camera so you can attach a photo to a message."
         }
       ],
       "expo-font",

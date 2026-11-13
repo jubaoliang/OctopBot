@@ -26,6 +26,7 @@ import { darkTokens, lightTokens, ThemeProvider, useTheme } from '@/theme';
 void SplashScreen.preventAutoHideAsync().catch(() => {
   // The splash screen may already be hidden during fast refresh or headless rendering.
 });
+SplashScreen.setOptions({ duration: 400, fade: true });
 
 /** Maps the current path to the drawer row that should read as selected. */
 function drawerRouteFor(pathname: string): DrawerRoute | null {
