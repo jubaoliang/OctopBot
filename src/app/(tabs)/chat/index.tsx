@@ -249,13 +249,10 @@ export default function ChatHomeScreen() {
           dismissLabel={strings.a11y.closeSheet}
           title={strings.chatHome.chooseExpert}
           subtitle={strings.chatHome.chooseExpertHint}
+          scroll
           testID="expert-sheet"
         >
-          <ScrollView
-            contentContainerStyle={styles.sheetBody}
-            showsVerticalScrollIndicator={false}
-            showsHorizontalScrollIndicator={false}
-          >
+          <View style={styles.sheetBody}>
             {agents.length > 0 ? (
               <ListGroup>
                 {agents.map((agent, index) => (
@@ -284,7 +281,7 @@ export default function ChatHomeScreen() {
                 {strings.chatHome.noExperts}
               </Text>
             )}
-          </ScrollView>
+          </View>
         </BottomSheet>
       </SafeAreaView>
     </View>

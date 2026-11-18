@@ -1,4 +1,12 @@
-import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   GestureDetector,
@@ -41,7 +49,18 @@ interface BottomSheetProps {
   headerAction?: ReactNode;
   /** Show the grabber. Off for sheets that cannot be resized. */
   grabber?: boolean;
-  children: ReactNode;
+  /**
+   * Put the content in the sheet's own scroll view. The viewport is set to the
+   * content height when it fits and capped at the space left over when it does
+   * not — that is what makes the list scroll instead of drawing past the sheet.
+   */
+  scroll?: boolean;
+  /**
+   * Sheet content. Pass a function to receive the height left over after the
+   * header and the bottom inset — a scrolling child needs it as `maxHeight`,
+   * because a `maxHeight`-capped sheet does not shrink its children.
+   */
+  children: ReactNode | ((layout: { maxHeight: number }) => ReactNode);
   testID?: string;
 }
 
@@ -66,6 +85,7 @@ export function BottomSheet({
   subtitle,
   headerAction,
   grabber = true,
+  scroll = false,
   children,
   testID,
 }: BottomSheetProps) {
@@ -74,6 +94,10 @@ export function BottomSheet({
   const { height: windowHeight } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
   const [mounted, setMounted] = useState(visible);
+  // Measured header height, so the body can be capped exactly.
+  const [headerHeight, setHeaderHeight] = useState(0);
+  // Measured content height for `scroll`, so the viewport can be sized to it.
+  const [contentHeight, setContentHeight] = useState(0);
   // Distance the sheet is pushed below its resting place. 0 = fully open.
   const translate = useSharedValue(windowHeight);
   const dragStart = useSharedValue(0);
@@ -128,7 +152,9 @@ export function BottomSheet({
 
   const pan = usePanGesture({
     // Vertical drags move the sheet; horizontal ones belong to the content.
-    activeOffsetY: [8, 8],
+    // The pair is [lower bound, upper bound] — it must straddle zero, or the
+    // gesture handler throws on mount.
+    activeOffsetY: [-8, 8],
     failOffsetX: [-12, 12],
     onActivate: () => {
       'worklet';
@@ -181,6 +207,27 @@ export function BottomSheet({
     return null;
   }
 
+  const bottomInset = Math.max(insets.bottom, 12) + 8;
+  const sheetMaxHeight = windowHeight * 0.9;
+  // Until the header is measured, reserve the grabber plus a title line.
+  const measuredHeader = headerHeight > 0 ? headerHeight : 60;
+  const bodyMaxHeight = Math.max(160, sheetMaxHeight - measuredHeader - bottomInset);
+  const content =
+    typeof children === 'function' ? children({ maxHeight: bodyMaxHeight }) : children;
+  const body = scroll ? (
+    <ScrollView
+      style={{ height: contentHeight > 0 ? Math.min(contentHeight, bodyMaxHeight) : undefined }}
+      onContentSizeChange={(_width, height) => setContentHeight(height)}
+      showsVerticalScrollIndicator={false}
+      showsHorizontalScrollIndicator={false}
+      bounces={false}
+    >
+      {content}
+    </ScrollView>
+  ) : (
+    content
+  );
+
   return (
     <Modal
       visible
@@ -213,13 +260,16 @@ export function BottomSheet({
             {
               backgroundColor: t.bg,
               borderColor: t.borderSubtle,
-              paddingBottom: Math.max(insets.bottom, 12) + 8,
-              maxHeight: windowHeight * 0.85,
+              paddingBottom: bottomInset,
+              maxHeight: sheetMaxHeight,
             },
           ]}
         >
           <GestureDetector gesture={pan}>
-            <View style={styles.headerBlock}>
+            <View
+              style={styles.headerBlock}
+              onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)}
+            >
               <View style={styles.grabberZone}>
                 {grabber ? (
                   <View style={[styles.grabber, { backgroundColor: t.textPlaceholder }]} />
@@ -246,7 +296,7 @@ export function BottomSheet({
               ) : null}
             </View>
           </GestureDetector>
-          {children}
+          {body}
         </Animated.View>
       </GestureHandlerRootView>
     </Modal>
