@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
 
-import { AppHeader, LargeTitle } from '@/components/AppHeader';
+import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
 import { useTabBarFootprint } from '@/platform/tab-bar';
 import { AgentAvatar } from '@/components/AgentAvatar';
 import { ListGroup, ListRow } from '@/components/List';
@@ -61,11 +61,13 @@ export default function ExpertsScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]} testID="experts-list">
-      <SafeAreaView edges={['top']} style={styles.safe}>
-        <AppHeader onMenu={openDrawer} />
-        <LargeTitle
-          title={strings.experts.title}
-          subtitle={loaded && agents.length > 0 ? strings.experts.count(agents.length) : undefined}
+      <SafeAreaView edges={TOP_EDGES} style={styles.safe}>
+        <ScreenHeader
+          largeTitle={strings.experts.title}
+          largeSubtitle={
+            loaded && agents.length > 0 ? strings.experts.count(agents.length) : undefined
+          }
+          onMenu={openDrawer}
         />
         <View style={styles.searchWrap}>
           <SearchField
@@ -77,6 +79,7 @@ export default function ExpertsScreen() {
           />
         </View>
         <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={[styles.content, { paddingBottom: tabBarFootprint }]}
           showsVerticalScrollIndicator={false}
           showsHorizontalScrollIndicator={false}

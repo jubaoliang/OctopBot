@@ -2,7 +2,7 @@ import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
-import { AppHeader, LargeTitle } from '@/components/AppHeader';
+import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
 import { useTabBarFootprint } from '@/platform/tab-bar';
 import { AgentAvatar } from '@/components/AgentAvatar';
 import { SettingsRow, SettingsSection } from '@/components/Settings';
@@ -37,10 +37,10 @@ export default function MeScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <SafeAreaView edges={['top']} style={styles.safe}>
-        <AppHeader onMenu={openDrawer} />
-        <LargeTitle title={strings.me.title} />
+      <SafeAreaView edges={TOP_EDGES} style={styles.safe}>
+        <ScreenHeader largeTitle={strings.me.title} onMenu={openDrawer} />
         <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={[styles.content, { paddingBottom: tabBarFootprint }]}
           showsVerticalScrollIndicator={false}
           showsHorizontalScrollIndicator={false}

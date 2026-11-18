@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronDown } from 'lucide-react-native';
 
-import { AppHeader } from '@/components/AppHeader';
+import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
 import { useTabBarFootprint } from '@/platform/tab-bar';
 import { BottomSheet } from '@/components/BottomSheet';
 import { ChatInput } from '@/components/ChatInput';
@@ -151,17 +151,18 @@ export default function ChatHomeScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <SafeAreaView edges={['top']} style={styles.safe}>
+      <SafeAreaView edges={TOP_EDGES} style={styles.safe}>
         {/* The composer rests above the tab bar and rides the keyboard. */}
         <KeyboardInsetView
           restingInset={tabBarFootprint}
           gap={layout.keyboardGap}
           style={styles.fill}
         >
-          <AppHeader onMenu={openDrawer} />
+          <ScreenHeader brand onMenu={openDrawer} />
           {/* Scrolls only when the keyboard leaves less room than the
               content needs; at rest the spacers center it as designed. */}
           <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
             style={styles.fill}
             contentContainerStyle={styles.body}
             keyboardShouldPersistTaps="handled"

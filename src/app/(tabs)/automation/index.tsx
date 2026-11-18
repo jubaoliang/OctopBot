@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CalendarClock } from 'lucide-react-native';
 
-import { AppHeader, LargeTitle } from '@/components/AppHeader';
+import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
 import { useTabBarFootprint } from '@/platform/tab-bar';
 import { AgentAvatar } from '@/components/AgentAvatar';
 import { EmptyState, SkeletonList } from '@/components/ListStates';
@@ -87,10 +87,10 @@ export default function AutomationScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <SafeAreaView edges={['top']} style={styles.safe}>
-        <AppHeader onMenu={openDrawer} />
-        <LargeTitle title={strings.automation.title} />
+      <SafeAreaView edges={TOP_EDGES} style={styles.safe}>
+        <ScreenHeader largeTitle={strings.automation.title} onMenu={openDrawer} />
         <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={[styles.content, { paddingBottom: tabBarFootprint }]}
           showsVerticalScrollIndicator={false}
           showsHorizontalScrollIndicator={false}

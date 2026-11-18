@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, View } from 'rea
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
-import { AppHeader } from '@/components/AppHeader';
+import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
 import { PressableScale } from '@/components/PressableScale';
 import { OctopApiError } from '@/core/api/errors';
 import { useAuth } from '@/features/auth';
@@ -77,8 +77,8 @@ export function ChangePasswordScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <SafeAreaView edges={['top']} style={styles.safe}>
-        <AppHeader title={strings.password.title} onBack={goBack} />
+      <SafeAreaView edges={TOP_EDGES} style={styles.safe}>
+        <ScreenHeader title={strings.password.title} onBack={goBack} />
         <KeyboardAwareScrollView
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
           showsVerticalScrollIndicator={false}

@@ -23,7 +23,7 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { ChevronDown } from 'lucide-react-native';
 import Markdown from 'react-native-markdown-display';
 
-import { AppHeader } from '@/components/AppHeader';
+import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
 import { useTabBarFootprint } from '@/platform/tab-bar';
 import { ChatInput } from '@/components/ChatInput';
 import { ProcessCard, UserBubble, type BubbleImage } from '@/components/ChatPieces';
@@ -848,14 +848,14 @@ export default function ThreadScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <SafeAreaView edges={['top']} style={styles.safe}>
+      <SafeAreaView edges={TOP_EDGES} style={styles.safe}>
         {/* The composer rests above the tab bar and rides the keyboard. */}
         <KeyboardInsetView
           restingInset={tabBarFootprint}
           gap={layout.keyboardGap}
           style={styles.fill}
         >
-          <AppHeader
+          <ScreenHeader
             title={params.title ?? internalPrompt ?? strings.chat.agentName}
             subtitle={headerSubtitle}
             // A pushed screen leads with Back, not the drawer (toolbars.md:
@@ -871,6 +871,7 @@ export default function ThreadScreen() {
           />
           <View style={styles.listWrap}>
             <FlatList
+          contentInsetAdjustmentBehavior="automatic"
               ref={scrollRef}
               data={chat.turns}
               keyExtractor={turnKey}

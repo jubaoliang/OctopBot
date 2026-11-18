@@ -19,6 +19,7 @@ import { LoginScreen } from '@/features/LoginScreen';
 import { AppShellProvider, useAppShell } from '@/features/app-shell';
 import { registerLastAgentStore } from '@/features/last-agent-store';
 import { I18nProvider, useI18n } from '@/i18n/I18nProvider';
+import { NATIVE_HEADERS } from '@/platform/screen-header';
 import { expoSecureStorage } from '@/platform/secure-store';
 import { KeyboardProvider } from '@/platform/keyboard';
 import { darkTokens, lightTokens, ThemeProvider, useTheme } from '@/theme';
@@ -113,8 +114,15 @@ function RootNavigator() {
       ) : (
         <>
           <Stack
-            screenOptions={{ headerShown: false, contentStyle: { backgroundColor: tokens.bg } }}
-          />
+            screenOptions={{
+              headerShown: NATIVE_HEADERS,
+              contentStyle: { backgroundColor: tokens.bg },
+            }}
+          >
+            {/* The tab group carries its own stacks; a header here would
+                stack a second bar above theirs. */}
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          </Stack>
           {drawerPresented ? (
             <AppDrawer
               visible={drawerOpen}

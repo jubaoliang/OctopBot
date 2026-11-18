@@ -14,6 +14,7 @@ import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
 import { RemoteImage } from '@/platform/remote-image';
 import { continuousCorners, radius, typeScale, useTokens } from '@/theme';
+import { SYSTEM_CHROME } from '@/platform/system-chrome';
 
 interface ChatInputProps {
   /**
@@ -191,7 +192,15 @@ export function ChatInput({
   })();
 
   return (
-    <View style={[styles.card, { backgroundColor: t.surface, shadowColor: t.shadow }]}>
+    <View
+      style={[
+        styles.card,
+        SYSTEM_CHROME
+          ? null
+          : { backgroundColor: t.surface, shadowColor: t.shadow, shadowOpacity: 1 },
+        SYSTEM_CHROME ? styles.cardSystem : null,
+      ]}
+    >
       {hasPending ? (
         <ScrollView
           horizontal
@@ -234,29 +243,31 @@ export function ChatInput({
             )}
           </IconButton>
         ) : null}
-        <TextInput
-          style={[styles.input, { color: t.textBody }]}
-          placeholder={
-            voice.recording
-              ? strings.voice.listening
-              : voice.transcribing
-                ? strings.voice.transcribing
-                : strings.chatHome.inputPlaceholder
-          }
-          placeholderTextColor={t.textPlaceholder}
-          selectionColor={t.accent}
-          value={text}
-          onChangeText={next => {
-            if (attachTrayOpen) {
-              setAttachTrayOpen(false);
+        <View style={[styles.inputWrap, SYSTEM_CHROME ? { backgroundColor: t.fill } : null]}>
+          <TextInput
+            style={[styles.input, { color: t.textBody }]}
+            placeholder={
+              voice.recording
+                ? strings.voice.listening
+                : voice.transcribing
+                  ? strings.voice.transcribing
+                  : strings.chatHome.inputPlaceholder
             }
-            setText(next);
-          }}
-          multiline
-          editable={!streaming && !voice.busy}
-          onSubmitEditing={submit}
-          testID="composer-input"
-        />
+            placeholderTextColor={t.textPlaceholder}
+            selectionColor={t.accent}
+            value={text}
+            onChangeText={next => {
+              if (attachTrayOpen) {
+                setAttachTrayOpen(false);
+              }
+              setText(next);
+            }}
+            multiline
+            editable={!streaming && !voice.busy}
+            onSubmitEditing={submit}
+            testID="composer-input"
+          />
+        </View>
         {trailing}
       </View>
       {onPickImages && attachTrayOpen ? (
@@ -375,6 +386,21 @@ const styles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 32,
     elevation: 2,
+  },
+  cardSystem: {
+    // No card: the composer is a strip on the system background, and the
+    // field itself carries the fill, the way a native message composer does.
+    backgroundColor: 'transparent',
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
+  inputWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    borderRadius: 18,
+    ...continuousCorners,
+    paddingHorizontal: SYSTEM_CHROME ? 12 : 0,
   },
   bar: {
     flexDirection: 'row',

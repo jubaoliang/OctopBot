@@ -4,7 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router';
 import { ChevronDown, ChevronRight } from 'lucide-react-native';
 
-import { AppHeader } from '@/components/AppHeader';
+import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
 import { useI18n } from '@/i18n/I18nProvider';
 import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
 import licenses from '@/legal/licenses.json';
@@ -110,8 +110,8 @@ export function LicensesScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]} testID="licenses">
-      <SafeAreaView edges={['top']} style={styles.safe}>
-        <AppHeader title={strings.settings.licenses} onBack={goBack} />
+      <SafeAreaView edges={TOP_EDGES} style={styles.safe}>
+        <ScreenHeader title={strings.settings.licenses} onBack={goBack} />
         <FlatList
           data={rows}
           keyExtractor={item => `${item.name}@${item.version}`}

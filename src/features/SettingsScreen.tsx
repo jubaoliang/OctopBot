@@ -4,7 +4,7 @@ import { Check } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
-import { AppHeader } from '@/components/AppHeader';
+import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { SettingsRow, SettingsSection } from '@/components/Settings';
 import { VoiceApi } from '@/core/api/voice';
@@ -124,8 +124,8 @@ export function SettingsScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <SafeAreaView edges={['top']} style={styles.safe}>
-        <AppHeader title={strings.settings.title} onBack={goBack} />
+      <SafeAreaView edges={TOP_EDGES} style={styles.safe}>
+        <ScreenHeader title={strings.settings.title} onBack={goBack} />
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
           showsVerticalScrollIndicator={false}
