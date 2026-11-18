@@ -64,6 +64,7 @@ The contract is pinned in `docs/api-contract.md` (Octop **1.0.3b4**, upstream `d
 - TypeScript strict everywhere; no `any` unless justified in a comment explaining why.
 - File-based routing via expo-router under `src/app/`.
 - i18n: zh + en, no hardcoded UI strings.
+- **Copy is plain.** A label says what the control does; no marketing voice, no AI-persona chatter ("Hi! your personal AI companion…"), no exclamation marks. Setup asks one thing per step: sign-in is server address → connection checked → credentials.
 - **Charts are drawn with `react-native-svg`, not a chart library**: geometry (scales, ticks, bar rects) is pure TypeScript in `src/utils/bar-chart.ts` with tests, and `src/components/BarChart.tsx` only draws it. ECharts and Swift Charts were considered and rejected (look, and iOS-only respectively). New chart types follow the same split.
 - Unit tests (Jest) for parsers/formatters/API clients; E2E via Maestro — see the Testing section. Features are not done until their E2E flow passes.
 - **Commits follow Conventional Commits**, enforced by the commit-msg hook (commitlint + `@commitlint/config-conventional`). Author interactive commits with `npm run commit` (commitizen); `pre-commit` runs lint-staged (eslint --fix + prettier on staged files). Hooks are installed by husky via the `prepare` script — they self-heal on every `npm install`.
