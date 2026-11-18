@@ -2,8 +2,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Clock, MessageSquare, UserRound, Users } from 'lucide-react-native';
+
 import { PressableScale } from '@/components/PressableScale';
-import { TabAutomation, TabChat, TabExperts, TabMe } from '@/components/icons';
 import { useI18n } from '@/i18n/I18nProvider';
 import { useAppShell } from '@/features/app-shell';
 import { GlassSurface } from '@/platform/glass';
@@ -11,14 +12,18 @@ import { haptics } from '@/platform/haptics';
 import { useKeyboardState } from '@/platform/keyboard';
 import { continuousCorners, typeScale, useTokens } from '@/theme';
 
-// All tab glyphs live in 24×24 design frames — render the boxes uniformly;
-// each SVG centers its own glyph exactly like the design frames.
+// Lucide glyphs at the bar's 24pt frame. A tab glyph is tinted, never filled:
+// selection is carried by the accent tint and the pill behind it, so the same
+// stroke works for both states.
 const TAB_ICONS = {
-  chat: { Icon: TabChat, w: 24, h: 24 },
-  experts: { Icon: TabExperts, w: 24, h: 24 },
-  automation: { Icon: TabAutomation, w: 24, h: 24 },
-  me: { Icon: TabMe, w: 24, h: 24 },
+  chat: MessageSquare,
+  experts: Users,
+  automation: Clock,
+  me: UserRound,
 } as const;
+
+const TAB_GLYPH = 24;
+const TAB_STROKE = 1.9;
 
 const PILL_HEIGHT = 60;
 
@@ -76,7 +81,7 @@ export function DesignTabBar({
         {state.routes.map((route, index) => {
           // The chat tab hosts its own stack; route name maps to the label key.
           const name = (route.name === 'chat' ? 'chat' : route.name) as keyof typeof TAB_ICONS;
-          const meta = TAB_ICONS[name] ?? TAB_ICONS.chat;
+          const Glyph = TAB_ICONS[name] ?? TAB_ICONS.chat;
           const label = strings.tabs[name];
           const isActive = state.index === index;
           const fg = isActive ? t.accent : t.textPlaceholder;
@@ -106,7 +111,7 @@ export function DesignTabBar({
               }}
             >
               <View style={styles.iconBox}>
-                <meta.Icon width={meta.w} height={meta.h} color={fg} />
+                <Glyph size={TAB_GLYPH} color={fg} strokeWidth={TAB_STROKE} />
               </View>
               <Text
                 style={[styles.label, { color: fg, fontWeight: isActive ? '600' : '500' }]}
