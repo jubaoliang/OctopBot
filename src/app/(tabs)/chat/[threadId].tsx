@@ -24,7 +24,7 @@ import { ChevronDown } from 'lucide-react-native';
 import Markdown from 'react-native-markdown-display';
 
 import { AppHeader } from '@/components/AppHeader';
-import { useTabBarFootprint } from '@/components/DesignTabBar';
+import { useTabBarFootprint } from '@/platform/tab-bar';
 import { ChatInput } from '@/components/ChatInput';
 import { ProcessCard, UserBubble, type BubbleImage } from '@/components/ChatPieces';
 import { CodeFence, InlineCode } from '@/components/MarkdownCode';

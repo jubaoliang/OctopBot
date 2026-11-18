@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
 
 import { AppHeader, LargeTitle } from '@/components/AppHeader';
-import { useTabBarFootprint } from '@/components/DesignTabBar';
+import { useTabBarFootprint } from '@/platform/tab-bar';
 import { AgentAvatar } from '@/components/AgentAvatar';
 import { ListGroup, ListRow } from '@/components/List';
 import { EmptyState, SkeletonList } from '@/components/ListStates';

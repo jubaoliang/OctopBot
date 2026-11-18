@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ChevronDown } from 'lucide-react-native';
 
 import { AppHeader } from '@/components/AppHeader';
-import { useTabBarFootprint } from '@/components/DesignTabBar';
+import { useTabBarFootprint } from '@/platform/tab-bar';
 import { BottomSheet } from '@/components/BottomSheet';
 import { ChatInput } from '@/components/ChatInput';
 import { SuggestionPill } from '@/components/ChatPieces';

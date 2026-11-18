@@ -3,7 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { AppHeader, LargeTitle } from '@/components/AppHeader';
-import { useTabBarFootprint } from '@/components/DesignTabBar';
+import { useTabBarFootprint } from '@/platform/tab-bar';
 import { AgentAvatar } from '@/components/AgentAvatar';
 import { SettingsRow, SettingsSection } from '@/components/Settings';
 import { useAuth } from '@/features/auth';

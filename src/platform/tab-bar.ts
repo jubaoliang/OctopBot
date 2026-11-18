@@ -1,38 +1,34 @@
 import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
- * How the bottom navigation attaches to the window.
+ * True when the tab bar is the platform's own rather than `DesignTabBar`.
  *
- * - `floating` (iOS): a detached capsule over the content. Its material comes
- *   from `GlassSurface`, i.e. Apple's own — Liquid Glass on iOS 26+, the system
- *   blur below that. This is the shape iOS 26 gives its tab bar.
- * - `docked` (Android): a navigation bar that shares the bottom edge with the
- *   window, opaque and flat. Material does not blur its navigation bar; a
- *   translucent capsule floating over content is an iOS cue, so Android gets
- *   none of it.
- *
- * Kept here rather than in the component because AGENTS.md confines the
- * platform branch to `src/platform/` and asks the component to read a
- * capability instead.
+ * iOS renders `expo-router`'s `NativeTabs`, i.e. the system `UITabBar`. A
+ * system bar sizes itself out of the screen area, so screens must not reserve
+ * space for it. Android draws the docked bar itself and does.
  */
-export type TabBarChrome = 'floating' | 'docked';
+export const NATIVE_TAB_BAR = Platform.OS === 'ios';
 
-export const TAB_BAR_CHROME: TabBarChrome = Platform.OS === 'ios' ? 'floating' : 'docked';
+/** Height of the docked Android bar, excluding the bottom inset. */
+export const TAB_BAR_HEIGHT = 64;
 
-interface ChromeMetrics {
-  /** Height of the bar itself, excluding the bottom safe-area inset. */
-  barHeight: number;
-  /** Space between the bar and the home indicator (floating only). */
-  gap: number;
-  /** Breathing room a screen leaves below its content. */
-  clearance: number;
+/** Gap a screen leaves between its content and the docked bar's divider. */
+export const TAB_BAR_CLEARANCE = 12;
+
+/**
+ * Height of the system tab bar above the home indicator. iOS 26 floats the
+ * bar over the content instead of reserving a strip for it, so screens still
+ * have to keep their last row (and the composer) clear of it by hand.
+ */
+const IOS_TAB_BAR_HEIGHT = 56;
+const IOS_TAB_BAR_CLEARANCE = 6;
+
+/** Vertical space the bottom navigation takes out of the screen. */
+export function useTabBarFootprint(): number {
+  const insets = useSafeAreaInsets();
+  if (NATIVE_TAB_BAR) {
+    return Math.max(insets.bottom, 0) + IOS_TAB_BAR_HEIGHT + IOS_TAB_BAR_CLEARANCE;
+  }
+  return TAB_BAR_HEIGHT + Math.max(insets.bottom, 0) + TAB_BAR_CLEARANCE;
 }
-
-export const TAB_BAR_METRICS: Record<TabBarChrome, ChromeMetrics> = {
-  floating: { barHeight: 60, gap: 4, clearance: 24 },
-  // 64 keeps the icon-plus-label stack comfortable without Material's extra
-  // leading space; the docked bar still pads for the gesture inset itself.
-  // Clearance is smaller than the floating bar's: the bar is opaque and
-  // anchored, so content only needs to stop touching its divider.
-  docked: { barHeight: 64, gap: 0, clearance: 12 },
-};

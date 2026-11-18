@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CalendarClock } from 'lucide-react-native';
 
 import { AppHeader, LargeTitle } from '@/components/AppHeader';
-import { useTabBarFootprint } from '@/components/DesignTabBar';
+import { useTabBarFootprint } from '@/platform/tab-bar';
 import { AgentAvatar } from '@/components/AgentAvatar';
 import { EmptyState, SkeletonList } from '@/components/ListStates';
 import { AgentsApi } from '@/core/api/agents';

@@ -1,27 +1,10 @@
-import { Tabs } from 'expo-router';
+import { TabsShell } from '@/platform/tabs-shell';
 
-import { DesignTabBar } from '@/components/DesignTabBar';
-
+/**
+ * Tab routes are shared; only the bar around them is platform-specific.
+ * `platform/tabs-shell` picks the shell (iOS system tab bar, docked bar
+ * elsewhere), so this file stays a single route declaration.
+ */
 export default function TabsLayout() {
-  return (
-    <Tabs
-      tabBar={props => (
-        <DesignTabBar
-          state={props.state}
-          emitter={props.emitter}
-          navigateToTab={props.navigateToTab}
-        />
-      )}
-      screenOptions={{
-        headerShown: false,
-        sceneStyle: { backgroundColor: 'transparent' },
-      }}
-    >
-      {/* chat is its own stack (home → thread); see (tabs)/chat/_layout.tsx */}
-      <Tabs.Screen name="chat" options={{ title: 'chat' }} />
-      <Tabs.Screen name="experts" options={{ title: 'experts' }} />
-      <Tabs.Screen name="automation" options={{ title: 'automation' }} />
-      <Tabs.Screen name="me" options={{ title: 'me' }} />
-    </Tabs>
-  );
+  return <TabsShell />;
 }
