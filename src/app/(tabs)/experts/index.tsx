@@ -1,4 +1,4 @@
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Search, Users } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -14,7 +14,7 @@ import type { AgentSummary } from '@/core/api/types';
 import { fetchAgents, useAuth } from '@/features/auth';
 import { useAppShell } from '@/features/app-shell';
 import { useI18n } from '@/i18n/I18nProvider';
-import { layout, typeScale, useTokens } from '@/theme';
+import { layout, useTokens } from '@/theme';
 import { filterAgents } from '@/utils/filter-agents';
 
 /**
@@ -97,8 +97,9 @@ export default function ExpertsScreen() {
           {filtered.length > 0 ? (
             <ListGroup>
               {filtered.map((agent, index) => {
-                const running = agent.state === 'running';
-                const status = running ? strings.experts.running : strings.experts.idle;
+                // A stopped expert is not an error state: it stays in the
+                // list and recedes instead of being labelled twice over.
+                const muted = agent.state !== 'running';
                 return (
                   <ListRow
                     key={agent.agent_id}
@@ -113,22 +114,7 @@ export default function ExpertsScreen() {
                         fallbackTextSecondary={tokens.textSecondary}
                       />
                     }
-                    // Status is a dot plus a word — never color alone.
-                    accessory={
-                      <View style={styles.status}>
-                        <View
-                          style={[
-                            styles.statusDot,
-                            {
-                              backgroundColor: running ? tokens.success : tokens.textPlaceholder,
-                            },
-                          ]}
-                        />
-                        <Text style={[styles.statusText, { color: tokens.textTertiary }]}>
-                          {status}
-                        </Text>
-                      </View>
-                    }
+                    muted={muted}
                     disclosure
                     last={index === filtered.length - 1}
                     testID={`expert-${agent.agent_id}`}
@@ -177,18 +163,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.screenMargin,
     paddingTop: 2,
     gap: 12,
-  },
-  status: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  statusText: {
-    ...typeScale.caption1,
   },
 });

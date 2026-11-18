@@ -52,6 +52,8 @@ interface ListRowProps {
   selected?: boolean;
   /** Destructive action: title in the danger color. */
   destructive?: boolean;
+  /** Unavailable row: text and leading glyph recede to the disabled tint. */
+  muted?: boolean;
   /** The last row of the group draws no separator. */
   last?: boolean;
   onPress?: () => void;
@@ -73,6 +75,7 @@ export function ListRow({
   disclosure,
   selected,
   destructive,
+  muted,
   last,
   onPress,
   testID,
@@ -93,16 +96,24 @@ export function ListRow({
       style={({ pressed }) => [pressed && onPress ? { backgroundColor: t.overlayPressed } : null]}
     >
       <View style={styles.rowBody}>
-        {leading ? <View style={styles.leading}>{leading}</View> : null}
+        {leading ? (
+          <View style={[styles.leading, muted ? styles.mutedLeading : null]}>{leading}</View>
+        ) : null}
         <View style={styles.text}>
           <Text
-            style={[styles.title, { color: destructive ? t.danger : t.textBody }]}
+            style={[
+              styles.title,
+              { color: destructive ? t.danger : muted ? t.textTertiary : t.textBody },
+            ]}
             numberOfLines={1}
           >
             {title}
           </Text>
           {subtitle ? (
-            <Text style={[styles.subtitle, { color: t.textSecondary }]} numberOfLines={2}>
+            <Text
+              style={[styles.subtitle, { color: muted ? t.textPlaceholder : t.textSecondary }]}
+              numberOfLines={2}
+            >
               {subtitle}
             </Text>
           ) : null}
@@ -159,6 +170,9 @@ const styles = StyleSheet.create({
     width: 40,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  mutedLeading: {
+    opacity: 0.45,
   },
   text: {
     flex: 1,
