@@ -1,0 +1,98 @@
+# UI smoke for the interaction pass: sheets, search, tabs, large-title screens.
+# Language-agnostic on purpose — every step keys off testIDs, so it runs with
+# either locale. Requires a seeded session and Metro on :8081.
+appId: dev.octop.octopbot
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'composer-input'
+    timeout: 180000
+# A relaunch can restore the last thread; the picker only exists on the list,
+# so step back first when the app opens mid-conversation.
+- runFlow:
+    when:
+      notVisible:
+        id: 'select-expert'
+    commands:
+      - tapOn:
+          id: 'header-back'
+- extendedWaitUntil:
+    visible:
+      id: 'select-expert'
+    timeout: 15000
+
+# 1. Expert picker is a sheet: opens with the roster, dismisses via back.
+- tapOn:
+    id: 'select-expert'
+- extendedWaitUntil:
+    visible:
+      id: 'expert-sheet'
+    timeout: 15000
+- assertVisible:
+    id: 'expert-option-.*'
+- back
+- assertNotVisible:
+    id: 'expert-sheet'
+
+# 2. Attachment source is an action sheet with its own Cancel.
+- tapOn:
+    id: 'composer-attach'
+- extendedWaitUntil:
+    visible:
+      id: 'attach-sheet'
+    timeout: 15000
+- assertVisible:
+    id: 'attach-sheet-0'
+- assertVisible:
+    id: 'attach-sheet-cancel'
+- tapOn:
+    id: 'attach-sheet-cancel'
+- assertNotVisible:
+    id: 'attach-sheet'
+
+# 3. Experts: search filters the list, clear brings it back.
+- tapOn:
+    id: 'tab-experts'
+- extendedWaitUntil:
+    visible:
+      id: 'experts-search'
+    timeout: 20000
+- tapOn:
+    id: 'experts-search'
+- inputText: 'zzzz'
+- assertNotVisible:
+    id: 'expert-[A-Z0-9]+'
+- tapOn:
+    id: 'experts-search-clear'
+- extendedWaitUntil:
+    visible:
+      id: 'expert-[A-Z0-9]+'
+    timeout: 10000
+
+# The keyboard covers the tab bar, so put it away before switching tabs.
+- hideKeyboard
+
+# 4. Me: profile block above the settings groups.
+- tapOn:
+    id: 'tab-me'
+- extendedWaitUntil:
+    visible:
+      id: 'me-settings'
+    timeout: 15000
+- assertVisible:
+    id: 'logout'
+
+# 5. Automation tab responds, then back to the chat home.
+- tapOn:
+    id: 'tab-automation'
+- extendedWaitUntil:
+    visible:
+      id: 'header-menu'
+    timeout: 15000
+- tapOn:
+    id: 'tab-chat'
+- extendedWaitUntil:
+    visible:
+      id: 'composer-input'
+    timeout: 15000
