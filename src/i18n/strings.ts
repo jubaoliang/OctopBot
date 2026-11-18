@@ -91,6 +91,7 @@ const zh = {
     modeDark: '深色',
     modeSystem: '跟随系统',
     palette: '主题色',
+    paletteCurrent: (name: string) => `当前：${name}`,
     paletteNames: {
       ink: '墨色',
       'octop-blue': 'Octop 蓝',
@@ -345,6 +346,7 @@ const en: Dict = {
     modeDark: 'Dark',
     modeSystem: 'Follow system',
     palette: 'Accent color',
+    paletteCurrent: (name: string) => `Current: ${name}`,
     paletteNames: {
       ink: 'Ink',
       'octop-blue': 'Octop Blue',

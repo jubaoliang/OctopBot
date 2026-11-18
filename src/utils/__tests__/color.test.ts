@@ -1,4 +1,4 @@
-import { tintHex } from '../color';
+import { tintHex, isLightColor } from '../color';
 
 describe('tintHex', () => {
   it('converts a six-digit hex color', () => {
@@ -23,4 +23,32 @@ describe('tintHex', () => {
       expect(tintHex(input, 0.14)).toBeNull();
     },
   );
+});
+
+describe('isLightColor', () => {
+  it('treats white and pale fills as light', () => {
+    expect(isLightColor('#FFFFFF')).toBe(true);
+    expect(isLightColor('#F3F4F6')).toBe(true);
+    expect(isLightColor('#FFF')).toBe(true);
+  });
+
+  it('treats the accent palettes as dark enough for a light glyph', () => {
+    for (const color of [
+      '#111827',
+      '#2F82D1',
+      '#7C5CD6',
+      '#12946A',
+      '#D64570',
+      '#C77E1E',
+      '#0E8FA3',
+    ]) {
+      expect(isLightColor(color)).toBe(false);
+    }
+  });
+
+  it('falls back to the light-foreground answer for non-hex input', () => {
+    expect(isLightColor(null)).toBe(false);
+    expect(isLightColor('rgba(0,0,0,1)')).toBe(false);
+    expect(isLightColor('nope')).toBe(false);
+  });
 });

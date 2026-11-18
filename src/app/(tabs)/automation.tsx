@@ -163,9 +163,9 @@ export default function AutomationScreen() {
                           haptics.selection();
                           toggle(agent.agent_id, job, next);
                         }}
-                        trackColor={{ true: tokens.accent, false: tokens.overlayPressed }}
+                        trackColor={{ true: tokens.accent, false: tokens.fill }}
                         thumbColor={tokens.surfaceRaised}
-                        ios_backgroundColor={tokens.overlayPressed}
+                        ios_backgroundColor={tokens.fill}
                       />
                     </View>
                   );

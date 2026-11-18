@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Check } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
@@ -13,6 +14,7 @@ import { useI18n, localeNames, type Locale, type UserLocaleMode } from '@/i18n/I
 import { formatAppVersion } from '@/platform/app-version';
 import { haptics } from '@/platform/haptics';
 import { layout, palettes, useTheme, useTokens } from '@/theme';
+import { isLightColor } from '@/utils/color';
 import type { UserThemeMode } from '@/theme/ThemeProvider';
 
 const LOCALES = Object.keys(localeNames) as Locale[];
@@ -140,7 +142,12 @@ export function SettingsScreen() {
             </View>
           </SettingsSection>
 
-          <SettingsSection title={strings.settings.palette}>
+          <SettingsSection
+            title={strings.settings.palette}
+            footer={strings.settings.paletteCurrent(
+              strings.settings.paletteNames[paletteId] ?? paletteId,
+            )}
+          >
             <View
               accessibilityRole="radiogroup"
               accessibilityLabel={strings.settings.palette}
@@ -158,7 +165,6 @@ export function SettingsScreen() {
                     hitSlop={(layout.hitTarget - SWATCH_RING) / 2}
                     style={({ pressed }) => [
                       styles.swatchRing,
-                      { borderColor: active ? tokens.textBody : 'transparent' },
                       pressed ? styles.swatchPressed : null,
                     ]}
                     onPress={() => {
@@ -176,7 +182,22 @@ export function SettingsScreen() {
                           borderColor: tokens.borderStrong,
                         },
                       ]}
-                    />
+                    >
+                      {/* A check, not a ring: on the ink palette a ring and the
+                          fill are the same near-black and read as one blob.
+                          The glyph flips to stay readable on light palettes. */}
+                      {active ? (
+                        <Check
+                          size={16}
+                          strokeWidth={3}
+                          color={
+                            isLightColor(p.accent[resolvedMode])
+                              ? tokens.textPrimary
+                              : tokens.textInverse
+                          }
+                        />
+                      ) : null}
+                    </View>
                   </Pressable>
                 );
               })}
@@ -268,7 +289,6 @@ const styles = StyleSheet.create({
     width: SWATCH_RING,
     height: SWATCH_RING,
     borderRadius: SWATCH_RING / 2,
-    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -280,5 +300,7 @@ const styles = StyleSheet.create({
     height: SWATCH,
     borderRadius: SWATCH / 2,
     borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
