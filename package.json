@@ -3,6 +3,7 @@
   "version": "1.0.0-alpha.1",
   "main": "expo-router/entry",
   "dependencies": {
+    "@expo-google-fonts/pacifico": "^0.4.1",
     "@expo-google-fonts/space-mono": "^0.4.2",
     "@expo/ui": "~58.0.28",
     "expo": "~58.0.24",

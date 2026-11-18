@@ -1,3 +1,4 @@
+import { Pacifico_400Regular } from '@expo-google-fonts/pacifico';
 import { SpaceMono_400Regular, useFonts } from '@expo-google-fonts/space-mono';
 import {
   DarkTheme,
@@ -8,11 +9,11 @@ import {
 } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useMemo } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AppDrawer, type DrawerRoute } from '@/components/AppDrawer';
+import { LaunchSplash } from '@/components/LaunchSplash';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AuthProvider, useAuth } from '@/features/auth';
 import { LoginScreen } from '@/features/LoginScreen';
@@ -23,6 +24,9 @@ import { NATIVE_HEADERS } from '@/platform/screen-header';
 import { expoSecureStorage } from '@/platform/secure-store';
 import { KeyboardProvider } from '@/platform/keyboard';
 import { darkTokens, lightTokens, ThemeProvider, useTheme } from '@/theme';
+
+/** How long the launch screen stays up at minimum. */
+const LAUNCH_HOLD_MS = 800;
 
 void SplashScreen.preventAutoHideAsync().catch(() => {
   // The splash screen may already be hidden during fast refresh or headless rendering.
@@ -80,7 +84,14 @@ function RootNavigator() {
     };
   }, [effectiveDark]);
 
-  const [fontsLoaded, fontError] = useFonts({ SpaceMono_400Regular });
+  const [fontsLoaded, fontError] = useFonts({ SpaceMono_400Regular, Pacifico_400Regular });
+  // The launch screen is a brand beat, not just a spinner: hold it briefly so
+  // it reads as one instead of flashing between the native splash and the app.
+  const [launchSeen, setLaunchSeen] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setLaunchSeen(true), LAUNCH_HOLD_MS);
+    return () => clearTimeout(timer);
+  }, []);
   // A missing font asset must not trap the app behind the splash/gate —
   // fall through and let code fences use the platform monospace face.
   const fontsReady = fontsLoaded || fontError !== null;
@@ -95,20 +106,14 @@ function RootNavigator() {
   }, [fontsReady]);
 
   if (!fontsReady) {
-    return (
-      <View style={[styles.gate, { backgroundColor: tokens.bg }]}>
-        <ActivityIndicator color={tokens.accent} />
-      </View>
-    );
+    return <LaunchSplash />;
   }
 
   return (
     <NavThemeProvider value={navTheme}>
       <StatusBar style={effectiveDark ? 'light' : 'dark'} />
-      {!ready ? (
-        <View style={[styles.gate, { backgroundColor: tokens.bg }]}>
-          <ActivityIndicator color={tokens.accent} />
-        </View>
+      {!ready || !launchSeen ? (
+        <LaunchSplash />
       ) : !user ? (
         <LoginScreen storage={expoSecureStorage} />
       ) : (
@@ -142,14 +147,6 @@ function RootNavigator() {
     </NavThemeProvider>
   );
 }
-
-const styles = {
-  gate: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-} as const;
 
 function RootWithBoundary() {
   const { t: strings } = useI18n();

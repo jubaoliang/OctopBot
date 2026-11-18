@@ -46,6 +46,8 @@ export interface ThemeTokens {
   accentSoft: string;
   danger: string;
   dangerSoft: string;
+  /** The product mark's red (launch screen); independent of the accent palette. */
+  brand: string;
   /** Positive status (an expert that is running). */
   success: string;
   /** Ambient shadow under the composer (design: black 5%, radius 32). */
@@ -168,6 +170,7 @@ export const lightTokens: ThemeTokens = {
   accentSoft: 'rgba(47,130,209,0.12)',
   danger: '#E5484D',
   dangerSoft: 'rgba(229,72,77,0.12)',
+  brand: '#E5383B',
   success: '#2B9A66',
   shadow: 'rgba(0,0,0,0.05)',
   shadowSoft: 'rgba(0,0,0,0.03)',
@@ -194,6 +197,7 @@ export const darkTokens: ThemeTokens = {
   accentSoft: 'rgba(91,159,220,0.16)',
   danger: '#F06A6E',
   dangerSoft: 'rgba(240,106,110,0.16)',
+  brand: '#FF5C57',
   success: '#4CC38A',
   shadow: 'rgba(0,0,0,0.40)',
   shadowSoft: 'rgba(0,0,0,0.30)',
