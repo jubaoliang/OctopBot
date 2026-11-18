@@ -9,10 +9,11 @@ import { useAppShell } from '@/features/app-shell';
 import { GlassSurface } from '@/platform/glass';
 import { haptics } from '@/platform/haptics';
 import { useKeyboardState } from '@/platform/keyboard';
+import { TAB_BAR_CHROME, TAB_BAR_METRICS } from '@/platform/tab-bar';
 import { continuousCorners, typeScale, useTokens } from '@/theme';
 
 // Lucide glyphs at the bar's 24pt frame. A tab glyph is tinted, never filled:
-// selection is carried by the accent tint and the pill behind it, so the same
+// selection is carried by the tint and the indicator behind it, so the same
 // stroke works for both states.
 const TAB_ICONS = {
   chat: MessageSquare,
@@ -24,7 +25,8 @@ const TAB_ICONS = {
 const TAB_GLYPH = 24;
 const TAB_STROKE = 1.9;
 
-const PILL_HEIGHT = 60;
+const METRICS = TAB_BAR_METRICS[TAB_BAR_CHROME];
+const DOCKED = TAB_BAR_CHROME === 'docked';
 
 interface TabBarState {
   index: number;
@@ -38,18 +40,27 @@ interface TabBarEmitter {
   };
 }
 
-/** Vertical space the floating bar occupies — screens pad content by this. */
+/** Vertical space the bar occupies — screens pad content by this. */
 export function useTabBarFootprint(): number {
   const insets = useSafeAreaInsets();
-  // 24pt of breathing room between content (e.g. the composer) and the
-  // floating pill — the pill's shadow needs clearance to read as floating.
-  return Math.max(insets.bottom, 12) + 4 + PILL_HEIGHT + 24;
+  if (DOCKED) {
+    // The bar shares the bottom edge, so the inset is padding inside it.
+    return METRICS.barHeight + Math.max(insets.bottom, 0) + METRICS.clearance;
+  }
+  // Floating: inset + gap below the capsule + the capsule + clearance for its
+  // shadow to read as floating.
+  return Math.max(insets.bottom, 12) + METRICS.gap + METRICS.barHeight + METRICS.clearance;
 }
 
 /**
- * Floating glass tab bar (hard requirement #1): Liquid Glass on iOS 26+
- * via the platform wrapper, blur approximation below, opaque surface on
- * Android per the Ardot design. Active item tints with the accent palette.
+ * Bottom navigation.
+ *
+ * iOS keeps the floating capsule and gets its material from Apple — Liquid
+ * Glass on iOS 26+, the system blur below it. Android gets a docked
+ * navigation bar: opaque, flat, separated from content by a hairline, with the
+ * selection shown as a pill behind the icon (Material's navigation bar). The
+ * shape and material difference lives in `src/platform/tab-bar.ts`; this
+ * component only reads it.
  */
 export function DesignTabBar({
   state,
@@ -67,7 +78,7 @@ export function DesignTabBar({
   // Prefer height over isVisible: floating / zero-inset IMEs can report
   // visible while covering nothing, which would hide the tab bar for free.
   const keyboardHeight = useKeyboardState(state => state.height);
-  const bottomOffset = Math.max(insets.bottom, 12) + 4;
+  const bottomOffset = DOCKED ? 0 : Math.max(insets.bottom, 12) + METRICS.gap;
 
   // Native glass layers above the drawer overlay; hide the bar until the
   // drawer has fully animated out so it never floats over drawer content.
@@ -81,8 +92,24 @@ export function DesignTabBar({
       <GlassSurface
         variant="regular"
         style={[
-          styles.pill,
-          { marginBottom: bottomOffset, shadowColor: t.shadow, borderColor: t.borderSubtle },
+          styles.bar,
+          DOCKED
+            ? [
+                styles.docked,
+                {
+                  backgroundColor: t.surface,
+                  borderTopColor: t.separator,
+                  paddingBottom: Math.max(insets.bottom, 0),
+                },
+              ]
+            : [
+                styles.floating,
+                {
+                  marginBottom: bottomOffset,
+                  shadowColor: t.shadow,
+                  borderColor: t.borderSubtle,
+                },
+              ],
         ]}
       >
         {state.routes.map((route, index) => {
@@ -91,7 +118,9 @@ export function DesignTabBar({
           const Glyph = TAB_ICONS[name] ?? TAB_ICONS.chat;
           const label = strings.tabs[name];
           const isActive = state.index === index;
-          const fg = isActive ? t.accent : t.textPlaceholder;
+          // A docked bar sits on an opaque surface, where a 30% placeholder
+          // tint reads as disabled; the floating bar keeps the softer one.
+          const fg = isActive ? t.accent : DOCKED ? t.textSecondary : t.textPlaceholder;
 
           return (
             <PressableScale
@@ -101,7 +130,10 @@ export function DesignTabBar({
               accessibilityState={{ selected: isActive }}
               testID={`tab-${name}`}
               scaleTo={0.94}
-              style={[styles.item, isActive ? { backgroundColor: t.accentSoft } : null]}
+              // Floating: the whole item is the selection capsule (the shape
+              // iOS 26 gives a selected tab). Docked: the indicator hugs the
+              // icon instead, as Material's navigation bar does.
+              style={[styles.item, !DOCKED && isActive ? { backgroundColor: t.accentSoft } : null]}
               onPress={() => {
                 // Ask the navigator first: a tab may want to hold the press
                 // (scroll its list to the top, keep a draft, …).
@@ -124,7 +156,13 @@ export function DesignTabBar({
                 navigateToTab(route.key);
               }}
             >
-              <View style={styles.iconBox}>
+              <View
+                style={[
+                  styles.iconBox,
+                  DOCKED ? styles.indicator : null,
+                  DOCKED && isActive ? { backgroundColor: t.accentSoft } : null,
+                ]}
+              >
                 <Glyph size={TAB_GLYPH} color={fg} strokeWidth={TAB_STROKE} />
               </View>
               <Text
@@ -150,21 +188,28 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
-  pill: {
-    marginHorizontal: 16,
-    minHeight: PILL_HEIGHT,
-    borderRadius: 30,
-    ...continuousCorners,
+  bar: {
+    minHeight: METRICS.barHeight,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 6,
+  },
+  floating: {
+    marginHorizontal: 16,
+    borderRadius: 30,
+    ...continuousCorners,
     borderWidth: StyleSheet.hairlineWidth,
     // Soft float shadow; on Android elevation picks the color up.
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 1,
     shadowRadius: 20,
     elevation: 10,
+  },
+  docked: {
+    // Shares the bottom edge with the window: no radius, no shadow, and a
+    // hairline instead of a border all the way round.
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   item: {
     flex: 1,
@@ -181,6 +226,11 @@ const styles = StyleSheet.create({
     height: 24,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  indicator: {
+    width: 64,
+    height: 32,
+    borderRadius: 16,
   },
   label: {
     ...typeScale.caption2,

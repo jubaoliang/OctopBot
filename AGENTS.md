@@ -46,7 +46,7 @@ Color & layout (responsive, token-only):
 
 ## Hard requirements
 
-1. **Bottom navigation follows HIG chrome via the platform wrapper.** On iOS 26+, use Liquid Glass (`expo-glass-effect`) through `src/platform/`; older iOS and other targets use the shared blur/opaque fallback from that same wrapper. Do not hardcode Material- or iOS-only tab bars in screens.
+1. **Bottom navigation follows HIG chrome via the platform wrapper.** On iOS 26+, use Liquid Glass (`expo-glass-effect`) through `src/platform/`; older iOS and other targets use the shared blur/opaque fallback from that same wrapper. Do not hardcode Material- or iOS-only tab bars in screens. Chrome differs by platform and that difference lives only in `src/platform/tab-bar.ts`: iOS gets a floating capsule over content with Apple's glass material; Android gets a docked, opaque navigation bar with a hairline divider and the selection pill on the icon. **Android must not imitate Liquid Glass** — no blur, no translucent floating capsule.
 2. **Colors and layout are tokenized and responsive.** No hardcoded colors in screens/components; no fixed-screen layout assumptions; compositions must adapt to available size (see Color & layout above).
 3. **Strict linting is a gate, not a suggestion.** typescript-eslint (strict-type-checked) + `eslint-config-expo` + prettier. `npm run lint` and `npx tsc --noEmit` must pass before any work is considered done.
 4. **No information leakage — guarantee, not guideline.** Nothing user- or machine-identifying may land in any artifact: document, spec, code, comment, commit message, README, config, log line, test fixture, screenshot, or design export. This covers:
