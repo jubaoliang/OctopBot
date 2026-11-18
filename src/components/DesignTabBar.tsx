@@ -1,5 +1,4 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Clock, MessageSquare, UserRound, Users } from 'lucide-react-native';
@@ -32,6 +31,13 @@ interface TabBarState {
   routes: { key: string; name: string }[];
 }
 
+/** The slice of the navigator's event emitter the bar needs. */
+interface TabBarEmitter {
+  emit(event: { type: 'tabPress'; target: string; canPreventDefault: true }): {
+    defaultPrevented: boolean;
+  };
+}
+
 /** Vertical space the floating bar occupies — screens pad content by this. */
 export function useTabBarFootprint(): number {
   const insets = useSafeAreaInsets();
@@ -47,15 +53,16 @@ export function useTabBarFootprint(): number {
  */
 export function DesignTabBar({
   state,
+  emitter,
   navigateToTab,
 }: {
   state: TabBarState;
+  emitter: TabBarEmitter;
   navigateToTab: (routeKey: string) => void;
 }) {
   const t = useTokens();
   const { t: strings } = useI18n();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const { drawerPresented } = useAppShell();
   // Prefer height over isVisible: floating / zero-inset IMEs can report
   // visible while covering nothing, which would hide the tab bar for free.
@@ -96,18 +103,25 @@ export function DesignTabBar({
               scaleTo={0.94}
               style={[styles.item, isActive ? { backgroundColor: t.accentSoft } : null]}
               onPress={() => {
-                // Re-tapping the active tab pops its stack to the tab root;
-                // at the root there is nothing to pop and an unguarded
-                // goBack() throws the unhandled GO_BACK navigator error.
-                if (isActive) {
-                  if (router.canGoBack()) {
-                    router.back();
-                  }
-                } else {
+                // Ask the navigator first: a tab may want to hold the press
+                // (scroll its list to the top, keep a draft, …).
+                const event = emitter.emit({
+                  type: 'tabPress',
+                  target: route.key,
+                  canPreventDefault: true,
+                });
+                if (event.defaultPrevented) {
+                  return;
+                }
+                if (!isActive) {
                   // Same frame as the visual change (HIG: selection feedback).
                   haptics.selection();
-                  navigateToTab(route.key);
                 }
+                // Re-tapping the focused tab navigates the tab to itself, and a
+                // nested stack resolves that to its root — which is what "tap
+                // the tab again" means. `router.back()` walked global history
+                // instead, so from any other tab it landed on the first one.
+                navigateToTab(route.key);
               }}
             >
               <View style={styles.iconBox}>

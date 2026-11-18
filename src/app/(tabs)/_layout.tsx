@@ -5,7 +5,13 @@ import { DesignTabBar } from '@/components/DesignTabBar';
 export default function TabsLayout() {
   return (
     <Tabs
-      tabBar={props => <DesignTabBar state={props.state} navigateToTab={props.navigateToTab} />}
+      tabBar={props => (
+        <DesignTabBar
+          state={props.state}
+          emitter={props.emitter}
+          navigateToTab={props.navigateToTab}
+        />
+      )}
       screenOptions={{
         headerShown: false,
         sceneStyle: { backgroundColor: 'transparent' },
