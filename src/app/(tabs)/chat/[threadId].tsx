@@ -789,6 +789,8 @@ export default function ThreadScreen() {
     }
   };
 
+  // Only an abnormal connection earns a subtitle: the signed-in account is
+  // not conversation context, and a healthy link needs no announcement.
   const headerSubtitle = useMemo(() => {
     if (connection === 'reconnecting') {
       return strings.chat.reconnecting;
@@ -796,9 +798,9 @@ export default function ThreadScreen() {
     if (connection === 'unauthorized' || connection === 'closed') {
       return strings.chat.disconnected;
     }
-    return user?.username ?? strings.chat.agentName;
+    return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connection, user?.username]);
+  }, [connection]);
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
