@@ -16,6 +16,8 @@ const zh = {
     deleteThreadActive: '对话仍在回复中，请先停止后再删除。',
     deleteThreadFailed: '删除失败，请重试',
     pinFailed: '置顶失败，请重试',
+    moreThreads: (count: number) => `还有 ${count} 条`,
+    showFewer: '收起',
   },
   a11y: {
     menu: '菜单',
@@ -267,6 +269,8 @@ const en: Dict = {
     deleteThreadActive: 'This conversation is still replying. Stop it before deleting.',
     deleteThreadFailed: 'Could not delete. Try again.',
     pinFailed: 'Could not update pin. Try again.',
+    moreThreads: (count: number) => `${count} more`,
+    showFewer: 'Show less',
   },
   a11y: {
     menu: 'Menu',

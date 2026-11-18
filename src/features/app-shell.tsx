@@ -81,7 +81,9 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
                 name: agent.name,
                 agentId: agent.agent_id,
                 items: sortThreads(threads.map(mapThread)),
-                expanded: existing?.expanded ?? false,
+                // Groups start open: the drawer is a task switcher, and a
+                // collapsed row only hides the conversation being looked for.
+                expanded: existing?.expanded ?? true,
                 threadsLoaded: true,
                 iconName: agent.icon_name,
                 color: agent.color,
@@ -165,7 +167,7 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
                 name: meta.name,
                 agentId,
                 items: sortThreads(threads.map(mapThread)),
-                expanded: false,
+                expanded: true,
                 threadsLoaded: true,
                 iconName: meta.iconName,
                 color: meta.color,
