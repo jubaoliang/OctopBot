@@ -42,7 +42,7 @@ import {
 import type { ServerFrame, TurnAttachment } from '@/core/api/types';
 import { ChatSocket, type ChatConnectionStatus } from '@/core/chat/chat-socket';
 import { emptyProcessCounts } from '@/core/chat/process-counts';
-import { stepsFromHistory } from '@/core/chat/process-steps';
+import { stepsFromHistory, type ProcessStep } from '@/core/chat/process-steps';
 import { initialChatTurnState, reduceChatTurn, type ChatTurn } from '@/core/chat/turn-reducer';
 import { useAppShell } from '@/features/app-shell';
 import { useAuth } from '@/features/auth';
@@ -714,6 +714,15 @@ export default function ThreadScreen() {
     }
   };
 
+  // Expanding grows the transcript below the fold; treat it as "read to the
+  // end" so the existing autoscroll brings the details into view.
+  const onProcessToggle = useCallback((expanded: boolean) => {
+    if (expanded) {
+      nearBottomRef.current = true;
+      setAtBottom(true);
+    }
+  }, []);
+
   const jumpToLatest = () => {
     haptics.impact('light');
     nearBottomRef.current = true;
@@ -722,26 +731,43 @@ export default function ThreadScreen() {
   };
 
   const lastTurn = chat.turns.length > 0 ? chat.turns[chat.turns.length - 1] : null;
-  const processVisible = chat.process.tools + chat.process.thinking > 0;
+  // The row sits above the latest answer, so its numbers must describe that
+  // answer. The trace is per turn; the counters are cumulative for the thread,
+  // and are the fallback when a turn left no trace.
+  const traceTools = chat.trace.reduce((total, step) => total + (step.kind === 'tool' ? 1 : 0), 0);
+  const traceThinking = chat.trace.reduce(
+    (total, step) => total + (step.kind === 'thinking' ? 1 : 0),
+    0,
+  );
+  const processCounts =
+    chat.trace.length > 0
+      ? { tools: traceTools, thinking: traceThinking }
+      : { tools: chat.process.tools, thinking: chat.process.thinking };
+  const processVisible = processCounts.tools + processCounts.thinking > 0;
+  // Stable identity so a memoized answer does not re-parse its markdown on
+  // every scroll tick.
+  const lastProcess = useMemo(
+    () =>
+      processVisible
+        ? { tools: processCounts.tools, thinking: processCounts.thinking, steps: chat.trace }
+        : undefined,
+    [processVisible, processCounts.tools, processCounts.thinking, chat.trace],
+  );
   const showHint = chat.turns.length === 0;
   const showTyping =
     chat.streaming && (lastTurn === null || lastTurn.kind === 'user' || lastTurn.kind === 'hitl');
+  // Once an answer exists the process row belongs above it; until then the
+  // footer is the only place to show that the turn is thinking.
+  const processInFooter = processVisible && lastTurn?.kind !== 'assistant';
   const footer =
-    processVisible || showHint || showTyping ? (
+    processInFooter || showHint || showTyping ? (
       <View style={styles.footer}>
-        {processVisible ? (
+        {processInFooter ? (
           <ProcessCard
-            tools={chat.process.tools}
-            thinking={chat.process.thinking}
+            tools={processCounts.tools}
+            thinking={processCounts.thinking}
             steps={chat.trace}
-            // The details grow the footer below the fold; treat the expand as
-            // "read to the end" so the existing autoscroll brings them into view.
-            onToggle={expanded => {
-              if (expanded) {
-                nearBottomRef.current = true;
-                setAtBottom(true);
-              }
-            }}
+            onToggle={onProcessToggle}
           />
         ) : null}
         {showHint ? (
@@ -790,16 +816,20 @@ export default function ThreadScreen() {
             onReject={() => decideHitl('reject')}
           />
         );
-      case 'assistant':
+      case 'assistant': {
+        const isLast = index === chat.turns.length - 1;
         return (
           <AssistantTurnItem
             text={item.text}
-            streaming={chat.streaming && index === chat.turns.length - 1}
+            streaming={chat.streaming && isLast}
             mdStyles={mdStyles}
             mdRules={mdRules}
             onLinkPress={onMarkdownLink}
+            process={isLast ? lastProcess : undefined}
+            onProcessToggle={onProcessToggle}
           />
         );
+      }
     }
   };
 
@@ -967,15 +997,28 @@ const AssistantTurnItem = memo(function AssistantTurnItem({
   mdStyles,
   mdRules,
   onLinkPress,
+  process,
+  onProcessToggle,
 }: {
   text: string;
   streaming: boolean;
   mdStyles: Record<string, object>;
   mdRules: MdRules;
   onLinkPress: (url: string) => boolean;
+  /** How this answer was produced — shown above it, not after it. */
+  process?: { tools: number; thinking: number; steps: ProcessStep[] };
+  onProcessToggle?: (expanded: boolean) => void;
 }) {
   return (
     <View style={styles.assistantBlock}>
+      {process ? (
+        <ProcessCard
+          tools={process.tools}
+          thinking={process.thinking}
+          steps={process.steps}
+          onToggle={onProcessToggle}
+        />
+      ) : null}
       <Markdown style={mdStyles} rules={mdRules} onLinkPress={onLinkPress}>
         {streaming ? `${balanceStreamingMarkdown(text)} ▍` : text}
       </Markdown>
