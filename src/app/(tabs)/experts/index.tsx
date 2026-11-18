@@ -63,10 +63,8 @@ export default function ExpertsScreen() {
     <View style={[styles.screen, { backgroundColor: tokens.bg }]} testID="experts-list">
       <SafeAreaView edges={TOP_EDGES} style={styles.safe}>
         <ScreenHeader
-          largeTitle={strings.experts.title}
-          largeSubtitle={
-            loaded && agents.length > 0 ? strings.experts.count(agents.length) : undefined
-          }
+          title={strings.experts.title}
+          subtitle={loaded && agents.length > 0 ? strings.experts.count(agents.length) : undefined}
           onMenu={openDrawer}
         />
         <View style={styles.searchWrap}>

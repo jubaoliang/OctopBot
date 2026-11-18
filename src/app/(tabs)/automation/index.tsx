@@ -88,7 +88,7 @@ export default function AutomationScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
       <SafeAreaView edges={TOP_EDGES} style={styles.safe}>
-        <ScreenHeader largeTitle={strings.automation.title} onMenu={openDrawer} />
+        <ScreenHeader title={strings.automation.title} onMenu={openDrawer} />
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={[styles.content, { paddingBottom: tabBarFootprint }]}
