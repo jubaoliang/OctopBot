@@ -42,6 +42,7 @@ import {
 import type { ServerFrame, TurnAttachment } from '@/core/api/types';
 import { ChatSocket, type ChatConnectionStatus } from '@/core/chat/chat-socket';
 import { emptyProcessCounts } from '@/core/chat/process-counts';
+import { stepsFromHistory } from '@/core/chat/process-steps';
 import { initialChatTurnState, reduceChatTurn, type ChatTurn } from '@/core/chat/turn-reducer';
 import { useAppShell } from '@/features/app-shell';
 import { useAuth } from '@/features/auth';
@@ -471,6 +472,7 @@ export default function ThreadScreen() {
           // actionable to show, so fail closed (no card).
           hitl: null,
           process: { ...emptyProcessCounts(), tools: counts.tools, thinking: counts.thinking },
+          trace: stepsFromHistory(page.messages),
         });
         socket.subscribe(threadId);
         threadRef.current = threadId;
@@ -728,7 +730,19 @@ export default function ThreadScreen() {
     processVisible || showHint || showTyping ? (
       <View style={styles.footer}>
         {processVisible ? (
-          <ProcessCard tools={chat.process.tools} thinking={chat.process.thinking} />
+          <ProcessCard
+            tools={chat.process.tools}
+            thinking={chat.process.thinking}
+            steps={chat.trace}
+            // The details grow the footer below the fold; treat the expand as
+            // "read to the end" so the existing autoscroll brings them into view.
+            onToggle={expanded => {
+              if (expanded) {
+                nearBottomRef.current = true;
+                setAtBottom(true);
+              }
+            }}
+          />
         ) : null}
         {showHint ? (
           <Text style={[styles.hintText, { color: tokens.textTertiary }]}>

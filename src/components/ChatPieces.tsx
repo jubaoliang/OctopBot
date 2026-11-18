@@ -1,11 +1,15 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import Animated, { cubicBezier } from 'react-native-reanimated';
+import { Terminal } from 'lucide-react-native';
 
 import { PressableScale } from '@/components/PressableScale';
 import { IconArrowRight, IconChevronSmall, IconGlobe } from '@/components/icons';
 import { useI18n } from '@/i18n/I18nProvider';
 import { RemoteImage } from '@/platform/remote-image';
 import { CODE_FONT } from '@/theme/code-font';
-import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
+import { continuousCorners, layout, motion, radius, typeScale, useTokens } from '@/theme';
+import type { ProcessStep } from '@/core/chat/process-steps';
 
 /** One thumbnail rendered inside a user bubble (local URI or auth-gated URL). */
 export interface BubbleImage {
@@ -86,32 +90,93 @@ export function UserBubble({
 export function ProcessCard({
   tools,
   thinking,
-  onPress,
+  steps,
+  onToggle,
 }: {
   tools: number;
   thinking: number;
-  onPress?: () => void;
+  /** Reasoning and tool calls of the current turn; the card expands to them. */
+  steps?: ProcessStep[];
+  /** Reports the new state so the transcript can keep the body in view. */
+  onToggle?: (expanded: boolean) => void;
 }) {
   const t = useTokens();
   const { t: strings } = useI18n();
+  const [open, setOpen] = useState(false);
+  const trace = steps ?? [];
+  // No trace (history without reasoning, or a turn that only produced text):
+  // the row stays a plain summary and shows no affordance it cannot honour.
+  const expandable = trace.length > 0;
+  const expanded = expandable && open;
+
   return (
-    <Pressable
-      accessibilityRole={onPress ? 'button' : 'text'}
-      disabled={!onPress}
-      style={({ pressed }) => [
-        styles.processCard,
+    <View
+      style={[
+        styles.processBlock,
         { borderTopColor: t.borderSubtle, borderBottomColor: t.borderSubtle },
-        pressed ? { backgroundColor: t.overlaySubtle } : null,
       ]}
-      onPress={onPress}
     >
-      <Text style={[styles.processText, { color: t.textSecondary }]}>
-        {strings.chat.processSummary(tools, thinking)}
-      </Text>
-      <IconChevronSmall width={16} height={16} color={t.textSecondary} />
-    </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={strings.chat.processSummary(tools, thinking)}
+        accessibilityState={{ expanded, disabled: !expandable }}
+        testID="process-toggle"
+        disabled={!expandable}
+        style={({ pressed }) => [
+          styles.processCard,
+          pressed && expandable ? { backgroundColor: t.overlaySubtle } : null,
+        ]}
+        onPress={() => {
+          const next = !open;
+          setOpen(next);
+          onToggle?.(next);
+        }}
+      >
+        <Text style={[styles.processText, { color: t.textSecondary }]}>
+          {strings.chat.processSummary(tools, thinking)}
+        </Text>
+        {expandable ? (
+          <Animated.View
+            style={[chevronFlip, { transform: [{ rotate: expanded ? '90deg' : '0deg' }] }]}
+          >
+            <IconChevronSmall width={16} height={16} color={t.textSecondary} />
+          </Animated.View>
+        ) : null}
+      </Pressable>
+
+      {expanded ? (
+        <View style={styles.processBody} testID="process-detail">
+          {trace.map((step, index) =>
+            step.kind === 'thinking' ? (
+              <View
+                key={`t-${index}`}
+                style={[styles.thinkingBlock, { borderLeftColor: t.borderStrong }]}
+              >
+                <Text selectable style={[styles.thinkingText, { color: t.textSecondary }]}>
+                  {step.text}
+                </Text>
+              </View>
+            ) : (
+              <View key={`c-${index}`} style={styles.toolRow}>
+                <Terminal size={14} color={t.textTertiary} strokeWidth={2.2} />
+                <Text style={[styles.toolName, { color: t.textBody }]} numberOfLines={2}>
+                  {step.name}
+                </Text>
+              </View>
+            ),
+          )}
+        </View>
+      ) : null}
+    </View>
   );
 }
+
+/** Chevron that turns with the expand state (UI-thread CSS transition). */
+const chevronFlip = {
+  transitionProperty: 'transform',
+  transitionDuration: motion.state,
+  transitionTimingFunction: cubicBezier(0.23, 1, 0.32, 1),
+} as const;
 
 /** Inline code chip per design: readable fill, radius 4, monospace footnote. */
 export function CodeChip({ text }: { text: string }) {
@@ -198,15 +263,38 @@ const styles = StyleSheet.create({
     ...typeScale.footnote,
     marginBottom: 2,
   },
+  processBlock: {
+    alignSelf: 'stretch',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
   processCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
     paddingVertical: 8,
     minHeight: layout.hitTarget,
-    alignSelf: 'stretch',
+  },
+  processBody: {
+    gap: 10,
+    paddingBottom: 12,
+  },
+  thinkingBlock: {
+    borderLeftWidth: 2,
+    paddingLeft: 10,
+  },
+  thinkingText: {
+    ...typeScale.subheadline,
+  },
+  toolRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingLeft: 4,
+  },
+  toolName: {
+    ...typeScale.subheadline,
+    flexShrink: 1,
   },
   processText: {
     ...typeScale.subheadline,
