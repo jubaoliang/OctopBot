@@ -18,7 +18,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import { ChevronDown } from 'lucide-react-native';
 import Markdown from 'react-native-markdown-display';
 
 import { AppHeader } from '@/components/AppHeader';
@@ -46,6 +48,7 @@ import { useAuth } from '@/features/auth';
 import { takeChatHandoff } from '@/features/chat-handoff';
 import { useImageAttachments } from '@/features/useImageAttachments';
 import { useI18n } from '@/i18n/I18nProvider';
+import { haptics } from '@/platform/haptics';
 import { KeyboardInsetView } from '@/platform/keyboard';
 import { confirmOpenHttpUrl } from '@/platform/linking';
 import { CODE_FONT } from '@/theme/code-font';
@@ -83,7 +86,8 @@ const TOKEN_FLUSH_MS = 120;
 export default function ThreadScreen() {
   const { tokens } = useTheme();
   const { t: strings } = useI18n();
-  const { openDrawer, setActiveChat, clearActiveChatIf } = useAppShell();
+  const { setActiveChat, clearActiveChatIf } = useAppShell();
+  const router = useRouter();
   const { baseUrl, token, httpClient, user, dropSession, sessionGeneration } = useAuth();
   // Route params: `threadId` is a path segment (`new` / `open` / forged deep
   // link). Internal suggestion pills pass `prompt` — never put user text in
@@ -113,6 +117,9 @@ export default function ThreadScreen() {
 
   const [chat, dispatch] = useReducer(reduceChatTurn, undefined, initialChatTurnState);
   const [connection, setConnection] = useState<ChatConnectionStatus>('idle');
+  // Drives the jump-to-latest control; `nearBottomRef` carries the same
+  // fact to autoscroll, which must not read state from a stale render.
+  const [atBottom, setAtBottom] = useState(true);
   const socketRef = useRef<ChatSocket | null>(null);
   const threadRef = useRef<string | null>(null);
   const scrollRef = useRef<FlatList<ChatTurn>>(null);
@@ -697,7 +704,19 @@ export default function ThreadScreen() {
 
   const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    nearBottomRef.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - 96;
+    const near = contentOffset.y + layoutMeasurement.height >= contentSize.height - 96;
+    nearBottomRef.current = near;
+    // Only crossing the threshold re-renders; scrolling itself does not.
+    if (near !== atBottom) {
+      setAtBottom(near);
+    }
+  };
+
+  const jumpToLatest = () => {
+    haptics.impact('light');
+    nearBottomRef.current = true;
+    setAtBottom(true);
+    scrollRef.current?.scrollToEnd({ animated: true });
   };
 
   const lastTurn = chat.turns.length > 0 ? chat.turns[chat.turns.length - 1] : null;
@@ -793,30 +812,68 @@ export default function ThreadScreen() {
           <AppHeader
             title={params.title ?? internalPrompt ?? strings.chat.agentName}
             subtitle={headerSubtitle}
-            onMenu={openDrawer}
-          />
-          <FlatList
-            ref={scrollRef}
-            data={chat.turns}
-            keyExtractor={turnKey}
-            renderItem={renderTurn}
-            ItemSeparatorComponent={TurnSeparator}
-            ListFooterComponent={footer ?? undefined}
-            onScroll={onScroll}
-            scrollEventThrottle={16}
-            onContentSizeChange={() => {
-              if (nearBottomRef.current) {
-                scrollRef.current?.scrollToEnd({ animated: true });
+            // A pushed screen leads with Back, not the drawer (toolbars.md:
+            // "Use the standard Back and Close buttons"). A deep link with
+            // no history behind it falls back to the chat list.
+            onBack={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/chat');
               }
             }}
-            style={styles.scroll}
-            contentContainerStyle={styles.content}
-            // Drag the transcript to put the keyboard away, as in Messages.
-            keyboardDismissMode="interactive"
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            showsHorizontalScrollIndicator={false}
           />
+          <View style={styles.listWrap}>
+            <FlatList
+              ref={scrollRef}
+              data={chat.turns}
+              keyExtractor={turnKey}
+              renderItem={renderTurn}
+              ItemSeparatorComponent={TurnSeparator}
+              ListFooterComponent={footer ?? undefined}
+              onScroll={onScroll}
+              scrollEventThrottle={16}
+              onContentSizeChange={() => {
+                if (nearBottomRef.current) {
+                  scrollRef.current?.scrollToEnd({ animated: true });
+                }
+              }}
+              style={styles.scroll}
+              contentContainerStyle={styles.content}
+              // Drag the transcript to put the keyboard away, as in Messages.
+              keyboardDismissMode="interactive"
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              showsHorizontalScrollIndicator={false}
+            />
+            {!atBottom && chat.turns.length > 0 ? (
+              <Animated.View
+                entering={FadeIn.duration(150)}
+                exiting={FadeOut.duration(120)}
+                style={styles.jumpWrap}
+              >
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel={strings.chat.jumpToLatest}
+                  testID="chat-jump-latest"
+                  scaleTo={0.92}
+                  // 36pt disc + 4pt slop on each side = the 44pt target.
+                  hitSlop={4}
+                  onPress={jumpToLatest}
+                  style={[
+                    styles.jump,
+                    {
+                      backgroundColor: tokens.surface,
+                      borderColor: tokens.borderSubtle,
+                      shadowColor: tokens.shadow,
+                    },
+                  ]}
+                >
+                  <ChevronDown size={20} color={tokens.textSecondary} />
+                </PressableScale>
+              </Animated.View>
+            ) : null}
+          </View>
           <View style={styles.inputWrap}>
             <ChatInput
               onSend={sendWithAttachments}
@@ -1006,6 +1063,28 @@ const styles = StyleSheet.create({
   safe: { flex: 1, paddingTop: 0 },
   fill: { flex: 1 },
   scroll: { flex: 1 },
+  listWrap: {
+    flex: 1,
+  },
+  jumpWrap: {
+    position: 'absolute',
+    right: layout.screenMargin,
+    // Just clear of the composer below it.
+    bottom: 12,
+  },
+  jump: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    ...continuousCorners,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
   content: {
     paddingHorizontal: layout.screenMargin,
     paddingTop: 24,

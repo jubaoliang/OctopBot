@@ -1,179 +1,170 @@
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { PressableScale } from '@/components/PressableScale';
-import { continuousCorners, layout, motion, radius, typeScale, useTokens } from '@/theme';
+import { BottomSheet } from '@/components/BottomSheet';
+import { haptics } from '@/platform/haptics';
+import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
 
-export interface ActionSheetAction {
+export interface ActionSheetItem {
   label: string;
   onPress: () => void;
-  /** Destructive actions render in the danger color (HIG). */
+  /** Red label for an action that deletes, discards or disconnects. */
   destructive?: boolean;
-  testID?: string;
 }
 
-export interface ActionSheetProps {
+interface ActionSheetProps {
   visible: boolean;
-  /** Optional title above the action group — keep short or omit. */
-  title?: string;
-  actions: ActionSheetAction[];
+  /** What the choice is about, e.g. "Add image". */
+  title: string;
+  /** Optional explanatory line under the title. */
+  message?: string;
+  items: ActionSheetItem[];
   cancelLabel: string;
+  dismissLabel: string;
   onClose: () => void;
   testID?: string;
 }
 
 /**
- * HIG-style action sheet for confirmation or destructive choices (delete,
- * discard, …). Anchored to the bottom with a Cancel control.
+ * Action sheet — the iOS answer to "one action, several ways to do it".
  *
- * For the composer attach chooser (photos / camera / files), prefer the
- * inline `AttachTray` that launches system pickers — not this sheet.
+ * Apple draws the choice set as a card of 20pt labels, destructive options
+ * first, with Cancel in its own card below (action-sheets.md › Best
+ * practices: "Use an action sheet — not an alert — to offer choices related
+ * to an intentional action."). It is the app's replacement for the
+ * three-button `Alert` that used to sit behind the composer's + button.
  */
 export function ActionSheet({
   visible,
   title,
-  actions,
+  message,
+  items,
   cancelLabel,
+  dismissLabel,
   onClose,
   testID,
 }: ActionSheetProps) {
   const t = useTokens();
-  const insets = useSafeAreaInsets();
+  // Destructive first, matching the system order.
+  const ordered = [...items].sort(
+    (a, b) => Number(Boolean(b.destructive)) - Number(Boolean(a.destructive)),
+  );
+
+  const choose = (item: ActionSheetItem) => {
+    haptics.selection();
+    onClose();
+    // Let the sheet start leaving before the action pushes a screen.
+    requestAnimationFrame(() => {
+      item.onPress();
+    });
+  };
 
   return (
-    <Modal
+    <BottomSheet
       visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={onClose}
-      statusBarTranslucent
+      onClose={onClose}
+      dismissLabel={dismissLabel}
+      grabber={false}
+      testID={testID}
     >
-      <View style={styles.root} testID={testID}>
-        <Animated.View
-          entering={FadeIn.duration(motion.state)}
-          exiting={FadeOut.duration(motion.state)}
-          style={StyleSheet.absoluteFill}
-        >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={cancelLabel}
-            style={[styles.scrim, { backgroundColor: t.scrim }]}
-            onPress={onClose}
-          />
-        </Animated.View>
-        <Animated.View
-          entering={SlideInDown.duration(motion.sheet)}
-          exiting={SlideOutDown.duration(motion.sheet)}
-          style={[styles.sheetWrap, { paddingBottom: Math.max(insets.bottom, 12) }]}
-        >
-          <View
-            style={[styles.group, { backgroundColor: t.surfaceRaised }]}
-            accessibilityRole="menu"
-          >
-            {title ? (
-              <Text
-                accessibilityRole="header"
-                style={[styles.title, { color: t.textTertiary }]}
-                numberOfLines={2}
-              >
-                {title}
-              </Text>
-            ) : null}
-            {actions.map((action, index) => (
-              <View key={action.label}>
-                {index > 0 || title ? (
-                  <View style={[styles.separator, { backgroundColor: t.borderSubtle }]} />
-                ) : null}
-                <PressableScale
-                  accessibilityRole="menuitem"
-                  accessibilityLabel={action.label}
-                  testID={action.testID}
-                  onPress={() => {
-                    onClose();
-                    // Defer past dismiss so the next native picker is not
-                    // dropped while the Modal is still tearing down.
-                    requestAnimationFrame(() => {
-                      action.onPress();
-                    });
-                  }}
-                  scaleTo={1}
-                  dimTo={0.6}
-                  style={styles.row}
-                >
-                  <Text
-                    style={[styles.rowLabel, { color: action.destructive ? t.danger : t.accent }]}
-                  >
-                    {action.label}
-                  </Text>
-                </PressableScale>
-              </View>
-            ))}
-          </View>
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={cancelLabel}
-            testID={testID ? `${testID}-cancel` : undefined}
-            onPress={onClose}
-            scaleTo={0.98}
-            dimTo={0.7}
-            style={[styles.cancel, { backgroundColor: t.surfaceRaised }]}
-          >
-            <Text style={[styles.cancelLabel, { color: t.accent }]}>{cancelLabel}</Text>
-          </PressableScale>
-        </Animated.View>
+      <View style={styles.header}>
+        <Text style={[styles.title, { color: t.textSecondary }]}>{title}</Text>
+        {message ? (
+          <Text style={[styles.message, { color: t.textTertiary }]}>{message}</Text>
+        ) : null}
       </View>
-    </Modal>
+
+      <View style={[styles.card, continuousCorners, { backgroundColor: t.surface }]}>
+        <ScrollView
+          bounces={false}
+          contentContainerStyle={styles.cardContent}
+          showsVerticalScrollIndicator={false}
+          showsHorizontalScrollIndicator={false}
+        >
+          {ordered.map((item, index) => (
+            <Pressable
+              key={item.label}
+              accessibilityRole="button"
+              accessibilityLabel={item.label}
+              testID={testID ? `${testID}-${index}` : undefined}
+              onPress={() => choose(item)}
+              style={({ pressed }) => [
+                styles.row,
+                index < ordered.length - 1
+                  ? { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.separator }
+                  : null,
+                pressed ? { backgroundColor: t.overlayPressed } : null,
+              ]}
+            >
+              <Text
+                style={[styles.rowLabel, { color: item.destructive ? t.danger : t.accent }]}
+                numberOfLines={1}
+              >
+                {item.label}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
+
+      <View style={[styles.card, continuousCorners, { backgroundColor: t.surface }]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={cancelLabel}
+          testID={testID ? `${testID}-cancel` : undefined}
+          onPress={onClose}
+          style={({ pressed }) => [
+            styles.row,
+            pressed ? { backgroundColor: t.overlayPressed } : null,
+          ]}
+        >
+          <Text style={[styles.rowLabel, styles.cancelLabel, { color: t.textPrimary }]}>
+            {cancelLabel}
+          </Text>
+        </Pressable>
+      </View>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  scrim: {
-    ...StyleSheet.absoluteFill,
-  },
-  sheetWrap: {
-    // Horizontal inset matching iOS action-sheet margins on compact widths.
-    paddingHorizontal: 8,
-    gap: 8,
-  },
-  group: {
-    borderRadius: radius.sheet,
-    ...continuousCorners,
-    overflow: 'hidden',
+  header: {
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 32,
+    paddingTop: 4,
+    paddingBottom: 14,
   },
   title: {
     ...typeScale.footnote,
+    fontWeight: '600',
     textAlign: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
   },
-  separator: {
-    height: StyleSheet.hairlineWidth,
+  message: {
+    ...typeScale.footnote,
+    textAlign: 'center',
+  },
+  card: {
+    marginHorizontal: 10,
+    marginBottom: 8,
+    borderRadius: radius.actionCard,
+    overflow: 'hidden',
+  },
+  cardContent: {
+    flexGrow: 0,
   },
   row: {
-    minHeight: layout.hitTarget + 12,
-    alignItems: 'center',
+    minHeight: 56,
     justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    alignItems: 'center',
+    paddingHorizontal: layout.screenMargin,
+    paddingVertical: 12,
   },
   rowLabel: {
-    ...typeScale.body,
+    ...typeScale.title3,
     fontWeight: '400',
-  },
-  cancel: {
-    borderRadius: radius.sheet,
-    ...continuousCorners,
-    minHeight: layout.hitTarget + 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
+    textAlign: 'center',
   },
   cancelLabel: {
-    ...typeScale.headline,
+    fontWeight: '600',
   },
 });

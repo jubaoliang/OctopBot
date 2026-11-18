@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CalendarClock } from 'lucide-react-native';
 
-import { AppHeader } from '@/components/AppHeader';
+import { AppHeader, LargeTitle } from '@/components/AppHeader';
 import { useTabBarFootprint } from '@/components/DesignTabBar';
 import { AgentAvatar } from '@/components/AgentAvatar';
 import { EmptyState, SkeletonList } from '@/components/ListStates';
@@ -89,6 +89,7 @@ export default function AutomationScreen() {
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
       <SafeAreaView edges={['top']} style={styles.safe}>
         <AppHeader onMenu={openDrawer} />
+        <LargeTitle title={strings.automation.title} />
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: tabBarFootprint }]}
           showsVerticalScrollIndicator={false}
@@ -137,7 +138,7 @@ export default function AutomationScreen() {
                       key={job.id}
                       style={[
                         styles.jobRow,
-                        { borderBottomColor: tokens.borderSubtle },
+                        { borderBottomColor: tokens.separator },
                         index === jobs.length - 1 ? styles.jobRowLast : null,
                       ]}
                     >
@@ -197,7 +198,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: {
     paddingHorizontal: layout.screenMargin,
-    paddingTop: 8,
+    paddingTop: 2,
     gap: 24,
   },
   section: {
@@ -207,7 +208,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingHorizontal: layout.screenMargin,
+    paddingHorizontal: 2,
   },
   sectionTitle: {
     ...typeScale.subheadline,

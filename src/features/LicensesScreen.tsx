@@ -55,7 +55,7 @@ export function LicensesScreen() {
             index < rows.length - 1
               ? {
                   borderBottomWidth: StyleSheet.hairlineWidth,
-                  borderBottomColor: tokens.borderSubtle,
+                  borderBottomColor: tokens.separator,
                 }
               : null,
             index === 0

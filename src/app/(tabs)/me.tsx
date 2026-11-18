@@ -1,19 +1,22 @@
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
-import { AppHeader } from '@/components/AppHeader';
+import { AppHeader, LargeTitle } from '@/components/AppHeader';
 import { useTabBarFootprint } from '@/components/DesignTabBar';
+import { AgentAvatar } from '@/components/AgentAvatar';
 import { SettingsRow, SettingsSection } from '@/components/Settings';
 import { useAuth } from '@/features/auth';
 import { useAppShell } from '@/features/app-shell';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
-import { layout, useTokens } from '@/theme';
+import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
 
 /**
- * 我的 — account hub: profile, change password, entry to Settings, sign-out.
- * App preferences live on the Settings screen (drawer + this Settings row).
+ * 我的 — account hub: profile header, change password, entry to Settings,
+ * sign-out. App preferences live on the Settings screen (drawer + this
+ * Settings row). The profile block carries who is signed in and to which
+ * server, so the account rows below never have to repeat it.
  */
 export default function MeScreen() {
   const tokens = useTokens();
@@ -22,6 +25,7 @@ export default function MeScreen() {
   const { baseUrl, user, logout } = useAuth();
   const router = useRouter();
   const tabBarFootprint = useTabBarFootprint();
+  const username = user?.username ?? strings.me.notLoggedIn;
 
   const confirmLogout = () => {
     haptics.notify('warning');
@@ -35,18 +39,37 @@ export default function MeScreen() {
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
       <SafeAreaView edges={['top']} style={styles.safe}>
         <AppHeader onMenu={openDrawer} />
+        <LargeTitle title={strings.me.title} />
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: tabBarFootprint }]}
           showsVerticalScrollIndicator={false}
           showsHorizontalScrollIndicator={false}
         >
-          <SettingsSection title={strings.me.account}>
-            <SettingsRow
-              title={strings.login.username}
-              value={user?.username ?? strings.me.notLoggedIn}
-            />
-            <SettingsRow title={strings.me.server} value={baseUrl ?? '—'} last />
-          </SettingsSection>
+          <View
+            accessible
+            accessibilityLabel={baseUrl ? `${username}, ${baseUrl}` : username}
+            style={[
+              styles.profile,
+              continuousCorners,
+              { backgroundColor: tokens.surface, shadowColor: tokens.shadowSoft },
+            ]}
+          >
+            <AgentAvatar name={username} size={56} fallbackTextSecondary={tokens.textSecondary} />
+            <View style={styles.profileText}>
+              <Text style={[styles.profileName, { color: tokens.textPrimary }]} numberOfLines={1}>
+                {username}
+              </Text>
+              {baseUrl ? (
+                <Text
+                  style={[styles.profileServer, { color: tokens.textSecondary }]}
+                  numberOfLines={1}
+                  ellipsizeMode="middle"
+                >
+                  {baseUrl}
+                </Text>
+              ) : null}
+            </View>
+          </View>
 
           <SettingsSection>
             <SettingsRow
@@ -84,7 +107,24 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: {
     paddingHorizontal: layout.screenMargin,
-    paddingTop: 8,
+    paddingTop: 4,
     gap: 24,
+  },
+  profile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderRadius: radius.card,
+    padding: 16,
+  },
+  profileText: {
+    flex: 1,
+    gap: 2,
+  },
+  profileName: {
+    ...typeScale.title3,
+  },
+  profileServer: {
+    ...typeScale.footnote,
   },
 });

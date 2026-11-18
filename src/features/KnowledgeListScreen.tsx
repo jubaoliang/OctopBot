@@ -122,7 +122,7 @@ export function KnowledgeListScreen() {
                     index < bases.length - 1
                       ? {
                           borderBottomWidth: StyleSheet.hairlineWidth,
-                          borderBottomColor: tokens.borderSubtle,
+                          borderBottomColor: tokens.separator,
                         }
                       : null,
                     pressed ? { backgroundColor: tokens.overlayPressed } : null,

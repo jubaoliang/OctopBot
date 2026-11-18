@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { ChevronLeft } from 'lucide-react-native';
+import type { ReactNode } from 'react';
 
 import { IconButton } from '@/components/IconButton';
 import { IconHamburger, IconKebab, LogoHeader } from '@/components/icons';
@@ -114,6 +115,43 @@ export function AppHeader({ title, subtitle, onMenu, onBack, onMore, moreItems }
 // 4pt bar inset lands the glyph edge on the 16pt screen margin.
 const BAR_INSET = layout.screenMargin - (layout.hitTarget - 20) / 2;
 
+/**
+ * Large title for a top-level screen (toolbars.md › "Use a large title to
+ * help people stay oriented"). It sits below the compact bar, left aligned
+ * on the screen margin, and names the section the tab already points at —
+ * the same pairing iOS uses between a tab item and its screen title.
+ */
+export function LargeTitle({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+}) {
+  const t = useTokens();
+  return (
+    <View style={styles.largeTitleRow}>
+      <View style={styles.largeTitleText}>
+        <Text
+          accessibilityRole="header"
+          style={[styles.largeTitle, { color: t.textPrimary }]}
+          numberOfLines={1}
+        >
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text style={[styles.largeTitleSubtitle, { color: t.textSecondary }]} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+      {action}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   header: {
     minHeight: 52,
@@ -136,6 +174,24 @@ const styles = StyleSheet.create({
     ...typeScale.headline,
   },
   subtitle: {
+    ...typeScale.footnote,
+  },
+  largeTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+    paddingHorizontal: layout.screenMargin,
+    paddingTop: 4,
+    paddingBottom: 10,
+  },
+  largeTitleText: {
+    flex: 1,
+    gap: 2,
+  },
+  largeTitle: {
+    ...typeScale.largeTitle,
+  },
+  largeTitleSubtitle: {
     ...typeScale.footnote,
   },
 });

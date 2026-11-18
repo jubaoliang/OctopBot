@@ -83,7 +83,7 @@ export function SettingsRow({
       <View
         style={[
           styles.rowBody,
-          { borderBottomColor: t.borderSubtle },
+          { borderBottomColor: t.separator },
           last ? styles.rowBodyLast : null,
         ]}
       >

@@ -28,6 +28,14 @@ export interface ThemeTokens {
   /** Hairline borders (design: black 6–8%). */
   borderSubtle: string;
   borderStrong: string;
+  /**
+   * Hairline between list rows. The 6% border is a container edge — at 1px
+   * it is not perceivable as a row divider, so rows use the iOS separator
+   * value instead (light `separator`, dark `opaque separator`).
+   */
+  separator: string;
+  /** Control fill: search fields, segmented tracks (iOS system fill). */
+  fill: string;
   textPrimary: string;
   textBody: string;
   textSecondary: string;
@@ -70,8 +78,12 @@ export const layout = {
 export const radius = {
   chip: 4,
   pill: 8,
+  /** Search fields and inline controls (iOS 10pt). */
+  field: 10,
   input: 12,
   card: 12,
+  /** Action cards in a sheet (iOS 14pt). */
+  actionCard: 14,
   bubble: 18,
   bubbleTail: 4,
   sheet: 20,
@@ -144,6 +156,8 @@ export const lightTokens: ThemeTokens = {
   overlayPressed: 'rgba(0,0,0,0.08)',
   borderSubtle: 'rgba(0,0,0,0.06)',
   borderStrong: 'rgba(0,0,0,0.08)',
+  separator: 'rgba(60,60,67,0.29)',
+  fill: 'rgba(118,118,128,0.12)',
   textPrimary: '#111827',
   textBody: 'rgba(0,0,0,0.90)',
   textSecondary: 'rgba(0,0,0,0.60)',
@@ -168,6 +182,8 @@ export const darkTokens: ThemeTokens = {
   overlayPressed: 'rgba(255,255,255,0.12)',
   borderSubtle: 'rgba(255,255,255,0.10)',
   borderStrong: 'rgba(255,255,255,0.14)',
+  separator: 'rgba(84,84,88,0.65)',
+  fill: 'rgba(118,118,128,0.24)',
   textPrimary: '#F3F4F6',
   textBody: 'rgba(255,255,255,0.90)',
   textSecondary: 'rgba(255,255,255,0.60)',
