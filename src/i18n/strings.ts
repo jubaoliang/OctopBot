@@ -30,6 +30,7 @@ const zh = {
     hidePassword: '隐藏密码',
     selectExpert: '选择专家',
     closeSheet: '关闭',
+    threadActions: '长按可置顶或删除',
   },
   chatHome: {
     greeting: '开始对话',
@@ -280,6 +281,7 @@ const en: Dict = {
     hidePassword: 'Hide password',
     selectExpert: 'Choose an expert',
     closeSheet: 'Close',
+    threadActions: 'Long press to pin or delete',
   },
   chatHome: {
     greeting: 'Start a chat',
