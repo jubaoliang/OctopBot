@@ -4,19 +4,21 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 /**
  * How much room screens must leave for the tab bar.
  *
- * Both platforms use the system bar (`NativeTabs`). Android's Material bottom
- * navigation is docked and takes its height out of the screen, so content
- * already ends above it. iOS 26 floats the bar over the content, so the strip
- * has to be reserved by the screen itself.
+ * iOS uses the system bar (`NativeTabs`): a screen inside a UITabBarController
+ * already reports the bar in its own safe-area inset, so it only adds the
+ * clearance above the bar's glass. Android's Material bottom navigation is
+ * docked and takes its height out of the screen — except for our drawn bar,
+ * which is anchored over the content, so screens reserve it themselves.
  */
 
 /**
- * Height of the system tab bar above the home indicator (UITabBar is 49pt;
- * iOS 26 draws it floating over the content, so the screen still reserves the
- * strip itself). No extra clearance: the composer already carries its own
- * padding, and a second gap reads as an empty band under it.
+ * Clearance above iOS' system tab bar. The inset a tab screen receives covers
+ * the bar's 49pt frame plus the home indicator; the floating glass draws a few
+ * points above that frame, so this keeps the composer just clear of it. No more
+ * than that: a bar-height's worth of extra padding read as an empty band under
+ * the composer.
  */
-const IOS_TAB_BAR_HEIGHT = 49;
+const IOS_TAB_BAR_CLEARANCE = 8;
 
 /** Height of the drawn Android bar above the gesture inset. */
 export const ANDROID_TAB_BAR_HEIGHT = 56;
@@ -25,7 +27,7 @@ export const ANDROID_TAB_BAR_HEIGHT = 56;
 export function useTabBarFootprint(): number {
   const insets = useSafeAreaInsets();
   if (Platform.OS === 'ios') {
-    return Math.max(insets.bottom, 0) + IOS_TAB_BAR_HEIGHT;
+    return Math.max(insets.bottom, 0) + IOS_TAB_BAR_CLEARANCE;
   }
   // The drawn bar is anchored over the content, so screens reserve it.
   return ANDROID_TAB_BAR_HEIGHT + Math.max(insets.bottom, 0);
