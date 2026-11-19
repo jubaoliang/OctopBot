@@ -65,6 +65,7 @@ The contract is pinned in `docs/api-contract.md` (Octop **1.0.3b4**, upstream `d
 
 - TypeScript strict everywhere; no `any` unless justified in a comment explaining why.
 - File-based routing via expo-router under `src/app/`.
+- **Deep links are app paths.** `octop://` and `octopbot://` are both registered (`app.json` → `scheme`), and whatever follows the scheme is a router path with query params: `octop://chat/new?agent=main`, `octop://settings`, `octop://knowledge`. Unknown paths fall through `src/app/+not-found.tsx` to the chat home rather than a dead end. Adding or renaming a scheme is a native change — `Info.plist` and `AndroidManifest.xml` are generated from `app.json`, so it needs a rebuild. A link that arrives before sign-in is not replayed after logging in: the app shows the sign-in screen.
 - i18n: zh + en, no hardcoded UI strings.
 - **Copy is plain.** A label says what the control does; no marketing voice, no AI-persona chatter ("Hi! your personal AI companion…"), no exclamation marks. Setup asks one thing per step: sign-in is server address → connection checked → credentials.
 - **Charts are drawn with `react-native-svg`, not a chart library**: geometry (scales, ticks, bar rects) is pure TypeScript in `src/utils/bar-chart.ts` with tests, and `src/components/BarChart.tsx` only draws it. ECharts and Swift Charts were considered and rejected (look, and iOS-only respectively). New chart types follow the same split.
