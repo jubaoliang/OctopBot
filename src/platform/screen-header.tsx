@@ -21,6 +21,8 @@ export interface ScreenHeaderProps {
   brand?: boolean;
   onMenu?: () => void;
   onBack?: () => void;
+  /** Trailing action: start a conversation in the expert this screen shows. */
+  onCompose?: () => void;
 }
 
 /**
@@ -35,10 +37,17 @@ export function ScreenHeader({
   largeSubtitle,
   onMenu,
   onBack,
+  onCompose,
 }: ScreenHeaderProps) {
   return (
     <>
-      <AppHeader title={title} subtitle={subtitle} onMenu={onMenu} onBack={onBack} />
+      <AppHeader
+        title={title}
+        subtitle={subtitle}
+        onMenu={onMenu}
+        onBack={onBack}
+        onCompose={onCompose}
+      />
       {largeTitle ? <LargeTitle title={largeTitle} subtitle={largeSubtitle} /> : null}
     </>
   );

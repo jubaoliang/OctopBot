@@ -158,11 +158,15 @@ export default function ChatHomeScreen() {
           gap={layout.keyboardGap}
           style={styles.fill}
         >
-          <ScreenHeader brand onMenu={openDrawer} />
+          <ScreenHeader
+            brand
+            onMenu={openDrawer}
+            onCompose={selected ? () => startChat(null) : undefined}
+          />
           {/* Scrolls only when the keyboard leaves less room than the
               content needs; at rest the spacers center it as designed. */}
           <ScrollView
-          contentInsetAdjustmentBehavior="automatic"
+            contentInsetAdjustmentBehavior="automatic"
             style={styles.fill}
             contentContainerStyle={styles.body}
             keyboardShouldPersistTaps="handled"

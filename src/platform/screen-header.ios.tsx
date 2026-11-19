@@ -35,16 +35,17 @@ export function ScreenHeader({
   brand,
   onMenu,
   onBack,
+  onCompose,
 }: ScreenHeaderProps) {
   const navigation = useNavigation();
   const { t: strings } = useI18n();
   const t = useTokens();
   // Callbacks are read through a ref so the options effect does not re-run on
   // every parent render (inline arrows change identity each time).
-  const handlers = useRef({ onMenu, onBack });
+  const handlers = useRef({ onMenu, onBack, onCompose });
   useEffect(() => {
-    handlers.current = { onMenu, onBack };
-  }, [onMenu, onBack]);
+    handlers.current = { onMenu, onBack, onCompose };
+  }, [onMenu, onBack, onCompose]);
   const hasMenu = Boolean(onMenu);
 
   useLayoutEffect(() => {
@@ -107,6 +108,19 @@ export function ScreenHeader({
               </Pressable>
             )
           : undefined,
+      headerRight: onCompose
+        ? () => (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={strings.a11y.compose}
+              testID="header-compose"
+              hitSlop={HIT_SLOP}
+              onPress={() => handlers.current.onCompose?.()}
+            >
+              <SymbolView name="plus.bubble" size={22} weight="regular" tintColor={t.textBody} />
+            </Pressable>
+          )
+        : undefined,
     });
   }, [
     navigation,
@@ -116,7 +130,9 @@ export function ScreenHeader({
     largeTitle,
     hasMenu,
     onBack,
+    onCompose,
     strings.appName,
+    strings.a11y.compose,
     strings.a11y.back,
     strings.a11y.menu,
     t.textBody,

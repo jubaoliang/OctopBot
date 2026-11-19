@@ -1076,9 +1076,9 @@ const AssistantTurnItem = memo(function AssistantTurnItem({
             onPress={copy}
           >
             {copied ? (
-              <Check size={16} color={t.textTertiary} />
+              <Check size={15} color={t.textTertiary} />
             ) : (
-              <Copy size={16} color={t.textTertiary} />
+              <Copy size={15} color={t.textTertiary} />
             )}
           </IconButton>
           {onRegenerate ? (
