@@ -20,7 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
-import { ChevronDown } from 'lucide-react-native';
+import { Check, ChevronDown, Copy } from 'lucide-react-native';
 import Markdown from 'react-native-markdown-display';
 
 import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
@@ -29,6 +29,7 @@ import { ChatInput } from '@/components/ChatInput';
 import { ProcessCard, UserBubble, type BubbleImage } from '@/components/ChatPieces';
 import { CodeFence, InlineCode } from '@/components/MarkdownCode';
 import { MarkdownTable } from '@/components/MarkdownTable';
+import { IconButton } from '@/components/IconButton';
 import { PressableScale } from '@/components/PressableScale';
 import { TypingDots } from '@/components/TypingDots';
 import { mediaPreviewPath } from '@/core/api/attachments';
@@ -49,6 +50,7 @@ import { useAuth } from '@/features/auth';
 import { takeChatHandoff } from '@/features/chat-handoff';
 import { useImageAttachments } from '@/features/useImageAttachments';
 import { useI18n } from '@/i18n/I18nProvider';
+import { copyText } from '@/platform/clipboard';
 import { haptics } from '@/platform/haptics';
 import { KeyboardInsetView } from '@/platform/keyboard';
 import { confirmOpenHttpUrl } from '@/platform/linking';
@@ -261,6 +263,13 @@ export default function ThreadScreen() {
         />
       ),
       code_block: (node: MdNode) => <CodeFence key={node.key} code={String(node.content ?? '')} />,
+      // Prose is selectable so a finished answer can be quoted piecemeal; the
+      // default rule renders a plain Text, which swallows long presses.
+      text: (node: MdNode, _children, _parent, styles, inheritedStyles = {}) => (
+        <Text key={node.key} selectable style={[inheritedStyles, styles.text]}>
+          {node.content}
+        </Text>
+      ),
       table: (node, children, _parent, styles) => (
         <MarkdownTable key={node.key} style={styles._VIEW_SAFE_table}>
           {children}
@@ -1004,6 +1013,31 @@ const AssistantTurnItem = memo(function AssistantTurnItem({
   process?: { tools: number; thinking: number; steps: ProcessStep[] };
   onProcessToggle?: (expanded: boolean) => void;
 }) {
+  const { tokens: t } = useTheme();
+  const { t: strings } = useI18n();
+  const [copied, setCopied] = useState(false);
+
+  // Copy the source, not the rendering: pasting it back keeps the markdown.
+  const copy = useCallback(() => {
+    void copyText(text).then(done => {
+      if (!done) {
+        return;
+      }
+      haptics.selection();
+      setCopied(true);
+    });
+  }, [text]);
+
+  useEffect(() => {
+    if (!copied) {
+      return;
+    }
+    const timer = setTimeout(() => setCopied(false), 2400);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  const showCopy = !streaming && text.trim().length > 0;
+
   return (
     <View style={styles.assistantBlock}>
       {process ? (
@@ -1017,6 +1051,22 @@ const AssistantTurnItem = memo(function AssistantTurnItem({
       <Markdown style={mdStyles} rules={mdRules} onLinkPress={onLinkPress}>
         {streaming ? `${balanceStreamingMarkdown(text)} ▍` : text}
       </Markdown>
+      {showCopy ? (
+        <View style={styles.replyActions}>
+          <IconButton
+            label={copied ? strings.chat.copied : strings.chat.copyReply}
+            testID="reply-copy"
+            size={24}
+            onPress={copy}
+          >
+            {copied ? (
+              <Check size={16} color={t.textTertiary} />
+            ) : (
+              <Copy size={16} color={t.textTertiary} />
+            )}
+          </IconButton>
+        </View>
+      ) : null}
     </View>
   );
 });
@@ -1148,6 +1198,13 @@ const styles = StyleSheet.create({
   footer: { gap: 20, marginTop: 20 },
   assistantBlock: {
     alignSelf: 'stretch',
+  },
+  // The copy glyph sits on the message's leading edge, pulled left by half its
+  // padding so the icon — not the 44pt target — lines up with the prose.
+  replyActions: {
+    flexDirection: 'row',
+    marginTop: 2,
+    marginLeft: -10,
   },
   inputWrap: { paddingHorizontal: layout.screenMargin },
   errorCard: {
