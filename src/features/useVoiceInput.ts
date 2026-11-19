@@ -157,9 +157,19 @@ export function useVoiceInput(handlers: VoiceInputHandlers) {
       },
       onError: code => {
         setTranscribing(false);
+        // Silence is not a failure the user needs told: the session simply
+        // ended without speech. Everything else names what actually broke.
         if (code === 'network') {
           reportError(strings.voice.sttNetworkFailed);
-        } else if (code !== 'aborted' && code !== 'no-speech') {
+        } else if (code === 'not-allowed') {
+          reportError(strings.voice.micDenied);
+        } else if (code === 'service-not-allowed') {
+          reportError(strings.voice.micNotAvailable);
+        } else if (code === 'audio-capture') {
+          // The recognizer started but no input arrived — a muted, busy or
+          // missing device, not a retryable hiccup.
+          reportError(strings.voice.micUnavailable);
+        } else if (code !== 'aborted' && code !== 'no-speech' && code !== 'speech-timeout') {
           reportError(strings.voice.sttFailed);
         }
       },
@@ -174,6 +184,7 @@ export function useVoiceInput(handlers: VoiceInputHandlers) {
     promptMicPermission,
     reportError,
     strings.voice.micNotAvailable,
+    strings.voice.micUnavailable,
     strings.voice.sttFailed,
     strings.voice.sttNetworkFailed,
   ]);
