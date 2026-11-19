@@ -1,6 +1,13 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useState } from 'react';
-import Animated, { cubicBezier } from 'react-native-reanimated';
+import { useEffect, useState } from 'react';
+import Animated, {
+  Easing,
+  cubicBezier,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { Terminal } from 'lucide-react-native';
 
 import { PressableScale } from '@/components/PressableScale';
@@ -102,12 +109,36 @@ export function ProcessCard({
 }) {
   const t = useTokens();
   const { t: strings } = useI18n();
+  const reduceMotion = useReducedMotion();
   const [open, setOpen] = useState(false);
   const trace = steps ?? [];
   // No trace (history without reasoning, or a turn that only produced text):
   // the row stays a plain summary and shows no affordance it cannot honour.
   const expandable = trace.length > 0;
   const expanded = expandable && open;
+
+  // The body stays mounted after the first open so collapsing can animate, and
+  // its height is driven from what the content measured — that also keeps a
+  // trace that grows while streaming from jumping.
+  const [mounted, setMounted] = useState(false);
+  const [contentHeight, setContentHeight] = useState(0);
+  const height = useSharedValue(0);
+
+  useEffect(() => {
+    const target = expanded ? contentHeight : 0;
+    height.value = reduceMotion
+      ? target
+      : withTiming(target, {
+          duration: motion.sheet,
+          easing: Easing.bezier(0.23, 1, 0.32, 1),
+        });
+  }, [contentHeight, expanded, height, reduceMotion]);
+
+  const bodyStyle = useAnimatedStyle(() => ({
+    height: height.value,
+    // Fades with the growth so lines do not shear against the clipping edge.
+    opacity: contentHeight > 0 ? Math.min(1, height.value / contentHeight) : 0,
+  }));
 
   return (
     <View style={styles.processBlock}>
@@ -124,6 +155,11 @@ export function ProcessCard({
         onPress={() => {
           const next = !open;
           setOpen(next);
+          if (next) {
+            // Mount on the same frame as the open so the measured height is
+            // ready before the expansion starts moving.
+            setMounted(true);
+          }
           onToggle?.(next);
         }}
       >
@@ -139,28 +175,41 @@ export function ProcessCard({
         ) : null}
       </Pressable>
 
-      {expanded ? (
-        <View style={styles.processBody} testID="process-detail">
-          {trace.map((step, index) =>
-            step.kind === 'thinking' ? (
-              <View
-                key={`t-${index}`}
-                style={[styles.thinkingBlock, { borderLeftColor: t.borderStrong }]}
-              >
-                <Text selectable style={[styles.thinkingText, { color: t.textSecondary }]}>
-                  {step.text}
-                </Text>
-              </View>
-            ) : (
-              <View key={`c-${index}`} style={styles.toolRow}>
-                <Terminal size={14} color={t.textTertiary} strokeWidth={2.2} />
-                <Text style={[styles.toolName, { color: t.textBody }]} numberOfLines={2}>
-                  {step.name}
-                </Text>
-              </View>
-            ),
-          )}
-        </View>
+      {mounted ? (
+        <Animated.View
+          style={[styles.processClip, bodyStyle]}
+          testID="process-detail"
+          // The card stays mounted to animate shut; while closed nothing in it
+          // is on screen, so keep it out of the touch and a11y trees.
+          pointerEvents={expanded ? 'auto' : 'none'}
+          accessibilityElementsHidden={!expanded}
+          importantForAccessibility={expanded ? 'auto' : 'no-hide-descendants'}
+        >
+          <View
+            style={styles.processBody}
+            onLayout={event => setContentHeight(event.nativeEvent.layout.height)}
+          >
+            {trace.map((step, index) =>
+              step.kind === 'thinking' ? (
+                <View
+                  key={`t-${index}`}
+                  style={[styles.thinkingBlock, { borderLeftColor: t.borderStrong }]}
+                >
+                  <Text selectable style={[styles.thinkingText, { color: t.textSecondary }]}>
+                    {step.text}
+                  </Text>
+                </View>
+              ) : (
+                <View key={`c-${index}`} style={styles.toolRow}>
+                  <Terminal size={14} color={t.textTertiary} strokeWidth={2.2} />
+                  <Text style={[styles.toolName, { color: t.textBody }]} numberOfLines={2}>
+                    {step.name}
+                  </Text>
+                </View>
+              ),
+            )}
+          </View>
+        </Animated.View>
       ) : null}
     </View>
   );
@@ -267,6 +316,9 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 8,
     minHeight: layout.hitTarget,
+  },
+  processClip: {
+    overflow: 'hidden',
   },
   processBody: {
     gap: 10,

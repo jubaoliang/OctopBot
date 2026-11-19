@@ -6,7 +6,7 @@ import { ActionSheet } from '@/platform/action-sheet';
 import type { DrawerThread } from '@/components/AppDrawer';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
-import { layout, typeScale, useTokens } from '@/theme';
+import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
 
 interface DrawerThreadRowProps {
   thread: DrawerThread;
@@ -109,6 +109,10 @@ const styles = StyleSheet.create({
     paddingLeft: 40,
     paddingRight: 12,
     justifyContent: 'flex-start',
+    // The long press highlights the whole row; rounded like the group rows
+    // above it, otherwise the fill reads as a hard-cut band.
+    borderRadius: radius.pill,
+    ...continuousCorners,
   },
   childName: {
     ...typeScale.subheadline,
