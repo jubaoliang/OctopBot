@@ -119,6 +119,19 @@ try {
 const tree = JSON.parse(raw);
 const out = [];
 walk(tree.dependencies, new Set(), out);
+
+// Fonts ship as assets, not packages, so `npm ls` never sees them. Their
+// licence has to travel with the binary all the same.
+const fontNoticePath = join(root, 'assets/fonts/OFL-GoogleSans.txt');
+if (existsSync(fontNoticePath)) {
+  out.push({
+    name: 'Google Sans',
+    version: '14.0',
+    license: 'OFL-1.1',
+    licenseText: readFileSync(fontNoticePath, 'utf8').trim(),
+  });
+}
+
 out.sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version));
 
 const known = out.filter(e => e.license !== 'UNKNOWN' && e.version !== 'unknown');

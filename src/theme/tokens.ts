@@ -98,10 +98,22 @@ export const radius = {
 export const continuousCorners: ViewStyle = { borderCurve: 'continuous' };
 
 /**
- * The iOS text-style ramp (size/leading at the default Dynamic Type size).
- * Components set fontWeight, never fontFamily, so iOS resolves SF Pro /
- * PingFang SC and Android its system font. `reading` is `body` with looser
- * leading for multi-line CJK message text.
+ * The product's UI face. Google Sans covers Latin/punctuation; Chinese and
+ * other scripts fall back to the platform face (PingFang SC, Noto Sans CJK)
+ * glyph by glyph, which is the behaviour we want — no CJK webfont in the app.
+ *
+ * The four weights are linked through `expo-font`'s config plugin (see
+ * `app.json`) so `fontFamily` + `fontWeight` resolves on both platforms. Load
+ * them that way rather than with `useFonts`: a runtime load keys each file as
+ * its own family, and then `fontWeight` silently stops picking a weight.
+ */
+export const UI_FONT = 'Google Sans';
+
+/**
+ * The iOS text-style ramp (size/leading at the default Dynamic Type size),
+ * set in the product face. Components vary fontWeight on top of these and the
+ * family follows; only code fences and inline code leave it for `CODE_FONT`.
+ * `reading` is `body` with looser leading for multi-line CJK message text.
  */
 export type TypeStyleName =
   | 'largeTitle'
@@ -120,18 +132,18 @@ export type TypeStyleName =
 export type TypeScale = Record<TypeStyleName, TextStyle>;
 
 export const typeScale: TypeScale = {
-  largeTitle: { fontSize: 34, lineHeight: 41, fontWeight: '700' },
-  title1: { fontSize: 28, lineHeight: 34, fontWeight: '700' },
-  title2: { fontSize: 22, lineHeight: 28, fontWeight: '700' },
-  title3: { fontSize: 20, lineHeight: 25, fontWeight: '600' },
-  headline: { fontSize: 17, lineHeight: 22, fontWeight: '600' },
-  body: { fontSize: 17, lineHeight: 22, fontWeight: '400' },
-  reading: { fontSize: 17, lineHeight: 25, fontWeight: '400' },
-  callout: { fontSize: 16, lineHeight: 21, fontWeight: '400' },
-  subheadline: { fontSize: 15, lineHeight: 20, fontWeight: '400' },
-  footnote: { fontSize: 13, lineHeight: 18, fontWeight: '400' },
-  caption1: { fontSize: 12, lineHeight: 16, fontWeight: '400' },
-  caption2: { fontSize: 11, lineHeight: 13, fontWeight: '400' },
+  largeTitle: { fontFamily: UI_FONT, fontSize: 34, lineHeight: 41, fontWeight: '700' },
+  title1: { fontFamily: UI_FONT, fontSize: 28, lineHeight: 34, fontWeight: '700' },
+  title2: { fontFamily: UI_FONT, fontSize: 22, lineHeight: 28, fontWeight: '700' },
+  title3: { fontFamily: UI_FONT, fontSize: 20, lineHeight: 25, fontWeight: '600' },
+  headline: { fontFamily: UI_FONT, fontSize: 17, lineHeight: 22, fontWeight: '600' },
+  body: { fontFamily: UI_FONT, fontSize: 17, lineHeight: 22, fontWeight: '400' },
+  reading: { fontFamily: UI_FONT, fontSize: 17, lineHeight: 25, fontWeight: '400' },
+  callout: { fontFamily: UI_FONT, fontSize: 16, lineHeight: 21, fontWeight: '400' },
+  subheadline: { fontFamily: UI_FONT, fontSize: 15, lineHeight: 20, fontWeight: '400' },
+  footnote: { fontFamily: UI_FONT, fontSize: 13, lineHeight: 18, fontWeight: '400' },
+  caption1: { fontFamily: UI_FONT, fontSize: 12, lineHeight: 16, fontWeight: '400' },
+  caption2: { fontFamily: UI_FONT, fontSize: 11, lineHeight: 13, fontWeight: '400' },
 };
 
 /**

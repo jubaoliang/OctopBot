@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Cloud, FileText, Terminal, Zap } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 
-import { useTokens } from '@/theme';
+import { UI_FONT, useTokens } from '@/theme';
 import { tintHex } from '@/utils/color';
 
 /**
@@ -75,6 +75,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   initial: {
+    fontFamily: UI_FONT,
     fontWeight: '600',
     lineHeight: undefined,
   },
