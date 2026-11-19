@@ -20,6 +20,7 @@ import { type SecureStorage } from '@/platform/secure-storage';
 import { LoginFlowError, useAuth } from '@/features/auth';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
+import { classifyFetchFailure } from '@/platform/network-failure';
 import { KeyboardAwareScrollView } from '@/platform/keyboard';
 import { continuousCorners, layout, radius, typeScale, useTheme } from '@/theme';
 
@@ -122,9 +123,13 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
       setStep('credentials');
     } catch (e) {
       haptics.notify('error');
-      const code =
-        e instanceof OctopApiError && e.code === 'NETWORK_ERROR' ? 'unreachable' : 'invalid_url';
-      setError(strings.login.errors[code]);
+      // A browser reports CORS and a dead host the same way; ask the platform
+      // which one it is so the copy can name the actual problem.
+      const failure =
+        e instanceof OctopApiError && e.code === 'NETWORK_ERROR'
+          ? await classifyFetchFailure(`${base}/api/health`)
+          : null;
+      setError(failure ? strings.login.errors[failure] : strings.login.errors.invalid_url);
     } finally {
       setChecking(false);
     }

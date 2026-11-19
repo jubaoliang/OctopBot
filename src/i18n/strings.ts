@@ -174,6 +174,8 @@ const zh = {
     errors: {
       invalid_url: '服务器地址无效',
       unreachable: '无法连接服务器，请检查地址与网络',
+      cors: '浏览器跨域（CORS）被拒绝：服务器没有允许来自此站点的请求。原生 App 不受影响。',
+      offline: '设备未联网，请检查网络连接',
       bad_credentials: '用户名或密码错误',
       mfa_required: '该账号已开启多因素认证，暂请在网页端完成验证后重试',
       setup: '服务器尚未完成初始化，请先在网页端完成安装向导',
@@ -431,6 +433,8 @@ const en: Dict = {
     errors: {
       invalid_url: 'Invalid server URL',
       unreachable: 'Cannot reach the server — check the address and network',
+      cors: 'Blocked by CORS: the server does not allow requests from this origin (native apps are unaffected)',
+      offline: 'This device is offline — check the network connection',
       bad_credentials: 'Wrong username or password',
       mfa_required: 'This account uses MFA; complete enrollment on the web console first',
       setup: 'The server is not initialized yet — finish setup in the web console',
