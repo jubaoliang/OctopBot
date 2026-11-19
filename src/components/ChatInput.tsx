@@ -219,9 +219,15 @@ export function ChatInput({
         {onPickImages ? (
           <AttachButton onPick={onPickImages} disabled={streaming || voice.busy} />
         ) : null}
-        <View style={[styles.inputWrap, SYSTEM_CHROME ? { backgroundColor: t.fill } : null]}>
+        <View
+          style={[
+            styles.inputWrap,
+            SYSTEM_CHROME ? styles.inputWrapSystem : null,
+            SYSTEM_CHROME ? { backgroundColor: t.fill } : null,
+          ]}
+        >
           <TextInput
-            style={[styles.input, { color: t.textBody }]}
+            style={[styles.input, SYSTEM_CHROME ? styles.inputSystem : null, { color: t.textBody }]}
             placeholder={
               voice.recording
                 ? strings.voice.listening
@@ -239,12 +245,11 @@ export function ChatInput({
             testID="composer-input"
           />
         </View>
-        {trailing}
+        <View style={styles.trailingSlot}>{trailing}</View>
       </View>
     </View>
   );
 }
-
 /** Thumbnail chip with upload state overlay and a remove control. */
 function PendingChip({
   item,
@@ -363,6 +368,16 @@ const styles = StyleSheet.create({
     ...continuousCorners,
     paddingHorizontal: SYSTEM_CHROME ? 12 : 0,
   },
+  inputWrapSystem: {
+    // The pill is one row tall; the field inside keeps its own one-line box and
+    // the wrap centres it. iOS top-aligns multiline text within its box, so a
+    // stretched field would push the placeholder to the pill's top edge.
+    alignSelf: 'stretch',
+    minHeight: 44,
+  },
+  inputSystem: {
+    flexGrow: 0,
+  },
   bar: {
     flexDirection: 'row',
     // Buttons stay on the last line while the field grows upward.
@@ -371,6 +386,15 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: 10,
     paddingVertical: 10,
+  },
+  trailingSlot: {
+    // On the system composer the field is a filled 44pt pill with a 28pt glyph
+    // in front of it; aligned to the row's bottom edge the glyph sits 8pt below
+    // the pill's centre. The inset is half that difference, and it keeps the
+    // glyph on the last line as the field grows.
+    alignSelf: 'stretch',
+    justifyContent: 'flex-end',
+    paddingBottom: SYSTEM_CHROME ? 8 : 0,
   },
   chips: {
     flexGrow: 0,
