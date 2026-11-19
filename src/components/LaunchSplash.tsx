@@ -41,16 +41,36 @@ export function LaunchSplash() {
   const wordmarkHeight = wordmark * WORDMARK_RATIO;
   const lockupTop = height * CENTRE - (mascot + wordmarkHeight) / 2;
 
-  // A trace of light on the light theme; the dark one can carry more.
-  const k = resolvedMode === 'dark' ? 1 : 0.55;
+  // The same alpha lands very differently on paper and on near-black, so each
+  // theme carries its own ramp instead of one scaled by a factor. The dark one
+  // keeps a paler core so the orange does not read as paint; the light one is
+  // the warm colour straight through, the way it looks on a sheet of paper.
+  const glowStops = [
+    ...(resolvedMode === 'dark'
+      ? [
+          { offset: 0, color: t.splashGlowCore, opacity: 0.24 },
+          { offset: 0.45, color: t.splashGlow, opacity: 0.12 },
+          { offset: 0.75, color: t.splashGlow, opacity: 0.055 },
+          { offset: 0.9, color: t.splashGlow, opacity: 0.028 },
+        ]
+      : [
+          { offset: 0, color: t.splashGlow, opacity: 0.6 },
+          { offset: 0.45, color: t.splashGlow, opacity: 0.29 },
+          { offset: 0.75, color: t.splashGlow, opacity: 0.17 },
+          { offset: 0.9, color: t.splashGlow, opacity: 0.11 },
+        ]),
+    { offset: 1, color: t.splashGlow, opacity: 0 },
+  ];
 
   // The source sits above the top edge so only its lower fringe reaches the
   // screen, which is what makes it read as light rather than a painted wash.
+  // Wide and shallow-graded on purpose: it has to reach the full width of the
+  // top edge and fall away only around a third of the way down.
   const light = {
-    cx: width * 0.4,
-    cy: -height * 0.045,
-    rx: width * 0.6,
-    ry: height * 0.125,
+    cx: width * 0.3,
+    cy: -height * 0.08,
+    rx: width * 0.85,
+    ry: height * 0.42,
   };
   const entering = reduceMotion ? undefined : FadeIn.duration(motion.sheet);
 
@@ -64,12 +84,18 @@ export function LaunchSplash() {
         <Defs>
           {/* Hot at the point where it meets the edge, cooling as it falls
               away. One field rather than stacked lobes: overlapping them
-              leaves a seam you can see on a near-black background. */}
+              leaves a seam you can see on a near-black background. The ramp
+              is long and shallow so the fall-off stays soft across the whole
+              third of the screen it covers. */}
           <RadialGradient id="splashLight" cx="50%" cy="50%" r="50%">
-            <Stop offset="0" stopColor={t.splashGlowCore} stopOpacity={0.3 * k} />
-            <Stop offset="0.42" stopColor={t.splashGlow} stopOpacity={0.13 * k} />
-            <Stop offset="0.78" stopColor={t.splashGlow} stopOpacity={0.035 * k} />
-            <Stop offset="1" stopColor={t.splashGlow} stopOpacity={0} />
+            {glowStops.map(stop => (
+              <Stop
+                key={stop.offset}
+                offset={stop.offset}
+                stopColor={stop.color}
+                stopOpacity={stop.opacity}
+              />
+            ))}
           </RadialGradient>
         </Defs>
 
