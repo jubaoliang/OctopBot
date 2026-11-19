@@ -20,7 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
-import { Check, ChevronDown, Copy } from 'lucide-react-native';
+import { Check, ChevronDown, Copy, RefreshCw } from 'lucide-react-native';
 import Markdown from 'react-native-markdown-display';
 
 import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
@@ -821,6 +821,9 @@ export default function ThreadScreen() {
         );
       case 'assistant': {
         const isLast = index === chat.turns.length - 1;
+        // Only the newest answer can be re-asked: the server appends a turn
+        // rather than replacing one, so an older swap would read as a fork.
+        const prompt = isLast ? promptBefore(chat.turns, index) : null;
         return (
           <AssistantTurnItem
             text={item.text}
@@ -830,6 +833,7 @@ export default function ThreadScreen() {
             onLinkPress={onMarkdownLink}
             process={isLast ? lastProcess : undefined}
             onProcessToggle={onProcessToggle}
+            onRegenerate={prompt ? () => retrySend(prompt.text, prompt.attachments) : undefined}
           />
         );
       }
@@ -944,6 +948,15 @@ export default function ThreadScreen() {
   );
 }
 
+/** The user turn an answer replies to; null when the history starts mid-way. */
+function promptBefore(
+  turns: ChatTurn[],
+  index: number,
+): Extract<ChatTurn, { kind: 'user' }> | null {
+  const previous = turns[index - 1];
+  return previous?.kind === 'user' ? previous : null;
+}
+
 // Completed turns keep their object identity across flushes, so these
 // memoized items skip re-rendering while the streaming tail updates.
 const UserTurnItem = memo(function UserTurnItem({
@@ -1003,6 +1016,7 @@ const AssistantTurnItem = memo(function AssistantTurnItem({
   onLinkPress,
   process,
   onProcessToggle,
+  onRegenerate,
 }: {
   text: string;
   streaming: boolean;
@@ -1012,6 +1026,8 @@ const AssistantTurnItem = memo(function AssistantTurnItem({
   /** How this answer was produced — shown above it, not after it. */
   process?: { tools: number; thinking: number; steps: ProcessStep[] };
   onProcessToggle?: (expanded: boolean) => void;
+  /** Re-asks the same prompt; only the newest answer offers it. */
+  onRegenerate?: () => void;
 }) {
   const { tokens: t } = useTheme();
   const { t: strings } = useI18n();
@@ -1036,7 +1052,7 @@ const AssistantTurnItem = memo(function AssistantTurnItem({
     return () => clearTimeout(timer);
   }, [copied]);
 
-  const showCopy = !streaming && text.trim().length > 0;
+  const showActions = !streaming && text.trim().length > 0;
 
   return (
     <View style={styles.assistantBlock}>
@@ -1051,7 +1067,7 @@ const AssistantTurnItem = memo(function AssistantTurnItem({
       <Markdown style={mdStyles} rules={mdRules} onLinkPress={onLinkPress}>
         {streaming ? `${balanceStreamingMarkdown(text)} ▍` : text}
       </Markdown>
-      {showCopy ? (
+      {showActions ? (
         <View style={styles.replyActions}>
           <IconButton
             label={copied ? strings.chat.copied : strings.chat.copyReply}
@@ -1065,6 +1081,19 @@ const AssistantTurnItem = memo(function AssistantTurnItem({
               <Copy size={16} color={t.textTertiary} />
             )}
           </IconButton>
+          {onRegenerate ? (
+            <IconButton
+              label={strings.chat.regenerate}
+              testID="reply-regenerate"
+              size={24}
+              onPress={() => {
+                haptics.impact('light');
+                onRegenerate();
+              }}
+            >
+              <RefreshCw size={16} color={t.textTertiary} />
+            </IconButton>
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -1203,6 +1232,8 @@ const styles = StyleSheet.create({
   // padding so the icon — not the 44pt target — lines up with the prose.
   replyActions: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
     marginTop: 2,
     marginLeft: -10,
   },
