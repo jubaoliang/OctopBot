@@ -1,4 +1,13 @@
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type TextInputProps,
+} from 'react-native';
 import { useRef, useState } from 'react';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Svg, Path, Rect } from 'react-native-svg';
@@ -40,6 +49,19 @@ const SWAP_IN = FadeIn.duration(150);
 
 /** Visual frame of the trailing glyph button; hitSlop makes it 44pt. */
 const GLYPH_FRAME = 28;
+
+/** Body line height from the type scale — the field's only growth unit. */
+const LINE_HEIGHT = typeScale.body.lineHeight ?? 22;
+/** Vertical breathing room inside the text box, above and below the line. */
+const INPUT_PAD_V = 3;
+
+/**
+ * Android's EditText pads every line with font ascent/descent headroom. Once
+ * the field hugs its text that padding is what clips the placeholder, so the
+ * field opts out of it. Not in RN's TextInput types — it is a native prop.
+ */
+const ANDROID_FONT_PADDING: TextInputProps & { includeFontPadding?: boolean } =
+  Platform.OS === 'android' ? { includeFontPadding: false } : {};
 
 /**
  * Chat composer: field + mic / send / stop. Voice uses hybrid STT
@@ -227,7 +249,12 @@ export function ChatInput({
           ]}
         >
           <TextInput
-            style={[styles.input, SYSTEM_CHROME ? styles.inputSystem : null, { color: t.textBody }]}
+            style={[styles.input, { color: t.textBody }]}
+            // Android reserves extra font padding above and below the line, so
+            // the box measured for one line is taller than the line itself and
+            // the placeholder gets clipped. The prop is native-only and missing
+            // from RN's TS types.
+            {...ANDROID_FONT_PADDING}
             placeholder={
               voice.recording
                 ? strings.voice.listening
@@ -369,14 +396,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: SYSTEM_CHROME ? 12 : 0,
   },
   inputWrapSystem: {
-    // The pill is one row tall; the field inside keeps its own one-line box and
-    // the wrap centres it. iOS top-aligns multiline text within its box, so a
-    // stretched field would push the placeholder to the pill's top edge.
+    // The pill keeps its 44pt frame whatever the field's line count; the text
+    // box inside stays exactly as tall as its content and is centred in it.
     alignSelf: 'stretch',
     minHeight: 44,
-  },
-  inputSystem: {
-    flexGrow: 0,
   },
   bar: {
     flexDirection: 'row',
@@ -454,13 +477,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   input: {
-    flex: 1,
+    // Height follows the text exactly: a field taller than its lines leaves
+    // the platform a scroll range, and dragging the placeholder moves it.
+    flexGrow: 0,
+    flexShrink: 0,
     ...typeScale.body,
     // Five lines of body text, then the field scrolls.
-    maxHeight: 22 * 5,
+    maxHeight: LINE_HEIGHT * 5 + 2 * INPUT_PAD_V,
     minHeight: GLYPH_FRAME,
-    paddingTop: 3,
-    paddingBottom: 3,
+    paddingTop: INPUT_PAD_V,
+    paddingBottom: INPUT_PAD_V,
     paddingHorizontal: 0,
     textAlignVertical: 'center',
   },
