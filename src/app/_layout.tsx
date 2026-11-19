@@ -1,4 +1,3 @@
-import { Pacifico_400Regular } from '@expo-google-fonts/pacifico';
 import { SpaceMono_400Regular, useFonts } from '@expo-google-fonts/space-mono';
 import {
   DarkTheme,
@@ -84,7 +83,7 @@ function RootNavigator() {
     };
   }, [effectiveDark]);
 
-  const [fontsLoaded, fontError] = useFonts({ SpaceMono_400Regular, Pacifico_400Regular });
+  const [fontsLoaded, fontError] = useFonts({ SpaceMono_400Regular });
   // The launch screen is a brand beat, not just a spinner: hold it briefly so
   // it reads as one instead of flashing between the native splash and the app.
   const [launchSeen, setLaunchSeen] = useState(false);
