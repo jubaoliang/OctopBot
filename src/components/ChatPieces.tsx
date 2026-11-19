@@ -110,12 +110,7 @@ export function ProcessCard({
   const expanded = expandable && open;
 
   return (
-    <View
-      style={[
-        styles.processBlock,
-        { borderTopColor: t.borderSubtle, borderBottomColor: t.borderSubtle },
-      ]}
-    >
+    <View style={styles.processBlock}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={strings.chat.processSummary(tools, thinking)}
@@ -265,8 +260,6 @@ const styles = StyleSheet.create({
   },
   processBlock: {
     alignSelf: 'stretch',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   processCard: {
     flexDirection: 'row',
