@@ -109,7 +109,7 @@ export function LaunchSplash() {
         entering={entering}
         style={[styles.spinnerSlot, { top: lockupTop + mascot + wordmarkHeight + SPINNER_GAP }]}
       >
-        <ActivityIndicator color={t.brand} />
+        <ActivityIndicator size="small" color={t.brand} style={styles.spinner} />
       </Animated.View>
     </View>
   );
@@ -130,5 +130,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
+  },
+  // Android's indeterminate ProgressBar collapses to a dot when it has to
+  // measure itself, so give it a box to fill.
+  spinner: {
+    width: 20,
+    height: 20,
   },
 });
