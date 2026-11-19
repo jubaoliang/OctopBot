@@ -265,8 +265,11 @@ export function AppDrawer({
               style={styles.tasksScroll}
               // Content width follows the scroll view — a fixed 313pt pin
               // was a hairline wider than the bordered viewport and let
-              // iOS rubber-band the whole panel sideways.
+              // iOS rubber-band the whole panel sideways. The list locks to
+              // the vertical axis so a sideways drag cannot move it either.
               alwaysBounceHorizontal={false}
+              directionalLockEnabled
+              overScrollMode="never"
               contentContainerStyle={styles.tasksScrollContent}
               showsVerticalScrollIndicator={false}
               showsHorizontalScrollIndicator={false}
@@ -445,6 +448,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: PANEL_WIDTH,
     borderRightWidth: StyleSheet.hairlineWidth,
+    // iOS does not clip children by default; a row wider than the sheet would
+    // otherwise draw over the scrim.
     overflow: 'hidden',
   },
   logoRow: {
