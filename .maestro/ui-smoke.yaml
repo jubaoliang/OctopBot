@@ -53,7 +53,7 @@ appId: dev.octop.octopbot
 
 # 3. Experts: search filters the list, clear brings it back.
 - tapOn:
-    id: 'tab-experts'
+    text: '专家|Experts'
 - extendedWaitUntil:
     visible:
       id: 'experts-search'
@@ -75,7 +75,7 @@ appId: dev.octop.octopbot
 
 # 4. Me: profile block above the settings groups.
 - tapOn:
-    id: 'tab-me'
+    text: '我的|Me'
 - extendedWaitUntil:
     visible:
       id: 'me-settings'
@@ -85,13 +85,13 @@ appId: dev.octop.octopbot
 
 # 5. Automation tab responds, then back to the chat home.
 - tapOn:
-    id: 'tab-automation'
+    text: '自动化|Automation'
 - extendedWaitUntil:
     visible:
       id: 'header-menu'
     timeout: 15000
 - tapOn:
-    id: 'tab-chat'
+    text: '对话|Chats'
 - extendedWaitUntil:
     visible:
       id: 'composer-input'

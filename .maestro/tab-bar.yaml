@@ -18,13 +18,13 @@ appId: dev.octop.octopbot
 
 # 1. A second press on Experts stays on Experts.
 - tapOn:
-    id: 'tab-experts'
+    text: '专家|Experts'
 - extendedWaitUntil:
     visible:
       id: 'experts-search'
     timeout: 20000
 - tapOn:
-    id: 'tab-experts'
+    text: '专家|Experts'
 - assertVisible:
     id: 'experts-search'
 - assertNotVisible:
@@ -32,13 +32,13 @@ appId: dev.octop.octopbot
 
 # 2. A second press on Me stays on Me.
 - tapOn:
-    id: 'tab-me'
+    text: '我的|Me'
 - extendedWaitUntil:
     visible:
       id: 'me-settings'
     timeout: 15000
 - tapOn:
-    id: 'tab-me'
+    text: '我的|Me'
 - assertVisible:
     id: 'me-settings'
 - assertNotVisible:
@@ -46,7 +46,7 @@ appId: dev.octop.octopbot
 
 # 3. Inside a thread, pressing the (focused) chat tab returns to the list.
 - tapOn:
-    id: 'tab-chat'
+    text: '对话|Chats'
 - extendedWaitUntil:
     visible:
       id: 'select-expert'
@@ -73,7 +73,7 @@ appId: dev.octop.octopbot
 - assertNotVisible:
     id: 'select-expert'
 - tapOn:
-    id: 'tab-chat'
+    text: '对话|Chats'
 - extendedWaitUntil:
     visible:
       id: 'select-expert'
