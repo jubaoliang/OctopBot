@@ -9,7 +9,7 @@ import { useTheme } from '@/theme';
  * Rendering it at its natural ratio keeps the two halves in the proportion the
  * artwork was drawn in — cropping or restacking them breaks the lockup.
  */
-const LOGO = 152;
+const LOGO = 128;
 
 /**
  * The ink is baked into the artwork — dark for the light theme, white for the
@@ -71,6 +71,6 @@ const styles = StyleSheet.create({
   spinner: {
     // The plate carries its own margin under the wordmark, so this only adds
     // the gap that reads as part of the lockup.
-    marginTop: 6,
+    marginTop: 12,
   },
 });
