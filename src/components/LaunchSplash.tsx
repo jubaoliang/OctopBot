@@ -9,7 +9,7 @@ import { useTheme } from '@/theme';
  * Rendering it at its natural ratio keeps the two halves in the proportion the
  * artwork was drawn in — cropping or restacking them breaks the lockup.
  */
-const LOGO = 200;
+const LOGO = 152;
 
 /**
  * The ink is baked into the artwork — dark for the light theme, white for the

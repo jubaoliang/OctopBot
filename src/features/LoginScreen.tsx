@@ -6,6 +6,7 @@ import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
 
 import { IconButton } from '@/components/IconButton';
 import { PressableScale } from '@/components/PressableScale';
+import { LogoHeader } from '@/components/icons';
 import { AuthApi } from '@/core/api/auth';
 import { OctopApiError } from '@/core/api/errors';
 import { HttpClient } from '@/core/api/http';
@@ -225,7 +226,11 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
             style={styles.logo}
             resizeMode="contain"
           />
-          <Text style={[styles.brandName, { color: tokens.textPrimary }]}>Octop</Text>
+          {/* The wordmark is the brand asset, not styled text: it keeps the
+              custom letterforms and the red dot over the "t". */}
+          <View accessible accessibilityRole="header" accessibilityLabel={strings.appName}>
+            <LogoHeader width={72} height={24} color={tokens.textPrimary} />
+          </View>
         </View>
 
         {step === 'server' ? (
@@ -504,9 +509,6 @@ const styles = StyleSheet.create({
   logo: {
     width: 40,
     height: 38,
-  },
-  brandName: {
-    ...typeScale.title1,
   },
   form: {
     marginTop: 36,
