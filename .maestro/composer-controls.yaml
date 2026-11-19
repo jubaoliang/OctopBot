@@ -26,19 +26,13 @@ appId: dev.octop.octopbot
 - tapOn:
     id: 'composer-attach'
 - extendedWaitUntil:
-    visible:
-      id: 'composer-attach-tray'
+    visible: '相册|Photos'
     timeout: 10000
-- assertVisible:
-    id: 'composer-attach-library'
-- assertVisible:
-    id: 'composer-attach-camera'
-- assertVisible:
-    id: 'composer-attach-files'
-# Dismiss by toggling + again (inline tray, not a modal scrim).
+- assertVisible: '拍照|Camera'
+- assertVisible: '文件|Files'
+# Dismiss by tapping outside: iOS is a system menu, other targets a sheet.
 - tapOn:
-    id: 'composer-attach'
-- assertNotVisible:
-    id: 'composer-attach-tray'
+    point: '50%,20%'
+- assertNotVisible: '相册|Photos'
 - assertVisible:
     id: 'composer-attach'

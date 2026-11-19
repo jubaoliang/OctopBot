@@ -4,9 +4,9 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { Svg, Path, Rect } from 'react-native-svg';
 import { File, X } from 'lucide-react-native';
 
-import { AttachTray } from '@/components/AttachTray';
 import { IconButton } from '@/components/IconButton';
-import { IconMic, IconPlus } from '@/components/icons';
+import { IconMic } from '@/components/icons';
+import { AttachButton } from '@/platform/attach-button';
 import type { AttachSource, PendingAttachment } from '@/core/api/attachments';
 import type { TurnAttachment } from '@/core/api/types';
 import { useVoiceInput } from '@/features/useVoiceInput';
@@ -44,7 +44,7 @@ const GLYPH_FRAME = 28;
 /**
  * Chat composer: field + mic / send / stop. Voice uses hybrid STT
  * (system dictation by default; cloud upload when `active.stt` is set).
- * Attach toggles an inline tray; each tile opens a system picker.
+ * Attach opens the platform chooser (system menu on iOS, action sheet elsewhere).
  */
 export function ChatInput({
   onSend,
@@ -58,7 +58,6 @@ export function ChatInput({
   const t = useTokens();
   const { t: strings } = useI18n();
   const [text, setText] = useState('');
-  const [attachTrayOpen, setAttachTrayOpen] = useState(false);
   const baseBeforeVoice = useRef('');
   const pending = pendingAttachments ?? [];
   const hasPending = pending.length > 0;
@@ -95,7 +94,6 @@ export function ChatInput({
       return;
     }
     haptics.impact('light');
-    setAttachTrayOpen(false);
     const ready = pending.flatMap(item => (item.attachment ? [item.attachment] : []));
     onSend?.(text.trim(), ready.length > 0 ? ready : undefined);
     setText('');
@@ -105,16 +103,6 @@ export function ChatInput({
   const stop = () => {
     haptics.impact('medium');
     onStop?.();
-  };
-
-  const onAttach = () => {
-    haptics.impact('light');
-    setAttachTrayOpen(open => !open);
-  };
-
-  const pickSource = (source: AttachSource) => {
-    setAttachTrayOpen(false);
-    onPickImages?.(source);
   };
 
   const onMic = () => {
@@ -229,19 +217,7 @@ export function ChatInput({
       ) : null}
       <View style={styles.bar}>
         {onPickImages ? (
-          <IconButton
-            label={attachTrayOpen ? strings.common.cancel : strings.a11y.attach}
-            testID="composer-attach"
-            size={GLYPH_FRAME}
-            disabled={streaming || voice.busy}
-            onPress={onAttach}
-          >
-            {attachTrayOpen ? (
-              <X size={22} color={t.textSecondary} />
-            ) : (
-              <IconPlus width={22} height={22} color={t.textSecondary} />
-            )}
-          </IconButton>
+          <AttachButton onPick={onPickImages} disabled={streaming || voice.busy} />
         ) : null}
         <View style={[styles.inputWrap, SYSTEM_CHROME ? { backgroundColor: t.fill } : null]}>
           <TextInput
@@ -256,12 +232,7 @@ export function ChatInput({
             placeholderTextColor={t.textPlaceholder}
             selectionColor={t.accent}
             value={text}
-            onChangeText={next => {
-              if (attachTrayOpen) {
-                setAttachTrayOpen(false);
-              }
-              setText(next);
-            }}
+            onChangeText={setText}
             multiline
             editable={!streaming && !voice.busy}
             onSubmitEditing={submit}
@@ -270,16 +241,6 @@ export function ChatInput({
         </View>
         {trailing}
       </View>
-      {onPickImages && attachTrayOpen ? (
-        <AttachTray
-          onPick={pickSource}
-          labels={{
-            library: strings.attachments.library,
-            camera: strings.attachments.camera,
-            files: strings.attachments.files,
-          }}
-        />
-      ) : null}
     </View>
   );
 }

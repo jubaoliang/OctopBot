@@ -11,7 +11,7 @@ export interface ActionSheetItem {
   destructive?: boolean;
 }
 
-interface ActionSheetProps {
+export interface ActionSheetProps {
   visible: boolean;
   /** What the choice is about, e.g. "Add image". */
   title: string;

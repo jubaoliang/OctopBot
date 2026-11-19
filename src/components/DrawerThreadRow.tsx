@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text } from 'react-native';
 import { Pin } from 'lucide-react-native';
 
-import { ActionSheet } from '@/components/ActionSheet';
+import { ActionSheet } from '@/platform/action-sheet';
 import type { DrawerThread } from '@/components/AppDrawer';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';

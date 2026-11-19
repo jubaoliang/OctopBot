@@ -28,11 +28,9 @@ appId: dev.octop.octopbot
 - tapOn:
     id: 'composer-attach'
 - extendedWaitUntil:
-    visible:
-      id: 'composer-attach-camera'
+    visible: '拍照|Camera'
     timeout: 10000
-- tapOn:
-    id: 'composer-attach-camera'
+- tapOn: '拍照|Camera'
 # System camera (Camera2 on the API 37 emulator): Shutter → Done.
 - extendedWaitUntil:
     visible: 'Shutter'

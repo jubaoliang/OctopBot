@@ -47,21 +47,17 @@ appId: dev.octop.octopbot
 - assertVisible:
     id: 'composer-voice'
 
-# Attachment chooser is an inline tray that launches system pickers
+# Attachment chooser: system menu on iOS, action sheet elsewhere.
 - tapOn:
     id: 'composer-attach'
 - extendedWaitUntil:
-    visible:
-      id: 'composer-attach-tray'
+    visible: '相册|Photos'
     timeout: 10000
-- assertVisible:
-    id: 'composer-attach-library'
-- assertVisible:
-    id: 'composer-attach-camera'
-- assertVisible:
-    id: 'composer-attach-files'
+- assertVisible: '拍照|Camera'
+- assertVisible: '文件|Files'
 - tapOn:
-    id: 'composer-attach'
+    point: '50%,20%'
+- assertNotVisible: '相册|Photos'
 
 # Knowledge browse — drawer → list → open a Case KB → folder/docs
 - tapOn:
