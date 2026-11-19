@@ -71,3 +71,19 @@ export function stepsFromHistory(messages: HistoryMessage[]): ProcessStep[] {
   }
   return steps;
 }
+
+/**
+ * Reasoning text as it should be shown: deltas stream in with the newlines that
+ * separated one burst from the next still attached, and iOS lays a trailing
+ * newline out as an empty line (Android drops it), which reads as a stray blank
+ * row under the text. Runs of blank lines inside the text are folded for the
+ * same reason.
+ */
+export function reasoningText(text: string): string {
+  return text.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/** True when a step has something to draw in the expanded card. */
+export function stepIsVisible(step: ProcessStep): boolean {
+  return step.kind === 'tool' ? step.name.trim() !== '' : reasoningText(step.text) !== '';
+}

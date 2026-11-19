@@ -16,7 +16,7 @@ import { useI18n } from '@/i18n/I18nProvider';
 import { RemoteImage } from '@/platform/remote-image';
 import { CODE_FONT } from '@/theme/code-font';
 import { continuousCorners, layout, motion, radius, typeScale, useTokens } from '@/theme';
-import type { ProcessStep } from '@/core/chat/process-steps';
+import { reasoningText, stepIsVisible, type ProcessStep } from '@/core/chat/process-steps';
 
 /** One thumbnail rendered inside a user bubble (local URI or auth-gated URL). */
 export interface BubbleImage {
@@ -114,7 +114,9 @@ export function ProcessCard({
   const trace = steps ?? [];
   // No trace (history without reasoning, or a turn that only produced text):
   // the row stays a plain summary and shows no affordance it cannot honour.
-  const expandable = trace.length > 0;
+  // A burst that is only whitespace has nothing to draw; the row should not
+  // offer an expansion that would show nothing.
+  const expandable = trace.some(stepIsVisible);
   const expanded = expandable && open;
 
   // The body stays mounted after the first open so collapsing can animate, and
@@ -189,25 +191,34 @@ export function ProcessCard({
             style={styles.processBody}
             onLayout={event => setContentHeight(event.nativeEvent.layout.height)}
           >
-            {trace.map((step, index) =>
-              step.kind === 'thinking' ? (
+            {trace.map((step, index) => {
+              if (step.kind === 'tool') {
+                return (
+                  <View key={`c-${index}`} style={styles.toolRow}>
+                    <Terminal size={14} color={t.textTertiary} strokeWidth={2.2} />
+                    <Text style={[styles.toolName, { color: t.textBody }]} numberOfLines={2}>
+                      {step.name}
+                    </Text>
+                  </View>
+                );
+              }
+              const text = reasoningText(step.text);
+              // A burst that is only whitespace has nothing to say; drawing it
+              // would leave an empty quote block and an extra gap.
+              if (!text) {
+                return null;
+              }
+              return (
                 <View
                   key={`t-${index}`}
                   style={[styles.thinkingBlock, { borderLeftColor: t.borderStrong }]}
                 >
                   <Text selectable style={[styles.thinkingText, { color: t.textSecondary }]}>
-                    {step.text}
+                    {text}
                   </Text>
                 </View>
-              ) : (
-                <View key={`c-${index}`} style={styles.toolRow}>
-                  <Terminal size={14} color={t.textTertiary} strokeWidth={2.2} />
-                  <Text style={[styles.toolName, { color: t.textBody }]} numberOfLines={2}>
-                    {step.name}
-                  </Text>
-                </View>
-              ),
-            )}
+              );
+            })}
           </View>
         </Animated.View>
       ) : null}

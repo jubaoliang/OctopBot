@@ -1,5 +1,11 @@
 import type { HistoryMessage } from '../../api/types';
-import { appendReasoning, appendToolCall, stepsFromHistory } from '../process-steps';
+import {
+  appendReasoning,
+  appendToolCall,
+  reasoningText,
+  stepIsVisible,
+  stepsFromHistory,
+} from '../process-steps';
 
 describe('appendReasoning', () => {
   it('opens a thinking step and grows it with each delta', () => {
@@ -67,5 +73,38 @@ describe('stepsFromHistory', () => {
 
   it('returns nothing without an assistant message', () => {
     expect(stepsFromHistory([{ role: 'user', content: [] }])).toEqual([]);
+  });
+});
+
+describe('reasoningText', () => {
+  it('drops the newlines a burst trails behind it', () => {
+    expect(reasoningText('先看容器状态。\n\n')).toBe('先看容器状态。');
+  });
+
+  it('keeps the blank line between paragraphs', () => {
+    expect(reasoningText('\n第一段\n\n第二段\n')).toBe('第一段\n\n第二段');
+  });
+
+  it('folds runs of blank lines', () => {
+    expect(reasoningText('第一段\n\n\n\n第二段')).toBe('第一段\n\n第二段');
+  });
+
+  it('collapses whitespace-only text to nothing', () => {
+    expect(reasoningText('\n\n  ')).toBe('');
+  });
+});
+
+describe('stepIsVisible', () => {
+  it('skips a thinking step with no words', () => {
+    expect(stepIsVisible({ kind: 'thinking', text: '\n \n' })).toBe(false);
+  });
+
+  it('keeps a thinking step with words', () => {
+    expect(stepIsVisible({ kind: 'thinking', text: '先读取 skill' })).toBe(true);
+  });
+
+  it('keeps and drops tool calls by name', () => {
+    expect(stepIsVisible({ kind: 'tool', name: '读取文件', index: 0 })).toBe(true);
+    expect(stepIsVisible({ kind: 'tool', name: '  ', index: 0 })).toBe(false);
   });
 });
