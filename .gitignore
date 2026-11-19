@@ -31,3 +31,5 @@ coverage/
 
 # Local emulator / screenshot scratch (never commit)
 .tmp-audit/
+
+.workbuddy/
