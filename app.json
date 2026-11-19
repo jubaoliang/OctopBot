@@ -42,7 +42,7 @@
             "resizeMode": "cover",
             "backgroundColor": "#FAFAFA",
             "dark": {
-              "backgroundColor": "#111111",
+              "backgroundColor": "#0E0F13",
               "image": "./assets/images/splash-full-dark.png"
             }
           },
@@ -51,12 +51,12 @@
             "imageWidth": 240,
             "backgroundColor": "#FAFAFA",
             "dark": {
-              "backgroundColor": "#111111",
+              "backgroundColor": "#0E0F13",
               "image": "./assets/images/splash-icon-dark.png"
             }
           },
           "dark": {
-            "backgroundColor": "#111111",
+            "backgroundColor": "#0E0F13",
             "image": "./assets/images/splash-icon-dark.png"
           }
         }
