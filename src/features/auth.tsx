@@ -46,6 +46,9 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const BASE_URL_KEY = StorageKeys.baseUrl;
 const TOKEN_KEY = StorageKeys.accessToken;
 
+/** Dev-only deep link that seeds a session for E2E runs. */
+const DEV_SESSION_PREFIX = 'octop://dev-session';
+
 export class LoginFlowError extends Error {
   constructor(
     readonly code:
@@ -155,10 +158,10 @@ export function AuthProvider({
           storage.get(TOKEN_KEY),
         ]);
         // Dev builds only: E2E can seed a session via
-        // octopbot://dev-session?url=<base>&token=<jwt> (cold launch).
+        // octop://dev-session?url=<base>&token=<jwt> (cold launch).
         if (__DEV__) {
           const initialUrl = await Linking.getInitialURL();
-          if (initialUrl?.startsWith('octopbot://dev-session')) {
+          if (initialUrl?.startsWith(DEV_SESSION_PREFIX)) {
             // Manual parse — the URL global is not guaranteed in every engine.
             const query = initialUrl.slice(initialUrl.indexOf('?') + 1);
             const param = (key: string) => {
@@ -313,7 +316,7 @@ export function AuthProvider({
       return;
     }
     const sub = Linking.addEventListener('url', ({ url: initialUrl }) => {
-      if (!initialUrl.startsWith('octopbot://dev-session')) {
+      if (!initialUrl.startsWith(DEV_SESSION_PREFIX)) {
         return;
       }
       const query = initialUrl.slice(initialUrl.indexOf('?') + 1);

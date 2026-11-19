@@ -94,7 +94,7 @@ export default function ThreadScreen() {
   const { baseUrl, token, httpClient, user, dropSession, sessionGeneration } = useAuth();
   // Route params: `threadId` is a path segment (`new` / `open` / forged deep
   // link). Internal suggestion pills pass `prompt` — never put user text in
-  // the path, or an external `octopbot://chat/…` URL would auto-send.
+  // the path, or an external `octop://chat/…` URL would auto-send.
   const params = useLocalSearchParams<{
     threadId: string;
     agent?: string;
