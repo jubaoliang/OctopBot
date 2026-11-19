@@ -17,12 +17,13 @@ export const TAB_BAR_HEIGHT = 64;
 export const TAB_BAR_CLEARANCE = 12;
 
 /**
- * Height of the system tab bar above the home indicator. iOS 26 floats the
- * bar over the content instead of reserving a strip for it, so screens still
- * have to keep their last row (and the composer) clear of it by hand.
+ * Height of the system tab bar above the home indicator (UITabBar is 49pt;
+ * iOS 26 draws it floating over the content, so the screen still reserves the
+ * strip itself). No extra clearance: the composer already carries its own
+ * padding, and a second gap reads as an empty band under it.
  */
-const IOS_TAB_BAR_HEIGHT = 56;
-const IOS_TAB_BAR_CLEARANCE = 6;
+const IOS_TAB_BAR_HEIGHT = 49;
+const IOS_TAB_BAR_CLEARANCE = 0;
 
 /** Vertical space the bottom navigation takes out of the screen. */
 export function useTabBarFootprint(): number {

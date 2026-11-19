@@ -753,14 +753,13 @@ export default function ThreadScreen() {
         : undefined,
     [processVisible, processCounts.tools, processCounts.thinking, chat.trace],
   );
-  const showHint = chat.turns.length === 0;
   const showTyping =
     chat.streaming && (lastTurn === null || lastTurn.kind === 'user' || lastTurn.kind === 'hitl');
   // Once an answer exists the process row belongs above it; until then the
   // footer is the only place to show that the turn is thinking.
   const processInFooter = processVisible && lastTurn?.kind !== 'assistant';
   const footer =
-    processInFooter || showHint || showTyping ? (
+    processInFooter || showTyping ? (
       <View style={styles.footer}>
         {processInFooter ? (
           <ProcessCard
@@ -769,11 +768,6 @@ export default function ThreadScreen() {
             steps={chat.trace}
             onToggle={onProcessToggle}
           />
-        ) : null}
-        {showHint ? (
-          <Text style={[styles.hintText, { color: tokens.textTertiary }]}>
-            {connection === 'open' ? strings.chat.waiting : strings.chat.connecting}
-          </Text>
         ) : null}
         {showTyping ? <TypingDots label={strings.chat.replying} /> : null}
       </View>
@@ -871,7 +865,7 @@ export default function ThreadScreen() {
           />
           <View style={styles.listWrap}>
             <FlatList
-          contentInsetAdjustmentBehavior="automatic"
+              contentInsetAdjustmentBehavior="automatic"
               ref={scrollRef}
               data={chat.turns}
               keyExtractor={turnKey}
@@ -1154,11 +1148,6 @@ const styles = StyleSheet.create({
   footer: { gap: 20, marginTop: 20 },
   assistantBlock: {
     alignSelf: 'stretch',
-  },
-  hintText: {
-    ...typeScale.subheadline,
-    textAlign: 'center',
-    marginTop: 24,
   },
   inputWrap: { paddingHorizontal: layout.screenMargin },
   errorCard: {
