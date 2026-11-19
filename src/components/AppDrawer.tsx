@@ -250,15 +250,13 @@ export function AppDrawer({
         {groups.length > 0 ? (
           <View style={styles.tasksSection} testID="drawer-tasks">
             <View style={styles.tasksHeader}>
-              <View style={styles.tasksHeaderLeft}>
-                <Text
-                  accessibilityRole="header"
-                  style={[styles.tasksTitle, { color: t.textTertiary }]}
-                >
-                  {strings.drawer.tasks}
-                </Text>
-                <IconChevronDown width={16} height={16} color={t.textTertiary} />
-              </View>
+              <Text
+                accessibilityRole="header"
+                style={[styles.tasksTitle, { color: t.textTertiary }]}
+              >
+                {strings.drawer.tasks}
+              </Text>
+              <IconChevronDown width={16} height={16} color={t.textTertiary} />
             </View>
 
             <ScrollView
@@ -485,15 +483,10 @@ const styles = StyleSheet.create({
   tasksHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 4,
     paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: 6,
-  },
-  tasksHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
   },
   tasksTitle: {
     ...typeScale.footnote,
