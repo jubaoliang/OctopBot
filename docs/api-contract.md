@@ -80,7 +80,7 @@ Server → client (broadcast frames carry `thread_id`):
 - Lifecycle: `turn.started {turn_id, seq, phase}`, `turn.resumed`, `turn.ended {turn_id, failed, hitl_paused?}`.
 - `user {content, message_id?, author, attachments?}` (echo).
 - Streaming: `token {content}` (text delta), `reasoning {content}` (thinking delta), `tool_call_chunk {name, args, index, display_name}`, `tool_result {name, id, output, artifact?, display_name}`, `state_update {node}`.
-- `hitl_required {request:{…, pending_id}}` — turn pauses; resume via SSE below.
+- `hitl_required {request:{pending_id, action_requests?, review_configs?, …}}` — turn pauses; resume via SSE below. Action requests include tool confirmation and `ask_user_question` (questions with options); review configs specify `allowed_decisions` (`approve`, `reject`, `respond`).
 - `done {duration_ms?, conversation_mode?, pending_plan_path?, hitl_paused?, team_member_continuing?}` — errors are always followed by `done`.
 - `error {message, error_code?}`, `thread_title {title}`, `attachment {kind, mime_type, data(base64), filename?}`.
 - Steering: `steer.ack/queued/drained/discarded/removed/queue_snapshot` (mid-turn steering, 1.0.2b8+).

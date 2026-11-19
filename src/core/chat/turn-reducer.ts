@@ -3,7 +3,7 @@
  * The screen owns timers, sockets, and HTTP; this module owns transcript truth.
  */
 
-import type { ServerFrame, TurnAttachment } from '../api/types';
+import type { HitlRequest, ServerFrame, TurnAttachment } from '../api/types';
 import {
   applyProcessFrame,
   emptyProcessCounts,
@@ -11,6 +11,19 @@ import {
   type ProcessCountState,
 } from './process-counts';
 import { appendReasoning, appendToolCall, type ProcessStep } from './process-steps';
+
+export type HitlDecisionType = 'approve' | 'reject' | 'respond';
+
+export interface HitlCardOption {
+  label: string;
+  description?: string;
+  value?: string;
+}
+
+export interface HitlCardQuestion {
+  question: string;
+  options?: HitlCardOption[];
+}
 
 export type ChatTurn =
   | { kind: 'user'; id: string; text: string; attachments?: TurnAttachment[] }
@@ -22,12 +35,24 @@ export type ChatTurn =
       retryText?: string;
       retryAttachments?: TurnAttachment[];
     }
-  | { kind: 'hitl'; id: string; pendingId: string; summary: string; detail?: string };
+  | {
+      kind: 'hitl';
+      id: string;
+      pendingId: string;
+      summary: string;
+      detail?: string;
+      actionType?: 'question' | 'approval';
+      questions?: HitlCardQuestion[];
+      allowedDecisions?: HitlDecisionType[];
+    };
 
 export interface HitlPending {
   pendingId: string;
   summary: string;
   detail?: string;
+  actionType?: 'question' | 'approval';
+  questions?: HitlCardQuestion[];
+  allowedDecisions?: HitlDecisionType[];
 }
 
 export interface ChatTurnState {
@@ -76,9 +101,9 @@ export type ChatTurnAction =
   | {
       type: 'frame';
       frame: ServerFrame;
-      defaults: { hitlTitle: string; sendFailed: string };
+      defaults: { hitlTitle: string; sendFailed: string; hitlQuestionTitle?: string };
     }
-  | { type: 'hitlDecide' }
+  | { type: 'hitlDecide'; userMessage?: string }
   | { type: 'hitlFailed'; message: string };
 
 export function initialChatTurnState(): ChatTurnState {
@@ -163,11 +188,103 @@ function clearBusy(state: ChatTurnState): ChatTurnState {
   };
 }
 
-function hitlSummary(
-  request: { pending_id: string; [key: string]: unknown },
-  fallback: string,
-): { summary: string; detail?: string } {
-  let summary = fallback;
+export function parseHitlRequest(
+  request: HitlRequest,
+  fallbackTitle: string,
+  questionFallbackTitle: string = fallbackTitle,
+): {
+  summary: string;
+  detail?: string;
+  actionType: 'question' | 'approval';
+  questions?: HitlCardQuestion[];
+  allowedDecisions: HitlDecisionType[];
+} {
+  const actionRequests = Array.isArray(request.action_requests) ? request.action_requests : [];
+  const reviewConfigs = Array.isArray(request.review_configs) ? request.review_configs : [];
+
+  const findAllowed = (actionName?: string): HitlDecisionType[] => {
+    const config = reviewConfigs.find(c => !actionName || c.action_name === actionName);
+    if (config?.allowed_decisions && Array.isArray(config.allowed_decisions)) {
+      const filtered = config.allowed_decisions.filter(
+        (d): d is HitlDecisionType => d === 'approve' || d === 'reject' || d === 'respond',
+      );
+      if (filtered.length > 0) {
+        return filtered;
+      }
+    }
+    return [];
+  };
+
+  const askUserReq = actionRequests.find(a => a.name === 'ask_user_question');
+  if (askUserReq) {
+    const args = askUserReq.args as { questions?: unknown } | null | undefined;
+    const rawQuestions = Array.isArray(args?.questions) ? args.questions : [];
+    const questions: HitlCardQuestion[] = rawQuestions.map(q => {
+      const qObj = typeof q === 'object' && q !== null ? (q as Record<string, unknown>) : {};
+      const questionText = typeof qObj.question === 'string' ? qObj.question : '';
+      const rawOptions = Array.isArray(qObj.options) ? qObj.options : [];
+      const options: HitlCardOption[] = rawOptions.map(opt => {
+        if (typeof opt === 'string') {
+          return { label: opt };
+        }
+        if (typeof opt === 'object' && opt !== null) {
+          const optObj = opt as Record<string, unknown>;
+          return {
+            label: typeof optObj.label === 'string' ? optObj.label : String(optObj.text ?? ''),
+            description: typeof optObj.description === 'string' ? optObj.description : undefined,
+            value: typeof optObj.value === 'string' ? optObj.value : undefined,
+          };
+        }
+        return { label: String(opt) };
+      });
+      return { question: questionText, options: options.length > 0 ? options : undefined };
+    });
+
+    const summary = questions[0]?.question || questionFallbackTitle;
+    const allowed = findAllowed('ask_user_question');
+    const allowedDecisions = allowed.length > 0 ? allowed : (['respond'] as HitlDecisionType[]);
+
+    return {
+      summary,
+      actionType: 'question',
+      questions: questions.length > 0 ? questions : undefined,
+      allowedDecisions,
+    };
+  }
+
+  if (actionRequests.length > 0) {
+    const firstReq = actionRequests[0];
+    const allowed = findAllowed(firstReq.name);
+    const allowedDecisions =
+      allowed.length > 0 ? allowed : (['approve', 'reject'] as HitlDecisionType[]);
+    const summary =
+      typeof request.message === 'string' && request.message.trim()
+        ? request.message
+        : `${fallbackTitle}: ${firstReq.name}`;
+    const detailParts: string[] = [];
+    if (firstReq.args !== undefined) {
+      try {
+        const rendered =
+          typeof firstReq.args === 'string'
+            ? firstReq.args
+            : JSON.stringify(firstReq.args, null, 2);
+        if (rendered && rendered !== '{}' && rendered !== 'null') {
+          detailParts.push(rendered);
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return {
+      summary,
+      detail: detailParts.length > 0 ? detailParts.join('\n') : undefined,
+      actionType: 'approval',
+      allowedDecisions,
+    };
+  }
+
+  // Fallback for flat legacy request frames
+  let summary = fallbackTitle;
   if (typeof request.message === 'string' && request.message.trim()) {
     summary = request.message;
   } else if (typeof request.description === 'string' && request.description.trim()) {
@@ -193,8 +310,19 @@ function hitlSummary(
       // ignore non-serializable payloads
     }
   }
+  const allowed = findAllowed();
+  const allowedDecisions =
+    allowed.length > 0 ? allowed : (['approve', 'reject'] as HitlDecisionType[]);
   const detail = detailParts.length > 0 ? detailParts.join('\n') : undefined;
-  return { summary, detail };
+  return { summary, detail, actionType: 'approval', allowedDecisions };
+}
+
+export function hitlSummary(
+  request: HitlRequest,
+  fallback: string,
+): { summary: string; detail?: string } {
+  const parsed = parseHitlRequest(request, fallback);
+  return { summary: parsed.summary, detail: parsed.detail };
 }
 
 function turnDedupeKey(turn: ChatTurn): string {
@@ -336,14 +464,24 @@ export function reduceChatTurn(state: ChatTurnState, action: ChatTurnAction): Ch
       };
     }
 
-    case 'hitlDecide':
+    case 'hitlDecide': {
+      const turnsWithoutHitl = state.turns.filter(t => t.kind !== 'hitl');
+      let turns = turnsWithoutHitl;
+      let idSeq = state.idSeq;
+      if (action.userMessage) {
+        const next = nextId({ idSeq } as ChatTurnState, 'u');
+        turns = [...turnsWithoutHitl, { kind: 'user', id: next.id, text: action.userMessage }];
+        idSeq = next.idSeq;
+      }
       return {
         ...state,
+        idSeq,
         hitl: null,
-        turns: state.turns.filter(t => t.kind !== 'hitl'),
+        turns,
         streaming: true,
         busy: true,
       };
+    }
 
     case 'hitlFailed': {
       const { id, idSeq } = nextId(state, 'e');
@@ -442,21 +580,27 @@ export function reduceChatTurn(state: ChatTurnState, action: ChatTurnAction): Ch
           });
         }
         case 'hitl_required': {
-          const request = (
-            action.frame as { request?: { pending_id?: unknown; [key: string]: unknown } }
-          ).request;
+          const request = (action.frame as { request?: HitlRequest }).request;
           const pendingId =
             request && typeof request.pending_id === 'string' ? request.pending_id : null;
           if (!pendingId || !request) {
             // Fail closed — no actionable pending id.
             return clearBusy(next);
           }
-          const { summary, detail } = hitlSummary(
-            request as { pending_id: string; [key: string]: unknown },
+          const parsed = parseHitlRequest(
+            request,
             action.defaults.hitlTitle,
+            action.defaults.hitlQuestionTitle ?? action.defaults.hitlTitle,
           );
           const { id, idSeq } = nextId(next, 'h');
-          const hitl: HitlPending = { pendingId, summary, detail };
+          const hitl: HitlPending = {
+            pendingId,
+            summary: parsed.summary,
+            detail: parsed.detail,
+            actionType: parsed.actionType,
+            questions: parsed.questions,
+            allowedDecisions: parsed.allowedDecisions,
+          };
           return {
             ...next,
             idSeq,
@@ -466,7 +610,16 @@ export function reduceChatTurn(state: ChatTurnState, action: ChatTurnAction): Ch
             hitl,
             turns: [
               ...next.turns.filter(t => t.kind !== 'hitl'),
-              { kind: 'hitl', id, pendingId, summary, detail },
+              {
+                kind: 'hitl',
+                id,
+                pendingId,
+                summary: parsed.summary,
+                detail: parsed.detail,
+                actionType: parsed.actionType,
+                questions: parsed.questions,
+                allowedDecisions: parsed.allowedDecisions,
+              },
             ],
           };
         }

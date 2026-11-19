@@ -140,6 +140,51 @@ export interface HistoryPage {
 // Chat WebSocket frames (docs/api-contract.md → Chat WebSocket)
 // ---------------------------------------------------------------------------
 
+export interface HitlOption {
+  label: string;
+  description?: string;
+  value?: string;
+}
+
+export interface HitlQuestion {
+  question: string;
+  header?: string;
+  options?: HitlOption[];
+  is_multi_select?: boolean;
+}
+
+export interface HitlActionRequest {
+  name: string;
+  args?:
+    | {
+        questions?: HitlQuestion[];
+        [key: string]: unknown;
+      }
+    | Record<string, unknown>
+    | null;
+  [key: string]: unknown;
+}
+
+export interface HitlReviewConfig {
+  action_name?: string;
+  allowed_decisions?: ('approve' | 'reject' | 'respond' | 'edit' | string)[];
+  [key: string]: unknown;
+}
+
+export interface HitlRequest {
+  pending_id: string;
+  action_requests?: HitlActionRequest[];
+  review_configs?: HitlReviewConfig[];
+  message?: string;
+  description?: string;
+  tool?: string;
+  name?: string;
+  action?: string;
+  arguments?: unknown;
+  args?: unknown;
+  [key: string]: unknown;
+}
+
 export interface TurnAttachment {
   type: 'image' | 'file';
   workspace_path: string;
@@ -226,7 +271,7 @@ export type ServerFrame =
   | { type: 'state_update'; node: string; thread_id?: string }
   | {
       type: 'hitl_required';
-      request: { pending_id: string; [key: string]: unknown };
+      request: HitlRequest;
       thread_id?: string;
     }
   | {
