@@ -14,8 +14,8 @@ const WORDMARK = {
 const WORDMARK_RATIO = 659 / 1890;
 
 /** Shares of the viewport. */
-const MASCOT_WIDTH = 0.52;
-const WORDMARK_WIDTH = 0.45;
+const MASCOT_WIDTH = 0.42;
+const WORDMARK_WIDTH = 0.36;
 /** The lockup sits just above the middle, leaving the lower half open. */
 const CENTRE = 0.425;
 const SPINNER_GAP = 26;
