@@ -48,6 +48,10 @@ export interface ThemeTokens {
   dangerSoft: string;
   /** The product mark's red (launch screen); independent of the accent palette. */
   brand: string;
+  /** Warm light spilling over the launch screen's top edge. */
+  splashGlow: string;
+  /** The hot centre of that light, where it meets the edge. */
+  splashGlowCore: string;
   /** Positive status (an expert that is running). */
   success: string;
   /** Ambient shadow under the composer (design: black 5%, radius 32). */
@@ -183,6 +187,8 @@ export const lightTokens: ThemeTokens = {
   danger: '#E5484D',
   dangerSoft: 'rgba(229,72,77,0.12)',
   brand: '#E5383B',
+  splashGlow: '#FF701E',
+  splashGlowCore: '#FFD3B4',
   success: '#2B9A66',
   shadow: 'rgba(0,0,0,0.05)',
   shadowSoft: 'rgba(0,0,0,0.03)',
@@ -210,6 +216,8 @@ export const darkTokens: ThemeTokens = {
   danger: '#F06A6E',
   dangerSoft: 'rgba(240,106,110,0.16)',
   brand: '#FF5C57',
+  splashGlow: '#FF701E',
+  splashGlowCore: '#FFE2C7',
   success: '#4CC38A',
   shadow: 'rgba(0,0,0,0.40)',
   shadowSoft: 'rgba(0,0,0,0.30)',
