@@ -7,7 +7,7 @@ import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
 
 import { AgentAvatar } from '@/components/AgentAvatar';
 import { AnimatedCount } from '@/components/AnimatedCount';
-import { AppHeader } from '@/components/AppHeader';
+import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
 import { BarChart } from '@/components/BarChart';
 import { EmptyState, SkeletonList } from '@/components/ListStates';
 import { SegmentedControl } from '@/components/SegmentedControl';
@@ -161,8 +161,8 @@ export function UsageScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <SafeAreaView edges={['top']} style={styles.safe}>
-        <AppHeader title={strings.usage.title} onBack={goBack} />
+      <SafeAreaView edges={TOP_EDGES} style={styles.safe}>
+        <ScreenHeader title={strings.usage.title} onBack={goBack} />
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
           showsVerticalScrollIndicator={false}

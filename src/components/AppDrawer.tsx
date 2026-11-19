@@ -24,6 +24,7 @@ import { AgentAvatar } from '@/components/AgentAvatar';
 import { Collapsible } from '@/components/Collapsible';
 import { DrawerThreadRow } from '@/components/DrawerThreadRow';
 import { useI18n } from '@/i18n/I18nProvider';
+import { haptics } from '@/platform/haptics';
 import { continuousCorners, layout, motion, radius, typeScale, useTokens } from '@/theme';
 
 /** iOS sheet curve — the drawer is a sheet that enters from the leading edge. */
@@ -114,6 +115,13 @@ interface AppDrawerProps {
 
 const PANEL_WIDTH = 313;
 
+/**
+ * Threads shown per expert before the rest are folded away. The task tree is
+ * a switcher, not an archive: three rows cover what a person is likely to
+ * reopen, and a whole roster of expanded groups would bury the nav rows.
+ */
+const THREAD_PREVIEW = 3;
+
 // Reanimated CSS transition; not in StyleSheet.create (core style types do
 // not know Reanimated's easing objects).
 const chevronTransition = {
@@ -145,6 +153,8 @@ export function AppDrawer({
   const insets = useSafeAreaInsets();
   const progress = useSharedValue(0);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // Groups whose full thread list the reader asked for.
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (visible) {
@@ -240,29 +250,36 @@ export function AppDrawer({
         {groups.length > 0 ? (
           <View style={styles.tasksSection} testID="drawer-tasks">
             <View style={styles.tasksHeader}>
-              <View style={styles.tasksHeaderLeft}>
-                <Text
-                  accessibilityRole="header"
-                  style={[styles.tasksTitle, { color: t.textTertiary }]}
-                >
-                  {strings.drawer.tasks}
-                </Text>
-                <IconChevronDown width={16} height={16} color={t.textTertiary} />
-              </View>
+              <Text
+                accessibilityRole="header"
+                style={[styles.tasksTitle, { color: t.textTertiary }]}
+              >
+                {strings.drawer.tasks}
+              </Text>
+              <IconChevronDown width={16} height={16} color={t.textTertiary} />
             </View>
 
             <ScrollView
               style={styles.tasksScroll}
               // Content width follows the scroll view — a fixed 313pt pin
               // was a hairline wider than the bordered viewport and let
-              // iOS rubber-band the whole panel sideways.
+              // iOS rubber-band the whole panel sideways. The list locks to
+              // the vertical axis so a sideways drag cannot move it either.
               alwaysBounceHorizontal={false}
+              directionalLockEnabled
+              overScrollMode="never"
               contentContainerStyle={styles.tasksScrollContent}
               showsVerticalScrollIndicator={false}
               showsHorizontalScrollIndicator={false}
             >
               {groups.map(group => {
                 const expanded = collapsed[group.name] ?? group.expanded;
+                const showAll = revealed[group.agentId] ?? false;
+                const visible = showAll ? group.items : group.items.slice(0, THREAD_PREVIEW);
+                const hidden = group.items.length - visible.length;
+                const moreLabel = showAll
+                  ? strings.drawer.showFewer
+                  : strings.drawer.moreThreads(hidden);
                 return (
                   <View key={group.agentId}>
                     <GroupRow
@@ -276,7 +293,7 @@ export function AppDrawer({
                       }}
                     />
                     <Collapsible expanded={expanded}>
-                      {group.items.map(item => {
+                      {visible.map(item => {
                         const title = item.title || strings.chat.newThread;
                         return (
                           <DrawerThreadRow
@@ -289,6 +306,16 @@ export function AppDrawer({
                           />
                         );
                       })}
+                      {group.items.length > THREAD_PREVIEW ? (
+                        <MoreThreadsRow
+                          label={moreLabel}
+                          testID={`drawer-more-${group.agentId}`}
+                          onPress={() => {
+                            haptics.selection();
+                            setRevealed(prev => ({ ...prev, [group.agentId]: !showAll }));
+                          }}
+                        />
+                      ) : null}
                       {group.threadsLoaded && group.items.length === 0 ? (
                         <Text style={[styles.childEmpty, { color: t.textTertiary }]}>—</Text>
                       ) : null}
@@ -301,6 +328,34 @@ export function AppDrawer({
         ) : null}
       </Animated.View>
     </View>
+  );
+}
+
+/** Muted row that reveals or folds the threads past the preview. */
+function MoreThreadsRow({
+  label,
+  testID,
+  onPress,
+}: {
+  label: string;
+  testID: string;
+  onPress: () => void;
+}) {
+  const t = useTokens();
+  const tap = useTap(onPress);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      testID={testID}
+      style={({ pressed }) => [
+        styles.moreRow,
+        pressed ? { backgroundColor: t.overlayPressed } : null,
+      ]}
+      {...tap}
+    >
+      <Text style={[styles.moreLabel, { color: t.textSecondary }]}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -324,7 +379,6 @@ function GroupRow({
       testID={`drawer-group-${group.agentId}`}
       style={({ pressed }) => [
         styles.groupRow,
-        expanded ? { backgroundColor: t.overlaySubtle } : null,
         pressed ? { backgroundColor: t.overlayPressed } : null,
       ]}
       {...tap}
@@ -392,6 +446,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: PANEL_WIDTH,
     borderRightWidth: StyleSheet.hairlineWidth,
+    // iOS does not clip children by default; a row wider than the sheet would
+    // otherwise draw over the scrim.
     overflow: 'hidden',
   },
   logoRow: {
@@ -427,15 +483,10 @@ const styles = StyleSheet.create({
   tasksHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 4,
     paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: 6,
-  },
-  tasksHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
   },
   tasksTitle: {
     ...typeScale.footnote,
@@ -461,6 +512,18 @@ const styles = StyleSheet.create({
   groupName: {
     flex: 1,
     ...typeScale.body,
+  },
+  moreRow: {
+    minHeight: layout.rowMinHeight,
+    justifyContent: 'center',
+    paddingLeft: 40,
+    paddingRight: 12,
+    borderRadius: radius.pill,
+    ...continuousCorners,
+    paddingVertical: 6,
+  },
+  moreLabel: {
+    ...typeScale.subheadline,
   },
   childEmpty: {
     paddingLeft: 40,

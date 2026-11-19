@@ -4,7 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronRight, CloudOff, FileText, Folder } from 'lucide-react-native';
 
-import { AppHeader } from '@/components/AppHeader';
+import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
 import { EmptyState, SkeletonList } from '@/components/ListStates';
 import type { KnowledgeDocument } from '@/core/api/types';
 import { KnowledgeApi } from '@/core/api/knowledge';
@@ -175,7 +175,7 @@ export function KnowledgeDocsScreen() {
                 index < current.docs.length - 1
                   ? {
                       borderBottomWidth: StyleSheet.hairlineWidth,
-                      borderBottomColor: tokens.borderSubtle,
+                      borderBottomColor: tokens.separator,
                     }
                   : null,
                 pressed ? { backgroundColor: tokens.overlayPressed } : null,
@@ -200,8 +200,8 @@ export function KnowledgeDocsScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]} testID="knowledge-docs">
-      <SafeAreaView edges={['top']} style={styles.safe}>
-        <AppHeader title={title} onBack={goBack} />
+      <SafeAreaView edges={TOP_EDGES} style={styles.safe}>
+        <ScreenHeader title={title} onBack={goBack} />
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
           showsVerticalScrollIndicator={false}

@@ -38,10 +38,17 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   const [groups, setGroups] = useState<DrawerTaskGroup[]>([]);
   const activeUserIdRef = useRef<string | null>(user?.id ?? null);
   const openChatRef = useRef<{ agentId: string; threadId: string } | null>(null);
+  // Mirror of `groups` for callbacks that must know whether an agent already
+  // has a row without reading stale state.
+  const groupsRef = useRef<DrawerTaskGroup[]>([]);
 
   useEffect(() => {
     activeUserIdRef.current = user?.id ?? null;
   }, [user?.id]);
+
+  useEffect(() => {
+    groupsRef.current = groups;
+  }, [groups]);
 
   // Live agent tree for the drawer: experts with at least one thread,
   // fetched in parallel — experts without conversations stay out of the
@@ -74,7 +81,9 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
                 name: agent.name,
                 agentId: agent.agent_id,
                 items: sortThreads(threads.map(mapThread)),
-                expanded: existing?.expanded ?? false,
+                // Groups start open: the drawer is a task switcher, and a
+                // collapsed row only hides the conversation being looked for.
+                expanded: existing?.expanded ?? true,
                 threadsLoaded: true,
                 iconName: agent.icon_name,
                 color: agent.color,
@@ -109,6 +118,69 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, [user, reload]);
+
+  /**
+   * Refresh one agent's thread list. Called when a conversation is created or
+   * opened and when the drawer is opened, so a thread started a second ago is
+   * in the list without waiting for an app restart.
+   */
+  const refreshAgentThreads = useCallback(
+    (agentId: string) => {
+      if (!ready || !user) {
+        return;
+      }
+      const forUserId = user.id;
+      void (async () => {
+        try {
+          const threads = await new ThreadsApi(httpClient).list(agentId).catch(() => null);
+          if (!threads || activeUserIdRef.current !== forUserId) {
+            return;
+          }
+          const known = groupsRef.current.some(g => g.agentId === agentId);
+          let meta: { name: string; iconName?: string | null; color?: string | null } | null = null;
+          if (!known) {
+            const agents = await fetchAgents(httpClient).catch(() => []);
+            const agent = agents.find(a => a.agent_id === agentId);
+            if (!agent) {
+              return;
+            }
+            meta = { name: agent.name, iconName: agent.icon_name, color: agent.color };
+          }
+          setGroups(prev => {
+            if (activeUserIdRef.current !== forUserId) {
+              return prev;
+            }
+            const existing = prev.find(g => g.agentId === agentId);
+            if (existing) {
+              return prev.map(g =>
+                g.agentId === agentId
+                  ? { ...g, threadsLoaded: true, items: sortThreads(threads.map(mapThread)) }
+                  : g,
+              );
+            }
+            if (!meta || threads.length === 0) {
+              return prev;
+            }
+            return [
+              ...prev,
+              {
+                name: meta.name,
+                agentId,
+                items: sortThreads(threads.map(mapThread)),
+                expanded: true,
+                threadsLoaded: true,
+                iconName: meta.iconName,
+                color: meta.color,
+              },
+            ];
+          });
+        } catch {
+          // A failed refresh leaves the current tree alone.
+        }
+      })();
+    },
+    [ready, user, httpClient],
+  );
 
   const loadGroupThreads = useCallback(
     (group: DrawerTaskGroup) => {
@@ -155,9 +227,22 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
     [router],
   );
 
-  const setActiveChat = useCallback((chat: { agentId: string; threadId: string } | null) => {
-    openChatRef.current = chat;
-  }, []);
+  const setActiveChat = useCallback(
+    (chat: { agentId: string; threadId: string } | null) => {
+      const previous = openChatRef.current;
+      openChatRef.current = chat;
+      const changed =
+        chat !== null &&
+        (previous === null ||
+          previous.agentId !== chat.agentId ||
+          previous.threadId !== chat.threadId);
+      if (changed) {
+        // A new (or newly opened) conversation must show up in the drawer.
+        refreshAgentThreads(chat.agentId);
+      }
+    },
+    [refreshAgentThreads],
+  );
 
   const clearActiveChatIf = useCallback((chat: { agentId: string; threadId: string }) => {
     const open = openChatRef.current;
@@ -255,7 +340,11 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   const openDrawer = useCallback(() => {
     setDrawerPresented(true);
     setDrawerOpen(true);
-  }, []);
+    const active = openChatRef.current;
+    if (active) {
+      refreshAgentThreads(active.agentId);
+    }
+  }, [refreshAgentThreads]);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const finishDrawerClose = useCallback(() => setDrawerPresented(false), []);
 

@@ -17,6 +17,7 @@ import { normalizeBaseUrl } from '@/core/api/urls';
 import type { AgentSummary, OctopUser } from '@/core/api/types';
 import { AgentsApi } from '@/core/api/agents';
 import { Linking } from 'react-native';
+import { classifyFetchFailure } from '@/platform/network-failure';
 import { StorageKeys, type SecureStorage } from '@/platform/secure-storage';
 
 interface AuthContextValue {
@@ -48,7 +49,14 @@ const TOKEN_KEY = StorageKeys.accessToken;
 export class LoginFlowError extends Error {
   constructor(
     readonly code:
-      'invalid_url' | 'unreachable' | 'bad_credentials' | 'mfa_required' | 'setup' | 'unknown',
+      | 'invalid_url'
+      | 'unreachable'
+      | 'cors'
+      | 'offline'
+      | 'bad_credentials'
+      | 'mfa_required'
+      | 'setup'
+      | 'unknown',
     message: string,
   ) {
     super(message);
@@ -237,7 +245,8 @@ export function AuthProvider({
         await api.health();
       } catch (error) {
         if (error instanceof OctopApiError && error.code === 'NETWORK_ERROR') {
-          throw new LoginFlowError('unreachable', 'cannot reach server');
+          const failure = await classifyFetchFailure(`${base}/api/health`);
+          throw new LoginFlowError(failure, `cannot reach server (${failure})`);
         }
         if (error instanceof OctopApiError && error.isSetupRequired) {
           throw new LoginFlowError('setup', 'server needs first-run setup');

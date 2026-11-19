@@ -37,4 +37,4 @@ appId: dev.octop.octopbot
       id: 'composer-input'
     timeout: 30000
 - assertVisible:
-    id: 'tab-me'
+    text: '我的|Me'

@@ -103,7 +103,7 @@ export function OverflowMenu({ visible, items, onClose, dismissLabel }: Overflow
                   !last
                     ? {
                         borderBottomWidth: StyleSheet.hairlineWidth,
-                        borderBottomColor: t.borderSubtle,
+                        borderBottomColor: t.separator,
                       }
                     : null,
                   pressed ? { backgroundColor: t.overlayPressed } : null,

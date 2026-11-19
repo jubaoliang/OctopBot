@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, MessageSquarePlus } from 'lucide-react-native';
+import type { ReactNode } from 'react';
 
 import { IconButton } from '@/components/IconButton';
 import { IconHamburger, IconKebab, LogoHeader } from '@/components/icons';
@@ -23,6 +24,8 @@ interface AppHeaderProps {
   onMore?: () => void;
   /** Overflow actions. The kebab is shown only when this list is non-empty. */
   moreItems?: OverflowMenuItem[];
+  /** Trailing primary action, e.g. a new conversation in this expert. */
+  onCompose?: () => void;
 }
 
 /**
@@ -32,7 +35,15 @@ interface AppHeaderProps {
  *
  * The trailing kebab is omitted until a screen has real overflow actions.
  */
-export function AppHeader({ title, subtitle, onMenu, onBack, onMore, moreItems }: AppHeaderProps) {
+export function AppHeader({
+  title,
+  subtitle,
+  onMenu,
+  onBack,
+  onMore,
+  moreItems,
+  onCompose,
+}: AppHeaderProps) {
   const t = useTokens();
   const { t: strings } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -87,7 +98,11 @@ export function AppHeader({ title, subtitle, onMenu, onBack, onMore, moreItems }
         </View>
       )}
 
-      {showMore ? (
+      {onCompose ? (
+        <IconButton label={strings.a11y.compose} testID="header-compose" onPress={onCompose}>
+          <MessageSquarePlus size={21} color={t.textBody} />
+        </IconButton>
+      ) : showMore ? (
         <IconButton label={strings.a11y.more} testID="header-more" onPress={openMore}>
           <IconKebab width={20} height={20} color={t.textBody} />
         </IconButton>
@@ -114,6 +129,43 @@ export function AppHeader({ title, subtitle, onMenu, onBack, onMore, moreItems }
 // 4pt bar inset lands the glyph edge on the 16pt screen margin.
 const BAR_INSET = layout.screenMargin - (layout.hitTarget - 20) / 2;
 
+/**
+ * Large title for a top-level screen (toolbars.md › "Use a large title to
+ * help people stay oriented"). It sits below the compact bar, left aligned
+ * on the screen margin, and names the section the tab already points at —
+ * the same pairing iOS uses between a tab item and its screen title.
+ */
+export function LargeTitle({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+}) {
+  const t = useTokens();
+  return (
+    <View style={styles.largeTitleRow}>
+      <View style={styles.largeTitleText}>
+        <Text
+          accessibilityRole="header"
+          style={[styles.largeTitle, { color: t.textPrimary }]}
+          numberOfLines={1}
+        >
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text style={[styles.largeTitleSubtitle, { color: t.textSecondary }]} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+      {action}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   header: {
     minHeight: 52,
@@ -136,6 +188,24 @@ const styles = StyleSheet.create({
     ...typeScale.headline,
   },
   subtitle: {
+    ...typeScale.footnote,
+  },
+  largeTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+    paddingHorizontal: layout.screenMargin,
+    paddingTop: 4,
+    paddingBottom: 10,
+  },
+  largeTitleText: {
+    flex: 1,
+    gap: 2,
+  },
+  largeTitle: {
+    ...typeScale.largeTitle,
+  },
+  largeTitleSubtitle: {
     ...typeScale.footnote,
   },
 });

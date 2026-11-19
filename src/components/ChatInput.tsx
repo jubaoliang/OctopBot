@@ -1,12 +1,21 @@
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type TextInputProps,
+} from 'react-native';
 import { useRef, useState } from 'react';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Svg, Path, Rect } from 'react-native-svg';
 import { File, X } from 'lucide-react-native';
 
-import { AttachTray } from '@/components/AttachTray';
 import { IconButton } from '@/components/IconButton';
-import { IconMic, IconPlus } from '@/components/icons';
+import { IconMic } from '@/components/icons';
+import { AttachButton } from '@/platform/attach-button';
 import type { AttachSource, PendingAttachment } from '@/core/api/attachments';
 import type { TurnAttachment } from '@/core/api/types';
 import { useVoiceInput } from '@/features/useVoiceInput';
@@ -14,6 +23,7 @@ import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
 import { RemoteImage } from '@/platform/remote-image';
 import { continuousCorners, radius, typeScale, useTokens } from '@/theme';
+import { SYSTEM_CHROME } from '@/platform/system-chrome';
 
 interface ChatInputProps {
   /**
@@ -40,10 +50,23 @@ const SWAP_IN = FadeIn.duration(150);
 /** Visual frame of the trailing glyph button; hitSlop makes it 44pt. */
 const GLYPH_FRAME = 28;
 
+/** Body line height from the type scale — the field's only growth unit. */
+const LINE_HEIGHT = typeScale.body.lineHeight ?? 22;
+/** Vertical breathing room inside the text box, above and below the line. */
+const INPUT_PAD_V = 3;
+
+/**
+ * Android's EditText pads every line with font ascent/descent headroom. Once
+ * the field hugs its text that padding is what clips the placeholder, so the
+ * field opts out of it. Not in RN's TextInput types — it is a native prop.
+ */
+const ANDROID_FONT_PADDING: TextInputProps & { includeFontPadding?: boolean } =
+  Platform.OS === 'android' ? { includeFontPadding: false } : {};
+
 /**
  * Chat composer: field + mic / send / stop. Voice uses hybrid STT
  * (system dictation by default; cloud upload when `active.stt` is set).
- * Attach toggles an inline tray; each tile opens a system picker.
+ * Attach opens the platform chooser (system menu on iOS, action sheet elsewhere).
  */
 export function ChatInput({
   onSend,
@@ -57,7 +80,6 @@ export function ChatInput({
   const t = useTokens();
   const { t: strings } = useI18n();
   const [text, setText] = useState('');
-  const [attachTrayOpen, setAttachTrayOpen] = useState(false);
   const baseBeforeVoice = useRef('');
   const pending = pendingAttachments ?? [];
   const hasPending = pending.length > 0;
@@ -94,7 +116,6 @@ export function ChatInput({
       return;
     }
     haptics.impact('light');
-    setAttachTrayOpen(false);
     const ready = pending.flatMap(item => (item.attachment ? [item.attachment] : []));
     onSend?.(text.trim(), ready.length > 0 ? ready : undefined);
     setText('');
@@ -104,16 +125,6 @@ export function ChatInput({
   const stop = () => {
     haptics.impact('medium');
     onStop?.();
-  };
-
-  const onAttach = () => {
-    haptics.impact('light');
-    setAttachTrayOpen(open => !open);
-  };
-
-  const pickSource = (source: AttachSource) => {
-    setAttachTrayOpen(false);
-    onPickImages?.(source);
   };
 
   const onMic = () => {
@@ -191,7 +202,15 @@ export function ChatInput({
   })();
 
   return (
-    <View style={[styles.card, { backgroundColor: t.surface, shadowColor: t.shadow }]}>
+    <View
+      style={[
+        styles.card,
+        SYSTEM_CHROME
+          ? null
+          : { backgroundColor: t.surface, shadowColor: t.shadow, shadowOpacity: 1 },
+        SYSTEM_CHROME ? styles.cardSystem : null,
+      ]}
+    >
       {hasPending ? (
         <ScrollView
           horizontal
@@ -220,59 +239,44 @@ export function ChatInput({
       ) : null}
       <View style={styles.bar}>
         {onPickImages ? (
-          <IconButton
-            label={attachTrayOpen ? strings.common.cancel : strings.a11y.attach}
-            testID="composer-attach"
-            size={GLYPH_FRAME}
-            disabled={streaming || voice.busy}
-            onPress={onAttach}
-          >
-            {attachTrayOpen ? (
-              <X size={22} color={t.textSecondary} />
-            ) : (
-              <IconPlus width={22} height={22} color={t.textSecondary} />
-            )}
-          </IconButton>
+          <AttachButton onPick={onPickImages} disabled={streaming || voice.busy} />
         ) : null}
-        <TextInput
-          style={[styles.input, { color: t.textBody }]}
-          placeholder={
-            voice.recording
-              ? strings.voice.listening
-              : voice.transcribing
-                ? strings.voice.transcribing
-                : strings.chatHome.inputPlaceholder
-          }
-          placeholderTextColor={t.textPlaceholder}
-          selectionColor={t.accent}
-          value={text}
-          onChangeText={next => {
-            if (attachTrayOpen) {
-              setAttachTrayOpen(false);
+        <View
+          style={[
+            styles.inputWrap,
+            SYSTEM_CHROME ? styles.inputWrapSystem : null,
+            SYSTEM_CHROME ? { backgroundColor: t.fill } : null,
+          ]}
+        >
+          <TextInput
+            style={[styles.input, { color: t.textBody }]}
+            // Android reserves extra font padding above and below the line, so
+            // the box measured for one line is taller than the line itself and
+            // the placeholder gets clipped. The prop is native-only and missing
+            // from RN's TS types.
+            {...ANDROID_FONT_PADDING}
+            placeholder={
+              voice.recording
+                ? strings.voice.listening
+                : voice.transcribing
+                  ? strings.voice.transcribing
+                  : strings.chatHome.inputPlaceholder
             }
-            setText(next);
-          }}
-          multiline
-          editable={!streaming && !voice.busy}
-          onSubmitEditing={submit}
-          testID="composer-input"
-        />
-        {trailing}
+            placeholderTextColor={t.textPlaceholder}
+            selectionColor={t.accent}
+            value={text}
+            onChangeText={setText}
+            multiline
+            editable={!streaming && !voice.busy}
+            onSubmitEditing={submit}
+            testID="composer-input"
+          />
+        </View>
+        <View style={styles.trailingSlot}>{trailing}</View>
       </View>
-      {onPickImages && attachTrayOpen ? (
-        <AttachTray
-          onPick={pickSource}
-          labels={{
-            library: strings.attachments.library,
-            camera: strings.attachments.camera,
-            files: strings.attachments.files,
-          }}
-        />
-      ) : null}
     </View>
   );
 }
-
 /** Thumbnail chip with upload state overlay and a remove control. */
 function PendingChip({
   item,
@@ -376,6 +380,27 @@ const styles = StyleSheet.create({
     shadowRadius: 32,
     elevation: 2,
   },
+  cardSystem: {
+    // No card: the composer is a strip on the system background, and the
+    // field itself carries the fill, the way a native message composer does.
+    backgroundColor: 'transparent',
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
+  inputWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    borderRadius: 18,
+    ...continuousCorners,
+    paddingHorizontal: SYSTEM_CHROME ? 12 : 0,
+  },
+  inputWrapSystem: {
+    // The pill keeps its 44pt frame whatever the field's line count; the text
+    // box inside stays exactly as tall as its content and is centred in it.
+    alignSelf: 'stretch',
+    minHeight: 44,
+  },
   bar: {
     flexDirection: 'row',
     // Buttons stay on the last line while the field grows upward.
@@ -384,6 +409,15 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: 10,
     paddingVertical: 10,
+  },
+  trailingSlot: {
+    // On the system composer the field is a filled 44pt pill with a 28pt glyph
+    // in front of it; aligned to the row's bottom edge the glyph sits 8pt below
+    // the pill's centre. The inset is half that difference, and it keeps the
+    // glyph on the last line as the field grows.
+    alignSelf: 'stretch',
+    justifyContent: 'flex-end',
+    paddingBottom: SYSTEM_CHROME ? 8 : 0,
   },
   chips: {
     flexGrow: 0,
@@ -443,13 +477,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   input: {
-    flex: 1,
+    // Height follows the text exactly: a field taller than its lines leaves
+    // the platform a scroll range, and dragging the placeholder moves it.
+    flexGrow: 0,
+    flexShrink: 0,
     ...typeScale.body,
     // Five lines of body text, then the field scrolls.
-    maxHeight: 22 * 5,
+    maxHeight: LINE_HEIGHT * 5 + 2 * INPUT_PAD_V,
     minHeight: GLYPH_FRAME,
-    paddingTop: 3,
-    paddingBottom: 3,
+    paddingTop: INPUT_PAD_V,
+    paddingBottom: INPUT_PAD_V,
     paddingHorizontal: 0,
     textAlignVertical: 'center',
   },

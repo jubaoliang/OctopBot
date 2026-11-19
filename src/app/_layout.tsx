@@ -8,20 +8,24 @@ import {
 } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useMemo } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AppDrawer, type DrawerRoute } from '@/components/AppDrawer';
+import { LaunchSplash } from '@/components/LaunchSplash';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AuthProvider, useAuth } from '@/features/auth';
 import { LoginScreen } from '@/features/LoginScreen';
 import { AppShellProvider, useAppShell } from '@/features/app-shell';
 import { registerLastAgentStore } from '@/features/last-agent-store';
 import { I18nProvider, useI18n } from '@/i18n/I18nProvider';
+import { NATIVE_HEADERS } from '@/platform/screen-header';
 import { expoSecureStorage } from '@/platform/secure-store';
 import { KeyboardProvider } from '@/platform/keyboard';
 import { darkTokens, lightTokens, ThemeProvider, useTheme } from '@/theme';
+
+/** How long the launch screen stays up at minimum. */
+const LAUNCH_HOLD_MS = 800;
 
 void SplashScreen.preventAutoHideAsync().catch(() => {
   // The splash screen may already be hidden during fast refresh or headless rendering.
@@ -80,6 +84,13 @@ function RootNavigator() {
   }, [effectiveDark]);
 
   const [fontsLoaded, fontError] = useFonts({ SpaceMono_400Regular });
+  // The launch screen is a brand beat, not just a spinner: hold it briefly so
+  // it reads as one instead of flashing between the native splash and the app.
+  const [launchSeen, setLaunchSeen] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setLaunchSeen(true), LAUNCH_HOLD_MS);
+    return () => clearTimeout(timer);
+  }, []);
   // A missing font asset must not trap the app behind the splash/gate —
   // fall through and let code fences use the platform monospace face.
   const fontsReady = fontsLoaded || fontError !== null;
@@ -94,27 +105,28 @@ function RootNavigator() {
   }, [fontsReady]);
 
   if (!fontsReady) {
-    return (
-      <View style={[styles.gate, { backgroundColor: tokens.bg }]}>
-        <ActivityIndicator color={tokens.accent} />
-      </View>
-    );
+    return <LaunchSplash />;
   }
 
   return (
     <NavThemeProvider value={navTheme}>
       <StatusBar style={effectiveDark ? 'light' : 'dark'} />
-      {!ready ? (
-        <View style={[styles.gate, { backgroundColor: tokens.bg }]}>
-          <ActivityIndicator color={tokens.accent} />
-        </View>
+      {!ready || !launchSeen ? (
+        <LaunchSplash />
       ) : !user ? (
         <LoginScreen storage={expoSecureStorage} />
       ) : (
         <>
           <Stack
-            screenOptions={{ headerShown: false, contentStyle: { backgroundColor: tokens.bg } }}
-          />
+            screenOptions={{
+              headerShown: NATIVE_HEADERS,
+              contentStyle: { backgroundColor: tokens.bg },
+            }}
+          >
+            {/* The tab group carries its own stacks; a header here would
+                stack a second bar above theirs. */}
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          </Stack>
           {drawerPresented ? (
             <AppDrawer
               visible={drawerOpen}
@@ -134,14 +146,6 @@ function RootNavigator() {
     </NavThemeProvider>
   );
 }
-
-const styles = {
-  gate: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-} as const;
 
 function RootWithBoundary() {
   const { t: strings } = useI18n();

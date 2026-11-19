@@ -5,7 +5,7 @@
     "version": "1.0.0-alpha.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "octopbot",
+    "scheme": ["octopbot", "octop"],
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
@@ -33,31 +33,8 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#FAFAFA",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 240,
-          "resizeMode": "contain",
-          "ios": {
-            "image": "./assets/images/splash-full.png",
-            "enableFullScreenImage_legacy": true,
-            "resizeMode": "cover",
-            "backgroundColor": "#FAFAFA",
-            "dark": {
-              "backgroundColor": "#111111",
-              "image": "./assets/images/splash-full-dark.png"
-            }
-          },
-          "android": {
-            "image": "./assets/images/splash-icon.png",
-            "imageWidth": 240,
-            "backgroundColor": "#FAFAFA",
-            "dark": {
-              "backgroundColor": "#111111",
-              "image": "./assets/images/splash-icon-dark.png"
-            }
-          },
           "dark": {
-            "backgroundColor": "#111111",
-            "image": "./assets/images/splash-icon-dark.png"
+            "backgroundColor": "#0E0F13"
           }
         }
       ],
@@ -79,10 +56,36 @@
         "expo-image-picker",
         {
           "photosPermission": "Allow Octop to access your photos so you can attach images to messages.",
-          "cameraPermission": "Allow Octop to use the camera so you can attach a photo to a message."
+          "cameraPermission": "Allow Octop to use the camera so you can attach a photo to a message.",
+          "microphonePermission": "Allow Octop to use the microphone for voice input."
         }
       ],
-      "expo-font",
+      [
+        "expo-font",
+        {
+          "ios": {
+            "fonts": [
+              "./assets/fonts/GoogleSans-Regular.ttf",
+              "./assets/fonts/GoogleSans-Medium.ttf",
+              "./assets/fonts/GoogleSans-SemiBold.ttf",
+              "./assets/fonts/GoogleSans-Bold.ttf"
+            ]
+          },
+          "android": {
+            "fonts": [
+              {
+                "fontFamily": "Google Sans",
+                "fontDefinitions": [
+                  { "path": "./assets/fonts/GoogleSans-Regular.ttf", "weight": 400 },
+                  { "path": "./assets/fonts/GoogleSans-Medium.ttf", "weight": 500 },
+                  { "path": "./assets/fonts/GoogleSans-SemiBold.ttf", "weight": 600 },
+                  { "path": "./assets/fonts/GoogleSans-Bold.ttf", "weight": 700 }
+                ]
+              }
+            ]
+          }
+        }
+      ],
       "expo-secure-store",
       "expo-status-bar",
       "expo-web-browser"

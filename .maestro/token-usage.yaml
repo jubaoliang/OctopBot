@@ -21,4 +21,4 @@ appId: dev.octop.octopbot
 - assertVisible:
     id: 'header-menu'
 - assertVisible:
-    id: 'tab-me'
+    text: '我的|Me'

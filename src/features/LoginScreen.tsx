@@ -1,21 +1,12 @@
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRef, useState, type ComponentRef } from 'react';
-import Animated, { Easing, SlideInDown } from 'react-native-reanimated';
+import { ActivityIndicator, Alert, Image, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
+import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
+import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
 
-import { Eye, EyeOff } from 'lucide-react-native';
 import { IconButton } from '@/components/IconButton';
 import { PressableScale } from '@/components/PressableScale';
+import { LogoHeader } from '@/components/icons';
 import { AuthApi } from '@/core/api/auth';
 import { OctopApiError } from '@/core/api/errors';
 import { HttpClient } from '@/core/api/http';
@@ -30,114 +21,90 @@ import { type SecureStorage } from '@/platform/secure-storage';
 import { LoginFlowError, useAuth } from '@/features/auth';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
-import { KeyboardAwareScrollView, KeyboardInsetView } from '@/platform/keyboard';
-import { continuousCorners, layout, motion, radius, typeScale, useTheme } from '@/theme';
+import { classifyFetchFailure } from '@/platform/network-failure';
+import { KeyboardAwareScrollView } from '@/platform/keyboard';
+import { continuousCorners, layout, radius, typeScale, useTheme } from '@/theme';
 
-type Field = 'url' | 'username' | 'password';
+type Step = 'server' | 'credentials';
 
-// The server sheet rises on the iOS sheet curve while the scrim fades.
-const SHEET_IN = SlideInDown.duration(motion.sheet).easing(Easing.bezier(0.32, 0.72, 0, 1));
+/** Health probe client: no session, no token, no renewal. */
+function probeClient(baseUrl: string): HttpClient {
+  return new HttpClient({
+    baseUrl,
+    getToken: () => Promise.resolve(null),
+    onTokenRenewed: () => Promise.resolve(),
+    onUnauthorized: () => undefined,
+  });
+}
 
 /**
- * Sign-in per the original login design: brand block, server URL +
- * username + password fields, accent sign-in button, cleartext note.
- * Colors come from the token system (accent palette + light/dark).
+ * Sign-in in two steps, matching how a self-hosted server is actually set up:
+ *
+ * 1. the server address — Next checks the connection before anything else is
+ *    asked for, so an unreachable host is diagnosed before a password is typed;
+ * 2. username and password — the address is already known and tested, shown
+ *    above the fields with a way back to step 1.
+ *
+ * No marketing copy on either step: the screen says what to enter, what is
+ * happening, and what went wrong.
  */
 export function LoginScreen({ storage }: { storage?: SecureStorage }) {
   const { tokens } = useTheme();
-  const { t: strings, locale } = useI18n();
+  const { t: strings } = useI18n();
   const { login, baseUrl, sessionExpired, clearSessionExpired } = useAuth();
-  const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
   const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
-  const [focused, setFocused] = useState<Field | 'modalUrl' | null>(null);
 
+  // A known server means the address step is already done.
+  const [step, setStep] = useState<Step>(baseUrl ? 'credentials' : 'server');
   const [url, setUrl] = useState(baseUrl ?? '');
+  const [history, setHistory] = useState<ServerEntry[]>([]);
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [serverModal, setServerModal] = useState(false);
-  const [modalUrl, setModalUrl] = useState(baseUrl ?? '');
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
-  const [history, setHistory] = useState<ServerEntry[]>([]);
-
-  const testServer = async (rawUrl: string) => {
-    setTesting(true);
-    setTestResult(null);
-    try {
-      const base = normalizeBaseUrl(rawUrl.trim());
-      const started = Date.now();
-      const client = new HttpClient({
-        baseUrl: base,
-        getToken: () => Promise.resolve(null),
-        onTokenRenewed: () => Promise.resolve(),
-        onUnauthorized: () => undefined,
-      });
-      await new AuthApi(client).health();
-      setTestResult({
-        ok: true,
-        message: `${strings.login.testOk} (${Date.now() - started}ms)`,
-      });
-    } catch (e) {
-      const code =
-        e instanceof OctopApiError && e.code === 'NETWORK_ERROR' ? 'unreachable' : 'invalid_url';
-      setTestResult({ ok: false, message: strings.login.errors[code] });
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  // Opening the sheet pre-fills the URL, loads the server history and
-  // tests straight away, so a reachable server shows its latency at once
-  // and an unreachable one is diagnosed up front.
-  const openServerSheet = () => {
-    setModalUrl(url);
-    setTestResult(null);
-    setServerModal(true);
-    void storage
-      ?.get('servers.history')
-      .then(raw => setHistory(parseServerList(raw)))
-      .catch(() => undefined);
-    if (url.trim()) {
-      void testServer(url);
-    }
-  };
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // Derive from auth flag — no setState-in-effect. Cleared on the next submit.
-  const displayError = error ?? (sessionExpired ? strings.login.errors.session_expired : null);
 
-  // The focused field trades its hairline for the accent, so the caret is
-  // never the only sign of where typing will land.
-  const fieldStyle = (field: Field | 'modalUrl') => ({
-    backgroundColor: tokens.overlaySubtle,
-    borderColor: focused === field ? tokens.accent : tokens.borderStrong,
-    color: tokens.textBody,
-  });
-
-  const runLogin = (rawUrl: string, user: string, pass: string) => {
-    setBusy(true);
-    void login(rawUrl, user, pass)
-      .then(() => haptics.notify('success'))
-      .catch((e: unknown) => {
-        haptics.notify('error');
-        if (e instanceof LoginFlowError) {
-          setError(strings.login.errors[e.code]);
-        } else {
-          setError(strings.login.errors.unknown);
+  useEffect(() => {
+    if (!storage) {
+      return;
+    }
+    let cancelled = false;
+    void storage
+      .get('servers.history')
+      .then(raw => {
+        if (!cancelled) {
+          setHistory(parseServerList(raw));
         }
       })
-      .finally(() => setBusy(false));
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [storage]);
+
+  const rememberServer = (base: string) => {
+    if (!storage) {
+      return;
+    }
+    void storage
+      .get('servers.history')
+      .then(raw => {
+        const list = upsertServer(parseServerList(raw), base);
+        setHistory(list);
+        return storage.set('servers.history', serializeServerList(list));
+      })
+      .catch(() => undefined);
   };
 
-  const submit = () => {
-    if (busy) {
+  /** Step 1: normalize, probe the server, then move on. */
+  const next = async () => {
+    if (checking) {
       return;
     }
     setError(null);
-    if (sessionExpired) {
-      clearSessionExpired();
-    }
     let base: string;
     try {
       base = normalizeBaseUrl(url.trim());
@@ -145,15 +112,58 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
       setError(strings.login.errors.invalid_url);
       return;
     }
-    const user = username.trim();
-    if (!isCleartext(base)) {
-      runLogin(base, user, password);
+    setChecking(true);
+    try {
+      await new AuthApi(probeClient(base)).health();
+      haptics.notify('success');
+      setUrl(base);
+      rememberServer(base);
+      if (sessionExpired) {
+        clearSessionExpired();
+      }
+      setStep('credentials');
+    } catch (e) {
+      haptics.notify('error');
+      // A browser reports CORS and a dead host the same way; ask the platform
+      // which one it is so the copy can name the actual problem.
+      const failure =
+        e instanceof OctopApiError && e.code === 'NETWORK_ERROR'
+          ? await classifyFetchFailure(`${base}/api/health`)
+          : null;
+      setError(failure ? strings.login.errors[failure] : strings.login.errors.invalid_url);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const submit = () => {
+    if (busy) {
       return;
     }
-    // Block double-taps while we look up / prompt for the cleartext ack.
+    setError(null);
+    const user = username.trim();
+    const run = () => {
+      setBusy(true);
+      void login(url, user, password)
+        .then(() => haptics.notify('success'))
+        .catch((e: unknown) => {
+          haptics.notify('error');
+          setError(
+            e instanceof LoginFlowError
+              ? strings.login.errors[e.code]
+              : strings.login.errors.unknown,
+          );
+        })
+        .finally(() => setBusy(false));
+    };
+    if (!isCleartext(url)) {
+      run();
+      return;
+    }
+    // Cleartext sends credentials unencrypted — a warning, so an alert is right.
     setBusy(true);
     void (async () => {
-      const key = cleartextAckStorageKey(base);
+      const key = cleartextAckStorageKey(url);
       let acknowledged = false;
       if (storage) {
         try {
@@ -163,7 +173,7 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
         }
       }
       if (acknowledged) {
-        runLogin(base, user, password);
+        run();
         return;
       }
       setBusy(false);
@@ -180,7 +190,7 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
                   // Persistence failure must not block the explicit continue.
                 }
               }
-              runLogin(base, user, password);
+              run();
             })();
           },
         },
@@ -188,10 +198,20 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
     })();
   };
 
+  const backToServer = () => {
+    if (busy) {
+      return;
+    }
+    setError(null);
+    setPassword('');
+    setStep('server');
+  };
+
+  const displayError = error ?? (sessionExpired ? strings.login.errors.session_expired : null);
+  const stepEntering = reduceMotion ? undefined : FadeIn.duration(160);
+
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: tokens.bg }}>
-      {/* The scroll view makes its own room for the keyboard and scrolls the
-          focused field above it; wrapping it in a second avoider doubles up. */}
       <KeyboardAwareScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.content}
@@ -206,280 +226,271 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
             style={styles.logo}
             resizeMode="contain"
           />
-          <Text style={[styles.brandName, { color: tokens.textPrimary }]}>Octop</Text>
-          <Text style={[styles.tagline, { color: tokens.textSecondary }]}>
-            {strings.login.tagline}
-          </Text>
+          {/* The wordmark is the brand asset, not styled text: it keeps the
+              custom letterforms and the red dot over the "t". */}
+          <View accessible accessibilityRole="header" accessibilityLabel={strings.appName}>
+            <LogoHeader width={72} height={24} color={tokens.textPrimary} />
+          </View>
         </View>
 
-        <View style={styles.form}>
-          <Text style={[styles.label, { color: tokens.textSecondary }]}>
-            {strings.login.username}
-          </Text>
-          <TextInput
-            value={username}
-            onChangeText={setUsername}
-            testID="login-username"
-            accessibilityLabel={strings.login.username}
-            autoCapitalize="none"
-            autoCorrect={false}
-            // Lets the system offer saved credentials (Password AutoFill).
-            autoComplete="username"
-            textContentType="username"
-            returnKeyType="next"
-            submitBehavior="submit"
-            onSubmitEditing={() => passwordRef.current?.focus()}
-            onFocus={() => setFocused('username')}
-            onBlur={() => setFocused(null)}
-            selectionColor={tokens.accent}
-            style={[styles.field, fieldStyle('username')]}
-          />
+        {step === 'server' ? (
+          <Animated.View key="server" entering={stepEntering} style={styles.form}>
+            <Text accessibilityRole="header" style={[styles.title, { color: tokens.textPrimary }]}>
+              {strings.login.serverTitle}
+            </Text>
 
-          <Text style={[styles.label, { color: tokens.textSecondary }]}>
-            {strings.login.password}
-          </Text>
-          <View style={styles.fieldWrap}>
             <TextInput
-              ref={passwordRef}
-              value={password}
-              onChangeText={setPassword}
-              testID="login-password"
-              accessibilityLabel={strings.login.password}
-              secureTextEntry={!showPassword}
+              value={url}
+              onChangeText={text => {
+                setUrl(text);
+                setError(null);
+              }}
+              testID="login-url"
+              accessibilityLabel={strings.login.serverUrl}
+              placeholder={strings.login.serverPlaceholder}
+              placeholderTextColor={tokens.textPlaceholder}
               autoCapitalize="none"
               autoCorrect={false}
-              autoComplete="current-password"
-              textContentType="password"
-              returnKeyType="go"
-              onSubmitEditing={submit}
-              onFocus={() => setFocused('password')}
-              onBlur={() => setFocused(null)}
+              keyboardType="url"
+              autoComplete="url"
+              textContentType="URL"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => void next()}
+              autoFocus
               selectionColor={tokens.accent}
-              style={[styles.field, styles.fieldWithIcon, fieldStyle('password')]}
+              style={[
+                styles.field,
+                {
+                  backgroundColor: tokens.overlaySubtle,
+                  borderColor: url.trim() ? tokens.borderStrong : tokens.borderSubtle,
+                  color: tokens.textBody,
+                },
+              ]}
             />
-            <View style={styles.fieldIcon}>
-              <IconButton
-                label={showPassword ? strings.a11y.hidePassword : strings.a11y.showPassword}
-                testID="login-toggle-password"
-                onPress={() => setShowPassword(v => !v)}
-              >
-                {showPassword ? (
-                  <EyeOff width={20} height={20} color={tokens.textTertiary} />
-                ) : (
-                  <Eye width={20} height={20} color={tokens.textTertiary} />
-                )}
-              </IconButton>
-            </View>
-          </View>
 
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={busy ? strings.login.signingIn : strings.login.signIn}
-            accessibilityState={{ busy, disabled: busy }}
-            testID="login-submit"
-            disabled={busy}
-            onPress={submit}
-            style={[styles.signIn, { backgroundColor: tokens.accent, opacity: busy ? 0.6 : 1 }]}
-          >
-            {busy ? <ActivityIndicator size="small" color={tokens.textInverse} /> : null}
-            <Text style={[styles.signInText, { color: tokens.textInverse }]}>
-              {busy ? strings.login.signingIn : strings.login.signIn}
-            </Text>
-          </PressableScale>
-
-          {displayError ? (
-            <Text
-              accessibilityRole="alert"
-              accessibilityLiveRegion="polite"
-              style={[styles.error, { color: tokens.danger }]}
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel={checking ? strings.login.checking : strings.login.next}
+              accessibilityState={{ busy: checking, disabled: !url.trim() || checking }}
+              testID="login-next"
+              disabled={!url.trim() || checking}
+              onPress={() => void next()}
+              style={[
+                styles.primary,
+                {
+                  // An inactive control reads as inactive by fill, not by
+                  // fading the accent into an unreadable gray.
+                  backgroundColor: !url.trim() || checking ? tokens.fill : tokens.accent,
+                },
+              ]}
             >
-              {displayError}
-            </Text>
-          ) : null}
-
-          <Text style={[styles.note, { color: tokens.textTertiary }]}>{strings.login.note}</Text>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${strings.login.serverUrl}, ${url || strings.login.serverPlaceholder}`}
-          testID="login-server"
-          onPress={openServerSheet}
-          style={({ pressed }) => [styles.serverButton, pressed ? styles.dimmed : null]}
-        >
-          <Text style={[styles.serverLink, { color: tokens.textTertiary }]} numberOfLines={1}>
-            {url || strings.login.serverPlaceholder}
-          </Text>
-        </Pressable>
-        <Text style={[styles.footer, { color: tokens.textTertiary }]}>
-          {locale === 'zh' ? 'Octop 移动客户端' : 'Octop mobile client'}
-        </Text>
-      </KeyboardAwareScrollView>
-      <Modal
-        visible={serverModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setServerModal(false)}
-      >
-        {/* The sheet has its own keyboard avoidance: a Modal is a separate
-            window, so nothing on the screen behind it reaches it. */}
-        <KeyboardInsetView style={{ flex: 1 }}>
-          <Pressable
-            accessibilityLabel={strings.login.cancel}
-            style={[styles.modalScrim, { backgroundColor: tokens.scrim }]}
-            onPress={() => setServerModal(false)}
-          >
-            <Animated.View entering={SHEET_IN}>
-              <Pressable
-                accessible={false}
+              {checking ? <ActivityIndicator size="small" color={tokens.textSecondary} /> : null}
+              <Text
                 style={[
-                  styles.modalCard,
-                  {
-                    backgroundColor: tokens.surface,
-                    paddingBottom: Math.max(insets.bottom + 12, 24),
-                  },
+                  styles.primaryText,
+                  { color: !url.trim() || checking ? tokens.textTertiary : tokens.textInverse },
                 ]}
-                onPress={e => e.stopPropagation()}
               >
-                <View style={[styles.modalHandle, { backgroundColor: tokens.borderStrong }]} />
-                <Text
-                  accessibilityRole="header"
-                  style={[styles.modalTitle, { color: tokens.textPrimary }]}
-                >
-                  {strings.login.serverUrl}
+                {checking ? strings.login.checking : strings.login.next}
+              </Text>
+            </PressableScale>
+
+            {displayError ? (
+              <Text
+                accessibilityRole="alert"
+                accessibilityLiveRegion="polite"
+                style={[styles.error, { color: tokens.danger }]}
+              >
+                {displayError}
+              </Text>
+            ) : null}
+
+            {history.length > 0 ? (
+              <View style={styles.recent}>
+                <Text style={[styles.sectionLabel, { color: tokens.textTertiary }]}>
+                  {strings.login.recent}
                 </Text>
-                {history.length > 0 ? (
-                  <View style={[styles.historyCard, { backgroundColor: tokens.overlaySubtle }]}>
-                    {history.map(entry => (
-                      <Pressable
-                        key={entry.url}
-                        accessibilityRole="button"
-                        style={({ pressed }) => [
-                          styles.historyRow,
-                          pressed ? { backgroundColor: tokens.overlayPressed } : null,
-                        ]}
-                        onPress={() => {
-                          setModalUrl(entry.url);
-                          setTestResult(null);
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.historyLabel,
-                            { color: entry.label ? tokens.textBody : tokens.textSecondary },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {entry.label ?? entry.url}
-                        </Text>
-                        {entry.label ? (
-                          <Text
-                            style={[styles.historyUrl, { color: tokens.textTertiary }]}
-                            numberOfLines={1}
-                            ellipsizeMode="middle"
-                          >
-                            {entry.url}
-                          </Text>
-                        ) : null}
-                      </Pressable>
-                    ))}
-                  </View>
-                ) : null}
-                <TextInput
-                  value={modalUrl}
-                  onChangeText={setModalUrl}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
-                  accessibilityLabel={strings.login.serverUrl}
-                  autoComplete="url"
-                  textContentType="URL"
-                  returnKeyType="done"
-                  placeholder="https://octop.example.com"
-                  placeholderTextColor={tokens.textPlaceholder}
-                  onFocus={() => setFocused('modalUrl')}
-                  onBlur={() => setFocused(null)}
-                  selectionColor={tokens.accent}
-                  style={[styles.field, fieldStyle('modalUrl')]}
-                />
-                <PressableScale
-                  accessibilityRole="button"
-                  accessibilityState={{ busy: testing, disabled: testing || !modalUrl.trim() }}
-                  disabled={testing || !modalUrl.trim()}
-                  onPress={() => void testServer(modalUrl)}
+                <View
                   style={[
-                    styles.testButton,
-                    { borderColor: tokens.borderStrong },
-                    testing || !modalUrl.trim() ? styles.dimmed : null,
+                    styles.recentCard,
+                    continuousCorners,
+                    { backgroundColor: tokens.surface },
                   ]}
                 >
-                  {testing ? <ActivityIndicator size="small" color={tokens.textSecondary} /> : null}
-                  <Text style={[styles.testButtonText, { color: tokens.textBody }]}>
-                    {testing ? strings.login.testing : strings.login.testConnection}
-                  </Text>
-                </PressableScale>
-                {testResult ? (
-                  <Text
-                    accessibilityLiveRegion="polite"
-                    style={[
-                      styles.testResult,
-                      { color: testResult.ok ? tokens.success : tokens.danger },
-                    ]}
-                  >
-                    {testResult.message}
-                  </Text>
-                ) : null}
-                <View style={styles.modalActions}>
-                  <PressableScale
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: !modalUrl.trim() }}
-                    style={[
-                      styles.sheetButton,
-                      { backgroundColor: tokens.accent },
-                      modalUrl.trim() ? null : styles.dimmed,
-                    ]}
-                    disabled={!modalUrl.trim()}
-                    onPress={() => {
-                      const trimmed = normalizeBaseUrl(modalUrl.trim());
-                      setUrl(trimmed);
-                      void storage
-                        ?.get('servers.history')
-                        .then(raw => {
-                          const list = upsertServer(parseServerList(raw), trimmed);
-                          return storage
-                            ?.set('servers.history', serializeServerList(list))
-                            .then(() => setHistory(list));
-                        })
-                        .catch(() => undefined);
-                      setServerModal(false);
-                    }}
-                  >
-                    <Text style={[styles.sheetButtonText, { color: tokens.textInverse }]}>
-                      {strings.login.save}
-                    </Text>
-                  </PressableScale>
-                  <PressableScale
-                    accessibilityRole="button"
-                    onPress={() => setServerModal(false)}
-                    scaleTo={1}
-                    dimTo={0.6}
-                    style={styles.sheetButton}
-                  >
-                    <Text style={[styles.sheetButtonText, { color: tokens.textSecondary }]}>
-                      {strings.login.cancel}
-                    </Text>
-                  </PressableScale>
+                  {history.slice(0, 3).map((entry, index, list) => (
+                    <PressableScale
+                      key={entry.url}
+                      accessibilityRole="button"
+                      accessibilityLabel={entry.label ?? entry.url}
+                      testID={`login-recent-${index}`}
+                      scaleTo={0.99}
+                      dimTo={0.6}
+                      onPress={() => {
+                        setUrl(entry.url);
+                        setError(null);
+                      }}
+                      style={[
+                        styles.recentRow,
+                        index < list.length - 1
+                          ? { borderBottomWidth: StyleSheet.hairlineWidth }
+                          : null,
+                        index < list.length - 1 ? { borderBottomColor: tokens.separator } : null,
+                      ]}
+                    >
+                      <Text
+                        style={[styles.recentLabel, { color: tokens.textBody }]}
+                        numberOfLines={1}
+                      >
+                        {entry.label ?? entry.url}
+                      </Text>
+                      {entry.label ? (
+                        <Text
+                          style={[styles.recentUrl, { color: tokens.textTertiary }]}
+                          numberOfLines={1}
+                          ellipsizeMode="middle"
+                        >
+                          {entry.url}
+                        </Text>
+                      ) : null}
+                    </PressableScale>
+                  ))}
                 </View>
-              </Pressable>
-            </Animated.View>
-          </Pressable>
-        </KeyboardInsetView>
-      </Modal>
+              </View>
+            ) : null}
+          </Animated.View>
+        ) : (
+          <Animated.View key="credentials" entering={stepEntering} style={styles.form}>
+            <View style={styles.stepHead}>
+              <IconButton label={strings.login.back} testID="login-back" onPress={backToServer}>
+                <ChevronLeft size={26} color={tokens.textBody} />
+              </IconButton>
+              <Text style={[styles.serverValue, { color: tokens.textSecondary }]} numberOfLines={1}>
+                {url}
+              </Text>
+            </View>
+
+            <Text
+              accessibilityRole="header"
+              style={[styles.title, styles.titleInset, { color: tokens.textPrimary }]}
+            >
+              {strings.login.credentialsTitle}
+            </Text>
+
+            <Text style={[styles.label, { color: tokens.textSecondary }]}>
+              {strings.login.username}
+            </Text>
+            <TextInput
+              value={username}
+              onChangeText={setUsername}
+              testID="login-username"
+              accessibilityLabel={strings.login.username}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="username"
+              textContentType="username"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+              autoFocus
+              selectionColor={tokens.accent}
+              style={[
+                styles.field,
+                {
+                  backgroundColor: tokens.overlaySubtle,
+                  borderColor: tokens.borderStrong,
+                  color: tokens.textBody,
+                },
+              ]}
+            />
+
+            <Text style={[styles.label, { color: tokens.textSecondary }]}>
+              {strings.login.password}
+            </Text>
+            <View style={styles.fieldWrap}>
+              <TextInput
+                ref={passwordRef}
+                value={password}
+                onChangeText={setPassword}
+                testID="login-password"
+                accessibilityLabel={strings.login.password}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="current-password"
+                textContentType="password"
+                returnKeyType="go"
+                onSubmitEditing={submit}
+                selectionColor={tokens.accent}
+                style={[
+                  styles.field,
+                  styles.fieldWithIcon,
+                  {
+                    backgroundColor: tokens.overlaySubtle,
+                    borderColor: tokens.borderStrong,
+                    color: tokens.textBody,
+                  },
+                ]}
+              />
+              <View style={styles.fieldIcon}>
+                <IconButton
+                  label={showPassword ? strings.a11y.hidePassword : strings.a11y.showPassword}
+                  testID="login-toggle-password"
+                  onPress={() => setShowPassword(v => !v)}
+                >
+                  {showPassword ? (
+                    <EyeOff width={20} height={20} color={tokens.textTertiary} />
+                  ) : (
+                    <Eye width={20} height={20} color={tokens.textTertiary} />
+                  )}
+                </IconButton>
+              </View>
+            </View>
+
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel={busy ? strings.login.signingIn : strings.login.signIn}
+              accessibilityState={{ busy, disabled: busy }}
+              testID="login-submit"
+              disabled={busy}
+              onPress={submit}
+              style={[styles.primary, { backgroundColor: tokens.accent, opacity: busy ? 0.6 : 1 }]}
+            >
+              {busy ? <ActivityIndicator size="small" color={tokens.textInverse} /> : null}
+              <Text style={[styles.primaryText, { color: tokens.textInverse }]}>
+                {busy ? strings.login.signingIn : strings.login.signIn}
+              </Text>
+            </PressableScale>
+
+            {displayError ? (
+              <Text
+                accessibilityRole="alert"
+                accessibilityLiveRegion="polite"
+                style={[styles.error, { color: tokens.danger }]}
+              >
+                {displayError}
+              </Text>
+            ) : null}
+
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel={strings.login.changeServer}
+              testID="login-change-server"
+              scaleTo={1}
+              dimTo={0.6}
+              onPress={backToServer}
+              style={styles.secondary}
+            >
+              <Text style={[styles.secondaryText, { color: tokens.accent }]}>
+                {strings.login.changeServer}
+              </Text>
+            </PressableScale>
+          </Animated.View>
+        )}
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
-
-/** Exposed for tests: field keys in visual order. */
-export const LOGIN_FIELD_ORDER: Field[] = ['url', 'username', 'password'];
 
 const FIELD_HEIGHT = 52;
 
@@ -487,26 +498,39 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 41,
+    paddingTop: 64,
     paddingBottom: 24,
   },
   brand: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   logo: {
-    width: 72,
-    height: 68,
-  },
-  brandName: {
-    ...typeScale.largeTitle,
-  },
-  tagline: {
-    ...typeScale.subheadline,
+    width: 40,
+    height: 38,
   },
   form: {
+    marginTop: 36,
     gap: 12,
-    marginTop: 40,
+  },
+  title: {
+    ...typeScale.title2,
+    marginBottom: 8,
+  },
+  titleInset: {
+    marginLeft: 0,
+    marginTop: 8,
+  },
+  stepHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginLeft: -10,
+  },
+  serverValue: {
+    ...typeScale.footnote,
+    flexShrink: 1,
   },
   label: {
     ...typeScale.footnote,
@@ -537,95 +561,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
   },
-  serverButton: {
-    alignSelf: 'center',
-    minHeight: layout.hitTarget,
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-    marginTop: 4,
-  },
-  serverLink: {
-    ...typeScale.footnote,
-    textAlign: 'center',
-    textDecorationLine: 'underline',
-    maxWidth: 280,
-  },
-  dimmed: {
-    opacity: 0.5,
-  },
-  modalScrim: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    borderTopLeftRadius: radius.sheet,
-    borderTopRightRadius: radius.sheet,
-    ...continuousCorners,
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    gap: 12,
-  },
-  modalHandle: {
-    alignSelf: 'center',
-    width: 36,
-    height: 5,
-    borderRadius: 2.5,
-    marginBottom: 8,
-  },
-  historyCard: {
-    borderRadius: radius.card,
-    ...continuousCorners,
-    overflow: 'hidden',
-  },
-  historyRow: {
-    minHeight: layout.rowMinHeight,
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 2,
-  },
-  historyLabel: {
-    ...typeScale.subheadline,
-  },
-  historyUrl: {
-    ...typeScale.caption1,
-  },
-  modalTitle: {
-    ...typeScale.headline,
-  },
-  testButton: {
-    flexDirection: 'row',
-    gap: 8,
-    borderWidth: 1,
-    borderRadius: radius.input,
-    ...continuousCorners,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: layout.hitTarget,
-    paddingVertical: 11,
-  },
-  testButtonText: {
-    ...typeScale.subheadline,
-    fontWeight: '500',
-  },
-  testResult: {
-    ...typeScale.footnote,
-  },
-  modalActions: {
-    gap: 6,
-  },
-  sheetButton: {
-    borderRadius: radius.input,
-    ...continuousCorners,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 50,
-    paddingVertical: 12,
-  },
-  sheetButtonText: {
-    ...typeScale.headline,
-  },
-  signIn: {
+  primary: {
     flexDirection: 'row',
     gap: 8,
     minHeight: FIELD_HEIGHT,
@@ -633,22 +569,46 @@ const styles = StyleSheet.create({
     ...continuousCorners,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
+    marginTop: 8,
   },
-  signInText: {
+  primaryText: {
     ...typeScale.headline,
+  },
+  secondary: {
+    alignSelf: 'center',
+    minHeight: layout.hitTarget,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  secondaryText: {
+    ...typeScale.subheadline,
+    fontWeight: '500',
   },
   error: {
     ...typeScale.footnote,
   },
-  note: {
-    ...typeScale.caption1,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  footer: {
-    ...typeScale.caption2,
-    textAlign: 'center',
+  recent: {
     marginTop: 16,
+    gap: 6,
+  },
+  sectionLabel: {
+    ...typeScale.footnote,
+  },
+  recentCard: {
+    borderRadius: radius.card,
+    overflow: 'hidden',
+  },
+  recentRow: {
+    minHeight: layout.rowMinHeight,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 2,
+  },
+  recentLabel: {
+    ...typeScale.body,
+  },
+  recentUrl: {
+    ...typeScale.caption1,
   },
 });

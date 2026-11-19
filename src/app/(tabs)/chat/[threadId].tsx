@@ -18,15 +18,18 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import { Check, ChevronDown, Copy, RefreshCw } from 'lucide-react-native';
 import Markdown from 'react-native-markdown-display';
 
-import { AppHeader } from '@/components/AppHeader';
-import { useTabBarFootprint } from '@/components/DesignTabBar';
+import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
+import { useTabBarFootprint } from '@/platform/tab-bar';
 import { ChatInput } from '@/components/ChatInput';
 import { ProcessCard, UserBubble, type BubbleImage } from '@/components/ChatPieces';
 import { CodeFence, InlineCode } from '@/components/MarkdownCode';
 import { MarkdownTable } from '@/components/MarkdownTable';
+import { IconButton } from '@/components/IconButton';
 import { PressableScale } from '@/components/PressableScale';
 import { TypingDots } from '@/components/TypingDots';
 import { mediaPreviewPath } from '@/core/api/attachments';
@@ -40,12 +43,15 @@ import {
 import type { ServerFrame, TurnAttachment } from '@/core/api/types';
 import { ChatSocket, type ChatConnectionStatus } from '@/core/chat/chat-socket';
 import { emptyProcessCounts } from '@/core/chat/process-counts';
+import { stepsFromHistory, type ProcessStep } from '@/core/chat/process-steps';
 import { initialChatTurnState, reduceChatTurn, type ChatTurn } from '@/core/chat/turn-reducer';
 import { useAppShell } from '@/features/app-shell';
 import { useAuth } from '@/features/auth';
 import { takeChatHandoff } from '@/features/chat-handoff';
 import { useImageAttachments } from '@/features/useImageAttachments';
 import { useI18n } from '@/i18n/I18nProvider';
+import { copyText } from '@/platform/clipboard';
+import { haptics } from '@/platform/haptics';
 import { KeyboardInsetView } from '@/platform/keyboard';
 import { confirmOpenHttpUrl } from '@/platform/linking';
 import { CODE_FONT } from '@/theme/code-font';
@@ -83,7 +89,8 @@ const TOKEN_FLUSH_MS = 120;
 export default function ThreadScreen() {
   const { tokens } = useTheme();
   const { t: strings } = useI18n();
-  const { openDrawer, setActiveChat, clearActiveChatIf } = useAppShell();
+  const { setActiveChat, clearActiveChatIf } = useAppShell();
+  const router = useRouter();
   const { baseUrl, token, httpClient, user, dropSession, sessionGeneration } = useAuth();
   // Route params: `threadId` is a path segment (`new` / `open` / forged deep
   // link). Internal suggestion pills pass `prompt` — never put user text in
@@ -113,6 +120,9 @@ export default function ThreadScreen() {
 
   const [chat, dispatch] = useReducer(reduceChatTurn, undefined, initialChatTurnState);
   const [connection, setConnection] = useState<ChatConnectionStatus>('idle');
+  // Drives the jump-to-latest control; `nearBottomRef` carries the same
+  // fact to autoscroll, which must not read state from a stale render.
+  const [atBottom, setAtBottom] = useState(true);
   const socketRef = useRef<ChatSocket | null>(null);
   const threadRef = useRef<string | null>(null);
   const scrollRef = useRef<FlatList<ChatTurn>>(null);
@@ -253,6 +263,13 @@ export default function ThreadScreen() {
         />
       ),
       code_block: (node: MdNode) => <CodeFence key={node.key} code={String(node.content ?? '')} />,
+      // Prose is selectable so a finished answer can be quoted piecemeal; the
+      // default rule renders a plain Text, which swallows long presses.
+      text: (node: MdNode, _children, _parent, styles, inheritedStyles = {}) => (
+        <Text key={node.key} selectable style={[inheritedStyles, styles.text]}>
+          {node.content}
+        </Text>
+      ),
       table: (node, children, _parent, styles) => (
         <MarkdownTable key={node.key} style={styles._VIEW_SAFE_table}>
           {children}
@@ -464,6 +481,7 @@ export default function ThreadScreen() {
           // actionable to show, so fail closed (no card).
           hitl: null,
           process: { ...emptyProcessCounts(), tools: counts.tools, thinking: counts.thinking },
+          trace: stepsFromHistory(page.messages),
         });
         socket.subscribe(threadId);
         threadRef.current = threadId;
@@ -697,24 +715,68 @@ export default function ThreadScreen() {
 
   const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    nearBottomRef.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - 96;
+    const near = contentOffset.y + layoutMeasurement.height >= contentSize.height - 96;
+    nearBottomRef.current = near;
+    // Only crossing the threshold re-renders; scrolling itself does not.
+    if (near !== atBottom) {
+      setAtBottom(near);
+    }
+  };
+
+  // Expanding grows the transcript below the fold; treat it as "read to the
+  // end" so the existing autoscroll brings the details into view.
+  const onProcessToggle = useCallback((expanded: boolean) => {
+    if (expanded) {
+      nearBottomRef.current = true;
+      setAtBottom(true);
+    }
+  }, []);
+
+  const jumpToLatest = () => {
+    haptics.impact('light');
+    nearBottomRef.current = true;
+    setAtBottom(true);
+    scrollRef.current?.scrollToEnd({ animated: true });
   };
 
   const lastTurn = chat.turns.length > 0 ? chat.turns[chat.turns.length - 1] : null;
-  const processVisible = chat.process.tools + chat.process.thinking > 0;
-  const showHint = chat.turns.length === 0;
+  // The row sits above the latest answer, so its numbers must describe that
+  // answer. The trace is per turn; the counters are cumulative for the thread,
+  // and are the fallback when a turn left no trace.
+  const traceTools = chat.trace.reduce((total, step) => total + (step.kind === 'tool' ? 1 : 0), 0);
+  const traceThinking = chat.trace.reduce(
+    (total, step) => total + (step.kind === 'thinking' ? 1 : 0),
+    0,
+  );
+  const processCounts =
+    chat.trace.length > 0
+      ? { tools: traceTools, thinking: traceThinking }
+      : { tools: chat.process.tools, thinking: chat.process.thinking };
+  const processVisible = processCounts.tools + processCounts.thinking > 0;
+  // Stable identity so a memoized answer does not re-parse its markdown on
+  // every scroll tick.
+  const lastProcess = useMemo(
+    () =>
+      processVisible
+        ? { tools: processCounts.tools, thinking: processCounts.thinking, steps: chat.trace }
+        : undefined,
+    [processVisible, processCounts.tools, processCounts.thinking, chat.trace],
+  );
   const showTyping =
     chat.streaming && (lastTurn === null || lastTurn.kind === 'user' || lastTurn.kind === 'hitl');
+  // Once an answer exists the process row belongs above it; until then the
+  // footer is the only place to show that the turn is thinking.
+  const processInFooter = processVisible && lastTurn?.kind !== 'assistant';
   const footer =
-    processVisible || showHint || showTyping ? (
+    processInFooter || showTyping ? (
       <View style={styles.footer}>
-        {processVisible ? (
-          <ProcessCard tools={chat.process.tools} thinking={chat.process.thinking} />
-        ) : null}
-        {showHint ? (
-          <Text style={[styles.hintText, { color: tokens.textTertiary }]}>
-            {connection === 'open' ? strings.chat.waiting : strings.chat.connecting}
-          </Text>
+        {processInFooter ? (
+          <ProcessCard
+            tools={processCounts.tools}
+            thinking={processCounts.thinking}
+            steps={chat.trace}
+            onToggle={onProcessToggle}
+          />
         ) : null}
         {showTyping ? <TypingDots label={strings.chat.replying} /> : null}
       </View>
@@ -757,19 +819,29 @@ export default function ThreadScreen() {
             onReject={() => decideHitl('reject')}
           />
         );
-      case 'assistant':
+      case 'assistant': {
+        const isLast = index === chat.turns.length - 1;
+        // Only the newest answer can be re-asked: the server appends a turn
+        // rather than replacing one, so an older swap would read as a fork.
+        const prompt = isLast ? promptBefore(chat.turns, index) : null;
         return (
           <AssistantTurnItem
             text={item.text}
-            streaming={chat.streaming && index === chat.turns.length - 1}
+            streaming={chat.streaming && isLast}
             mdStyles={mdStyles}
             mdRules={mdRules}
             onLinkPress={onMarkdownLink}
+            process={isLast ? lastProcess : undefined}
+            onProcessToggle={onProcessToggle}
+            onRegenerate={prompt ? () => retrySend(prompt.text, prompt.attachments) : undefined}
           />
         );
+      }
     }
   };
 
+  // Only an abnormal connection earns a subtitle: the signed-in account is
+  // not conversation context, and a healthy link needs no announcement.
   const headerSubtitle = useMemo(() => {
     if (connection === 'reconnecting') {
       return strings.chat.reconnecting;
@@ -777,46 +849,85 @@ export default function ThreadScreen() {
     if (connection === 'unauthorized' || connection === 'closed') {
       return strings.chat.disconnected;
     }
-    return user?.username ?? strings.chat.agentName;
+    return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connection, user?.username]);
+  }, [connection]);
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <SafeAreaView edges={['top']} style={styles.safe}>
+      <SafeAreaView edges={TOP_EDGES} style={styles.safe}>
         {/* The composer rests above the tab bar and rides the keyboard. */}
         <KeyboardInsetView
           restingInset={tabBarFootprint}
           gap={layout.keyboardGap}
           style={styles.fill}
         >
-          <AppHeader
+          <ScreenHeader
             title={params.title ?? internalPrompt ?? strings.chat.agentName}
             subtitle={headerSubtitle}
-            onMenu={openDrawer}
-          />
-          <FlatList
-            ref={scrollRef}
-            data={chat.turns}
-            keyExtractor={turnKey}
-            renderItem={renderTurn}
-            ItemSeparatorComponent={TurnSeparator}
-            ListFooterComponent={footer ?? undefined}
-            onScroll={onScroll}
-            scrollEventThrottle={16}
-            onContentSizeChange={() => {
-              if (nearBottomRef.current) {
-                scrollRef.current?.scrollToEnd({ animated: true });
+            // A pushed screen leads with Back, not the drawer (toolbars.md:
+            // "Use the standard Back and Close buttons"). A deep link with
+            // no history behind it falls back to the chat list.
+            onBack={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/chat');
               }
             }}
-            style={styles.scroll}
-            contentContainerStyle={styles.content}
-            // Drag the transcript to put the keyboard away, as in Messages.
-            keyboardDismissMode="interactive"
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            showsHorizontalScrollIndicator={false}
           />
+          <View style={styles.listWrap}>
+            <FlatList
+              contentInsetAdjustmentBehavior="automatic"
+              ref={scrollRef}
+              data={chat.turns}
+              keyExtractor={turnKey}
+              renderItem={renderTurn}
+              ItemSeparatorComponent={TurnSeparator}
+              ListFooterComponent={footer ?? undefined}
+              onScroll={onScroll}
+              scrollEventThrottle={16}
+              onContentSizeChange={() => {
+                if (nearBottomRef.current) {
+                  scrollRef.current?.scrollToEnd({ animated: true });
+                }
+              }}
+              style={styles.scroll}
+              contentContainerStyle={styles.content}
+              // Drag the transcript to put the keyboard away, as in Messages.
+              keyboardDismissMode="interactive"
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              showsHorizontalScrollIndicator={false}
+            />
+            {!atBottom && chat.turns.length > 0 ? (
+              <Animated.View
+                entering={FadeIn.duration(150)}
+                exiting={FadeOut.duration(120)}
+                style={styles.jumpWrap}
+              >
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel={strings.chat.jumpToLatest}
+                  testID="chat-jump-latest"
+                  scaleTo={0.92}
+                  // 36pt disc + 4pt slop on each side = the 44pt target.
+                  hitSlop={4}
+                  onPress={jumpToLatest}
+                  style={[
+                    styles.jump,
+                    {
+                      backgroundColor: tokens.surface,
+                      borderColor: tokens.borderSubtle,
+                      shadowColor: tokens.shadow,
+                    },
+                  ]}
+                >
+                  <ChevronDown size={20} color={tokens.textSecondary} />
+                </PressableScale>
+              </Animated.View>
+            ) : null}
+          </View>
           <View style={styles.inputWrap}>
             <ChatInput
               onSend={sendWithAttachments}
@@ -835,6 +946,15 @@ export default function ThreadScreen() {
       </SafeAreaView>
     </View>
   );
+}
+
+/** The user turn an answer replies to; null when the history starts mid-way. */
+function promptBefore(
+  turns: ChatTurn[],
+  index: number,
+): Extract<ChatTurn, { kind: 'user' }> | null {
+  const previous = turns[index - 1];
+  return previous?.kind === 'user' ? previous : null;
 }
 
 // Completed turns keep their object identity across flushes, so these
@@ -894,18 +1014,88 @@ const AssistantTurnItem = memo(function AssistantTurnItem({
   mdStyles,
   mdRules,
   onLinkPress,
+  process,
+  onProcessToggle,
+  onRegenerate,
 }: {
   text: string;
   streaming: boolean;
   mdStyles: Record<string, object>;
   mdRules: MdRules;
   onLinkPress: (url: string) => boolean;
+  /** How this answer was produced — shown above it, not after it. */
+  process?: { tools: number; thinking: number; steps: ProcessStep[] };
+  onProcessToggle?: (expanded: boolean) => void;
+  /** Re-asks the same prompt; only the newest answer offers it. */
+  onRegenerate?: () => void;
 }) {
+  const { tokens: t } = useTheme();
+  const { t: strings } = useI18n();
+  const [copied, setCopied] = useState(false);
+
+  // Copy the source, not the rendering: pasting it back keeps the markdown.
+  const copy = useCallback(() => {
+    void copyText(text).then(done => {
+      if (!done) {
+        return;
+      }
+      haptics.selection();
+      setCopied(true);
+    });
+  }, [text]);
+
+  useEffect(() => {
+    if (!copied) {
+      return;
+    }
+    const timer = setTimeout(() => setCopied(false), 2400);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  const showActions = !streaming && text.trim().length > 0;
+
   return (
     <View style={styles.assistantBlock}>
+      {process ? (
+        <ProcessCard
+          tools={process.tools}
+          thinking={process.thinking}
+          steps={process.steps}
+          onToggle={onProcessToggle}
+        />
+      ) : null}
       <Markdown style={mdStyles} rules={mdRules} onLinkPress={onLinkPress}>
         {streaming ? `${balanceStreamingMarkdown(text)} ▍` : text}
       </Markdown>
+      {showActions ? (
+        <View style={styles.replyActions}>
+          <IconButton
+            label={copied ? strings.chat.copied : strings.chat.copyReply}
+            testID="reply-copy"
+            size={24}
+            onPress={copy}
+          >
+            {copied ? (
+              <Check size={15} color={t.textTertiary} />
+            ) : (
+              <Copy size={15} color={t.textTertiary} />
+            )}
+          </IconButton>
+          {onRegenerate ? (
+            <IconButton
+              label={strings.chat.regenerate}
+              testID="reply-regenerate"
+              size={24}
+              onPress={() => {
+                haptics.impact('light');
+                onRegenerate();
+              }}
+            >
+              <RefreshCw size={16} color={t.textTertiary} />
+            </IconButton>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 });
@@ -1006,6 +1196,28 @@ const styles = StyleSheet.create({
   safe: { flex: 1, paddingTop: 0 },
   fill: { flex: 1 },
   scroll: { flex: 1 },
+  listWrap: {
+    flex: 1,
+  },
+  jumpWrap: {
+    position: 'absolute',
+    right: layout.screenMargin,
+    // Just clear of the composer below it.
+    bottom: 12,
+  },
+  jump: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    ...continuousCorners,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
   content: {
     paddingHorizontal: layout.screenMargin,
     paddingTop: 24,
@@ -1016,10 +1228,14 @@ const styles = StyleSheet.create({
   assistantBlock: {
     alignSelf: 'stretch',
   },
-  hintText: {
-    ...typeScale.subheadline,
-    textAlign: 'center',
-    marginTop: 24,
+  // The copy glyph sits on the message's leading edge, pulled left by half its
+  // padding so the icon — not the 44pt target — lines up with the prose.
+  replyActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    marginTop: 2,
+    marginLeft: -10,
   },
   inputWrap: { paddingHorizontal: layout.screenMargin },
   errorCard: {

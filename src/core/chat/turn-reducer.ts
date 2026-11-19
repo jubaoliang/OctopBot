@@ -10,6 +10,7 @@ import {
   type CountableFrame,
   type ProcessCountState,
 } from './process-counts';
+import { appendReasoning, appendToolCall, type ProcessStep } from './process-steps';
 
 export type ChatTurn =
   | { kind: 'user'; id: string; text: string; attachments?: TurnAttachment[] }
@@ -38,6 +39,8 @@ export interface ChatTurnState {
   busy: boolean;
   hitl: HitlPending | null;
   process: ProcessCountState;
+  /** Reasoning / tool trace of the turn on screen, for the expandable card. */
+  trace: ProcessStep[];
   stopRequested: boolean;
   /** Monotonic id seed for local turn keys. */
   idSeq: number;
@@ -52,6 +55,8 @@ export type ChatTurnAction =
       turns: ChatTurn[];
       hitl?: HitlPending | null;
       process?: ProcessCountState;
+      /** Precomputed trace from the replayed messages; derived when omitted. */
+      trace?: ProcessStep[];
     }
   | {
       type: 'userSend';
@@ -84,6 +89,7 @@ export function initialChatTurnState(): ChatTurnState {
     busy: false,
     hitl: null,
     process: emptyProcessCounts(),
+    trace: [],
     stopRequested: false,
     idSeq: 0,
   };
@@ -250,6 +256,7 @@ export function reduceChatTurn(state: ChatTurnState, action: ChatTurnAction): Ch
         turns: merged,
         hitl,
         process,
+        trace: action.trace ?? state.trace,
         streaming: liveBusy ? state.streaming : false,
         busy: liveBusy || hitl !== null,
         stopRequested: liveBusy ? state.stopRequested : false,
@@ -273,6 +280,8 @@ export function reduceChatTurn(state: ChatTurnState, action: ChatTurnAction): Ch
         streaming: true,
         busy: true,
         hitl: null,
+        // Each send starts a fresh trace; the card explains the turn in flight.
+        trace: [],
         stopRequested: false,
       };
     }
@@ -366,6 +375,32 @@ export function reduceChatTurn(state: ChatTurnState, action: ChatTurnAction): Ch
           }
           // Tokens flush through the screen timer via flushTokens; mark busy only.
           return { ...next, streaming: true, busy: true };
+        }
+        case 'reasoning': {
+          const delta = (action.frame as { content?: unknown }).content;
+          if (typeof delta !== 'string' || !delta) {
+            return { ...next, streaming: true, busy: true };
+          }
+          return {
+            ...next,
+            trace: appendReasoning(next.trace, delta),
+            streaming: true,
+            busy: true,
+          };
+        }
+        case 'tool_call_chunk': {
+          const frame = action.frame as { name?: unknown; index?: unknown; display_name?: unknown };
+          if (typeof frame.name !== 'string') {
+            return next;
+          }
+          return {
+            ...next,
+            trace: appendToolCall(next.trace, {
+              index: typeof frame.index === 'number' ? frame.index : next.trace.length,
+              name: frame.name,
+              displayName: typeof frame.display_name === 'string' ? frame.display_name : undefined,
+            }),
+          };
         }
         case 'turn.started':
         case 'turn.resumed':

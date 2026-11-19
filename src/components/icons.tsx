@@ -12,11 +12,6 @@ import IconArrowRight from '@/assets/icons/icon-arrow-right.svg';
 import IconChevronDown from '@/assets/icons/icon-chevron-down.svg';
 import IconChevronSmall from '@/assets/icons/icon-chevron-small.svg';
 import IconGlobe from '@/assets/icons/icon-globe.svg';
-import IconTaskWindow from '@/assets/icons/icon-task-window.svg';
-import TabChat from '@/assets/icons/tab-chat-active.svg';
-import TabExperts from '@/assets/icons/tab-experts.svg';
-import TabAutomation from '@/assets/icons/tab-automation.svg';
-import TabMe from '@/assets/icons/tab-me.svg';
 import MenuChat from '@/assets/icons/menu-chat.svg';
 import MenuExperts from '@/assets/icons/menu-experts.svg';
 import MenuAutomation from '@/assets/icons/menu-automation.svg';
@@ -33,11 +28,6 @@ export {
   IconChevronDown,
   IconChevronSmall,
   IconGlobe,
-  IconTaskWindow,
-  TabChat,
-  TabExperts,
-  TabAutomation,
-  TabMe,
   MenuChat,
   MenuExperts,
   MenuAutomation,

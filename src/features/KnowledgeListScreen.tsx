@@ -4,7 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router';
 import { BookOpen, CloudOff } from 'lucide-react-native';
 
-import { AppHeader } from '@/components/AppHeader';
+import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
 import { EmptyState, SkeletonList } from '@/components/ListStates';
 import type { KnowledgeBase } from '@/core/api/types';
 import { KnowledgeApi } from '@/core/api/knowledge';
@@ -75,9 +75,10 @@ export function KnowledgeListScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]} testID="knowledge-list">
-      <SafeAreaView edges={['top']} style={styles.safe}>
-        <AppHeader title={strings.knowledge.title} onBack={goBack} />
+      <SafeAreaView edges={TOP_EDGES} style={styles.safe}>
+        <ScreenHeader title={strings.knowledge.title} onBack={goBack} />
         <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
           showsVerticalScrollIndicator={false}
           showsHorizontalScrollIndicator={false}
@@ -122,7 +123,7 @@ export function KnowledgeListScreen() {
                     index < bases.length - 1
                       ? {
                           borderBottomWidth: StyleSheet.hairlineWidth,
-                          borderBottomColor: tokens.borderSubtle,
+                          borderBottomColor: tokens.separator,
                         }
                       : null,
                     pressed ? { backgroundColor: tokens.overlayPressed } : null,

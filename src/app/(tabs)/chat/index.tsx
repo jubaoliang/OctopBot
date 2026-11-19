@@ -1,15 +1,16 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import Animated, { FadeIn } from 'react-native-reanimated';
 import { ChevronDown } from 'lucide-react-native';
 
-import { AppHeader } from '@/components/AppHeader';
-import { useTabBarFootprint } from '@/components/DesignTabBar';
+import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
+import { useTabBarFootprint } from '@/platform/tab-bar';
+import { BottomSheet } from '@/components/BottomSheet';
 import { ChatInput } from '@/components/ChatInput';
 import { SuggestionPill } from '@/components/ChatPieces';
 import { AgentAvatar } from '@/components/AgentAvatar';
+import { ListGroup, ListRow } from '@/components/List';
 import { PressableScale } from '@/components/PressableScale';
 import type { AgentSummary, QuickPrompts, TurnAttachment } from '@/core/api/types';
 import { AgentsApi } from '@/core/api/agents';
@@ -21,10 +22,7 @@ import { useImageAttachments } from '@/features/useImageAttachments';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
 import { KeyboardInsetView } from '@/platform/keyboard';
-import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
-
-// Module scope: layout-animation builders are not rebuilt per render.
-const PICKER_IN = FadeIn.duration(150);
+import { continuousCorners, layout, typeScale, useTokens } from '@/theme';
 
 /** Normalize the server's quick_prompts payload to a flat string list. */
 export function quickPromptList(payload: QuickPrompts, locale: string): string[] {
@@ -153,17 +151,22 @@ export default function ChatHomeScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
-      <SafeAreaView edges={['top']} style={styles.safe}>
+      <SafeAreaView edges={TOP_EDGES} style={styles.safe}>
         {/* The composer rests above the tab bar and rides the keyboard. */}
         <KeyboardInsetView
           restingInset={tabBarFootprint}
           gap={layout.keyboardGap}
           style={styles.fill}
         >
-          <AppHeader onMenu={openDrawer} />
+          <ScreenHeader
+            brand
+            onMenu={openDrawer}
+            onCompose={selected ? () => startChat(null) : undefined}
+          />
           {/* Scrolls only when the keyboard leaves less room than the
               content needs; at rest the spacers center it as designed. */}
           <ScrollView
+            contentInsetAdjustmentBehavior="automatic"
             style={styles.fill}
             contentContainerStyle={styles.body}
             keyboardShouldPersistTaps="handled"
@@ -184,7 +187,8 @@ export default function ChatHomeScreen() {
               {strings.chatHome.greeting}
             </Text>
 
-            {/* Expert selector */}
+            {/* Expert selector — opens a sheet, so the pick never reflows the
+                home screen behind it. */}
             <PressableScale
               accessibilityRole="button"
               accessibilityLabel={
@@ -192,13 +196,12 @@ export default function ChatHomeScreen() {
                   ? `${strings.a11y.selectExpert}, ${selected.name}`
                   : strings.a11y.selectExpert
               }
-              accessibilityState={{ expanded: pickerOpen }}
               testID="select-expert"
               style={[
                 styles.selector,
                 { backgroundColor: tokens.surface, shadowColor: tokens.shadowSoft },
               ]}
-              onPress={() => setPickerOpen(v => !v)}
+              onPress={() => setPickerOpen(true)}
             >
               {selected ? (
                 <>
@@ -227,62 +230,6 @@ export default function ChatHomeScreen() {
               )}
               <ChevronDown size={18} color={tokens.textTertiary} />
             </PressableScale>
-            {pickerOpen ? (
-              <Animated.View
-                entering={PICKER_IN}
-                style={[
-                  styles.pickerList,
-                  { backgroundColor: tokens.surface, borderColor: tokens.borderSubtle },
-                ]}
-              >
-                <ScrollView
-                  style={styles.pickerScroll}
-                  nestedScrollEnabled
-                  showsVerticalScrollIndicator={false}
-                  showsHorizontalScrollIndicator={false}
-                >
-                  {agents.map(agent => (
-                    <Pressable
-                      key={agent.agent_id}
-                      accessibilityRole="radio"
-                      accessibilityLabel={agent.name}
-                      accessibilityState={{ selected: selected?.agent_id === agent.agent_id }}
-                      style={({ pressed }) => [
-                        styles.pickerRow,
-                        {
-                          backgroundColor:
-                            selected?.agent_id === agent.agent_id
-                              ? tokens.overlaySubtle
-                              : 'transparent',
-                        },
-                        pressed ? { backgroundColor: tokens.overlayPressed } : null,
-                      ]}
-                      onPress={() => pickAgent(agent)}
-                    >
-                      <AgentAvatar
-                        name={agent.name}
-                        iconName={agent.icon_name}
-                        color={agent.color}
-                        size={20}
-                        fallbackTextSecondary={tokens.textSecondary}
-                      />
-                      <Text
-                        style={[styles.pickerName, { color: tokens.textBody }]}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                      >
-                        {agent.name}
-                      </Text>
-                    </Pressable>
-                  ))}
-                  {agents.length === 0 ? (
-                    <Text style={[styles.pickerEmpty, { color: tokens.textTertiary }]}>
-                      {strings.chatHome.noExperts}
-                    </Text>
-                  ) : null}
-                </ScrollView>
-              </Animated.View>
-            ) : null}
 
             <View style={styles.pills}>
               {(prompts.length > 0 ? prompts : strings.chatHome.suggestions).map(label => (
@@ -300,6 +247,47 @@ export default function ChatHomeScreen() {
             />
           </View>
         </KeyboardInsetView>
+
+        <BottomSheet
+          visible={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          dismissLabel={strings.a11y.closeSheet}
+          title={strings.chatHome.chooseExpert}
+          subtitle={strings.chatHome.chooseExpertHint}
+          scroll
+          testID="expert-sheet"
+        >
+          <View style={styles.sheetBody}>
+            {agents.length > 0 ? (
+              <ListGroup>
+                {agents.map((agent, index) => (
+                  <ListRow
+                    key={agent.agent_id}
+                    title={agent.name}
+                    subtitle={agent.description ?? undefined}
+                    leading={
+                      <AgentAvatar
+                        name={agent.name}
+                        iconName={agent.icon_name}
+                        color={agent.color}
+                        size={32}
+                        fallbackTextSecondary={tokens.textSecondary}
+                      />
+                    }
+                    selected={selected?.agent_id === agent.agent_id}
+                    last={index === agents.length - 1}
+                    testID={`expert-option-${agent.agent_id}`}
+                    onPress={() => pickAgent(agent)}
+                  />
+                ))}
+              </ListGroup>
+            ) : (
+              <Text style={[styles.sheetEmpty, { color: tokens.textSecondary }]}>
+                {strings.chatHome.noExperts}
+              </Text>
+            )}
+          </View>
+        </BottomSheet>
       </SafeAreaView>
     </View>
   );
@@ -362,34 +350,15 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     maxWidth: 260,
   },
-  pickerList: {
-    marginTop: 6,
-    marginHorizontal: 8,
-    borderRadius: radius.card,
-    ...continuousCorners,
-    borderWidth: StyleSheet.hairlineWidth,
-    maxHeight: 264,
-    overflow: 'hidden',
+  sheetBody: {
+    paddingHorizontal: layout.screenMargin,
+    paddingTop: 4,
+    paddingBottom: 8,
   },
-  pickerScroll: {
-    flexGrow: 0,
-  },
-  pickerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    minHeight: layout.rowMinHeight,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  pickerName: {
-    flex: 1,
-    ...typeScale.callout,
-  },
-  pickerEmpty: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+  sheetEmpty: {
     ...typeScale.subheadline,
+    textAlign: 'center',
+    paddingVertical: 24,
   },
   pills: {
     marginTop: 20,

@@ -28,6 +28,14 @@ export interface ThemeTokens {
   /** Hairline borders (design: black 6–8%). */
   borderSubtle: string;
   borderStrong: string;
+  /**
+   * Hairline between list rows. The 6% border is a container edge — at 1px
+   * it is not perceivable as a row divider, so rows use the iOS separator
+   * value instead (light `separator`, dark `opaque separator`).
+   */
+  separator: string;
+  /** Control fill: search fields, segmented tracks (iOS system fill). */
+  fill: string;
   textPrimary: string;
   textBody: string;
   textSecondary: string;
@@ -38,6 +46,12 @@ export interface ThemeTokens {
   accentSoft: string;
   danger: string;
   dangerSoft: string;
+  /** The product mark's red (launch screen); independent of the accent palette. */
+  brand: string;
+  /** Warm light spilling over the launch screen's top edge. */
+  splashGlow: string;
+  /** The hot centre of that light, where it meets the edge. */
+  splashGlowCore: string;
   /** Positive status (an expert that is running). */
   success: string;
   /** Ambient shadow under the composer (design: black 5%, radius 32). */
@@ -70,8 +84,12 @@ export const layout = {
 export const radius = {
   chip: 4,
   pill: 8,
+  /** Search fields and inline controls (iOS 10pt). */
+  field: 10,
   input: 12,
   card: 12,
+  /** Action cards in a sheet (iOS 14pt). */
+  actionCard: 14,
   bubble: 18,
   bubbleTail: 4,
   sheet: 20,
@@ -84,10 +102,22 @@ export const radius = {
 export const continuousCorners: ViewStyle = { borderCurve: 'continuous' };
 
 /**
- * The iOS text-style ramp (size/leading at the default Dynamic Type size).
- * Components set fontWeight, never fontFamily, so iOS resolves SF Pro /
- * PingFang SC and Android its system font. `reading` is `body` with looser
- * leading for multi-line CJK message text.
+ * The product's UI face. Google Sans covers Latin/punctuation; Chinese and
+ * other scripts fall back to the platform face (PingFang SC, Noto Sans CJK)
+ * glyph by glyph, which is the behaviour we want — no CJK webfont in the app.
+ *
+ * The four weights are linked through `expo-font`'s config plugin (see
+ * `app.json`) so `fontFamily` + `fontWeight` resolves on both platforms. Load
+ * them that way rather than with `useFonts`: a runtime load keys each file as
+ * its own family, and then `fontWeight` silently stops picking a weight.
+ */
+export const UI_FONT = 'Google Sans';
+
+/**
+ * The iOS text-style ramp (size/leading at the default Dynamic Type size),
+ * set in the product face. Components vary fontWeight on top of these and the
+ * family follows; only code fences and inline code leave it for `CODE_FONT`.
+ * `reading` is `body` with looser leading for multi-line CJK message text.
  */
 export type TypeStyleName =
   | 'largeTitle'
@@ -106,18 +136,18 @@ export type TypeStyleName =
 export type TypeScale = Record<TypeStyleName, TextStyle>;
 
 export const typeScale: TypeScale = {
-  largeTitle: { fontSize: 34, lineHeight: 41, fontWeight: '700' },
-  title1: { fontSize: 28, lineHeight: 34, fontWeight: '700' },
-  title2: { fontSize: 22, lineHeight: 28, fontWeight: '700' },
-  title3: { fontSize: 20, lineHeight: 25, fontWeight: '600' },
-  headline: { fontSize: 17, lineHeight: 22, fontWeight: '600' },
-  body: { fontSize: 17, lineHeight: 22, fontWeight: '400' },
-  reading: { fontSize: 17, lineHeight: 25, fontWeight: '400' },
-  callout: { fontSize: 16, lineHeight: 21, fontWeight: '400' },
-  subheadline: { fontSize: 15, lineHeight: 20, fontWeight: '400' },
-  footnote: { fontSize: 13, lineHeight: 18, fontWeight: '400' },
-  caption1: { fontSize: 12, lineHeight: 16, fontWeight: '400' },
-  caption2: { fontSize: 11, lineHeight: 13, fontWeight: '400' },
+  largeTitle: { fontFamily: UI_FONT, fontSize: 34, lineHeight: 41, fontWeight: '700' },
+  title1: { fontFamily: UI_FONT, fontSize: 28, lineHeight: 34, fontWeight: '700' },
+  title2: { fontFamily: UI_FONT, fontSize: 22, lineHeight: 28, fontWeight: '700' },
+  title3: { fontFamily: UI_FONT, fontSize: 20, lineHeight: 25, fontWeight: '600' },
+  headline: { fontFamily: UI_FONT, fontSize: 17, lineHeight: 22, fontWeight: '600' },
+  body: { fontFamily: UI_FONT, fontSize: 17, lineHeight: 22, fontWeight: '400' },
+  reading: { fontFamily: UI_FONT, fontSize: 17, lineHeight: 25, fontWeight: '400' },
+  callout: { fontFamily: UI_FONT, fontSize: 16, lineHeight: 21, fontWeight: '400' },
+  subheadline: { fontFamily: UI_FONT, fontSize: 15, lineHeight: 20, fontWeight: '400' },
+  footnote: { fontFamily: UI_FONT, fontSize: 13, lineHeight: 18, fontWeight: '400' },
+  caption1: { fontFamily: UI_FONT, fontSize: 12, lineHeight: 16, fontWeight: '400' },
+  caption2: { fontFamily: UI_FONT, fontSize: 11, lineHeight: 13, fontWeight: '400' },
 };
 
 /**
@@ -144,6 +174,8 @@ export const lightTokens: ThemeTokens = {
   overlayPressed: 'rgba(0,0,0,0.08)',
   borderSubtle: 'rgba(0,0,0,0.06)',
   borderStrong: 'rgba(0,0,0,0.08)',
+  separator: 'rgba(60,60,67,0.29)',
+  fill: 'rgba(118,118,128,0.12)',
   textPrimary: '#111827',
   textBody: 'rgba(0,0,0,0.90)',
   textSecondary: 'rgba(0,0,0,0.60)',
@@ -154,6 +186,9 @@ export const lightTokens: ThemeTokens = {
   accentSoft: 'rgba(47,130,209,0.12)',
   danger: '#E5484D',
   dangerSoft: 'rgba(229,72,77,0.12)',
+  brand: '#E5383B',
+  splashGlow: '#FF701E',
+  splashGlowCore: '#FFD3B4',
   success: '#2B9A66',
   shadow: 'rgba(0,0,0,0.05)',
   shadowSoft: 'rgba(0,0,0,0.03)',
@@ -168,6 +203,8 @@ export const darkTokens: ThemeTokens = {
   overlayPressed: 'rgba(255,255,255,0.12)',
   borderSubtle: 'rgba(255,255,255,0.10)',
   borderStrong: 'rgba(255,255,255,0.14)',
+  separator: 'rgba(84,84,88,0.65)',
+  fill: 'rgba(118,118,128,0.24)',
   textPrimary: '#F3F4F6',
   textBody: 'rgba(255,255,255,0.90)',
   textSecondary: 'rgba(255,255,255,0.60)',
@@ -178,6 +215,9 @@ export const darkTokens: ThemeTokens = {
   accentSoft: 'rgba(91,159,220,0.16)',
   danger: '#F06A6E',
   dangerSoft: 'rgba(240,106,110,0.16)',
+  brand: '#FF5C57',
+  splashGlow: '#FF701E',
+  splashGlowCore: '#FFE2C7',
   success: '#4CC38A',
   shadow: 'rgba(0,0,0,0.40)',
   shadowSoft: 'rgba(0,0,0,0.30)',
