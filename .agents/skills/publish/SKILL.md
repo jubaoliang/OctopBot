@@ -65,12 +65,15 @@ node -p 'require("./app.json").expo.extra?.eas?.projectId ?? "MISSING projectId"
    git rev-parse --abbrev-ref HEAD
    ```
    不是 → 中止："发版从 develop 起，先 `git checkout develop`。"
-3. 同步远程：
+3. 同步远程并判断历史关系：
    ```bash
    git fetch {REMOTE} --tags --prune
-   git status -sb | head -1        # 必须无 ahead / behind
+   git status -sb | head -1
+   git merge-base --is-ancestor {REMOTE}/{BRANCH} HEAD && echo "ok：远端的提交都在本地历史里"
    ```
-   落后 → `git pull --ff-only`；**领先或分叉 → 中止**，先让用户处理本地提交。
+   - **落后**（远端有本地没有的提交）→ `git pull --ff-only`，再判一次；
+   - **分叉**（上面那句失败，且本地也有远端没有的提交）→ **中止**，先解决分叉。被 squash 合并过的历史最容易产生这种"假分叉"：同一份改动在本地是几十条提交、在远端是一条 squash 提交，SHA 对不上但内容重合；
+   - **领先**（本地有未推提交）→ **允许**，但确认块里必须列出这些提交标题，用户要知道它们会随本次一起推上去。
 4. 工作树必须干净：
    ```bash
    git status --short
@@ -105,7 +108,7 @@ node -p 'require("./app.json").expo.extra?.eas?.projectId ?? "MISSING projectId"
 目标版本:                        A.B.C
 上次发布 tag:                    vX.Y.Z (YYYY-MM-DD)
 发版分支:                        chore/release-A.B.C → PR → develop（squash）
-本次发布提交数:                   N（{last_tag}..HEAD）
+本地未推提交:                     N 条（会随本次一起推，逐条列出标题）
 构建:                            push tag → Release workflow（EAS production，双平台）
 开源许可清单:                     依赖有变更则需 npm run licenses
 
@@ -336,7 +339,9 @@ Maestro 需要模拟器 + 真实 Octop 实例（Android 是基线）。
 | 场景                                           | 行为                                                              |
 | ---------------------------------------------- | ----------------------------------------------------------------- |
 | 当前不在 `develop`                             | 中止，提示切分支                                                  |
-| 本地落后 / 领先 / 分叉                         | 落后可 `pull --ff-only`；领先或分叉一律中止                       |
+| 本地落后                                       | `git pull --ff-only` 后重判                                       |
+| 本地与远端分叉（squash 造成的假分叉最常见）    | 中止：先解决分叉，不要在分叉点发版                                |
+| 本地领先（有未推提交）                         | 允许，但确认块里必须公示这些提交                                  |
 | 工作树不干净                                   | 中止：先提交或 stash                                              |
 | `app.json` 与 `package.json` 版本不一致        | 中止：先修 `check:version`                                        |
 | 目标版本 ≤ 当前版本，或 tag 已存在             | 中止：换一个更大的版本号                                          |
