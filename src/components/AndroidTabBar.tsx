@@ -4,7 +4,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Clock, MessageSquare, UserRound, Users } from 'lucide-react-native';
 
 import { useI18n } from '@/i18n/I18nProvider';
+import { countUnreadThreads } from '@/components/AppDrawer';
+import { UnreadDot } from '@/components/UnreadBadge';
 import { useAppShell } from '@/features/app-shell';
+import { useNotifications } from '@/features/notifications-context';
 import { haptics } from '@/platform/haptics';
 import { useKeyboardState } from '@/platform/keyboard';
 import { ANDROID_TAB_BAR_HEIGHT } from '@/platform/tab-bar';
@@ -55,7 +58,11 @@ export function AndroidTabBar({
   const t = useTokens();
   const { t: strings } = useI18n();
   const insets = useSafeAreaInsets();
-  const { drawerPresented } = useAppShell();
+  const { drawerPresented, drawerGroups } = useAppShell();
+  const { liveUnread } = useNotifications();
+  // The chat tab is the message surface: dot when any conversation has
+  // server-reported unread, or an unconsumed live push arrived.
+  const chatUnread = liveUnread || countUnreadThreads(drawerGroups) > 0;
   // Prefer height over isVisible: floating / zero-inset IMEs can report
   // visible while covering nothing.
   const keyboardHeight = useKeyboardState(state => state.height);
@@ -110,7 +117,14 @@ export function AndroidTabBar({
               navigateToTab(route.key);
             }}
           >
-            <Glyph size={TAB_GLYPH} color={fg} strokeWidth={TAB_STROKE} />
+            <View style={styles.glyphBox}>
+              <Glyph size={TAB_GLYPH} color={fg} strokeWidth={TAB_STROKE} />
+              {name === 'chat' && chatUnread ? (
+                <View style={styles.unreadDot} pointerEvents="none">
+                  <UnreadDot />
+                </View>
+              ) : null}
+            </View>
             <Text
               style={[styles.label, { color: fg }]}
               numberOfLines={1}
@@ -126,6 +140,17 @@ export function AndroidTabBar({
 }
 
 const styles = StyleSheet.create({
+  glyphBox: {
+    width: TAB_GLYPH,
+    height: TAB_GLYPH,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadDot: {
+    position: 'absolute',
+    top: -2,
+    right: -4,
+  },
   bar: {
     position: 'absolute',
     left: 0,

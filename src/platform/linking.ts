@@ -45,3 +45,28 @@ export function confirmOpenHttpUrl(url: string, copy: LinkConfirmCopy): boolean 
   // Handled asynchronously via the alert — tell Markdown not to open itself.
   return false;
 }
+
+/** The device-app schemes an assistant reply may propose (call, text, mail). */
+const ACTION_SCHEME = /^(tel|sms|mailto):/i;
+
+/**
+ * Assistant-proposed device actions — dial, SMS compose, email compose.
+ * Always confirmed with a dialog (the URL is model-generated), then handed
+ * to the OS handler. Returns whether the link was accepted.
+ */
+export function confirmOpenAppActionUrl(url: string, copy: LinkConfirmCopy): boolean {
+  const target = url.trim();
+  if (!ACTION_SCHEME.test(target)) {
+    return false;
+  }
+  Alert.alert(copy.title, copy.message(target), [
+    { text: copy.cancel, style: 'cancel' },
+    {
+      text: copy.open,
+      onPress: () => {
+        void Linking.openURL(target).catch(() => undefined);
+      },
+    },
+  ]);
+  return false;
+}

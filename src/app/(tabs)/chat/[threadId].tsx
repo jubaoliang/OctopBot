@@ -20,12 +20,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  useFocusEffect,
-  useLocalSearchParams,
-  useNavigation,
-  useRouter,
-} from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { Check, ChevronDown, Copy, RefreshCw } from 'lucide-react-native';
 import Markdown from 'react-native-markdown-display';
@@ -59,6 +54,7 @@ import {
 } from '@/core/chat/turn-reducer';
 import { useAppShell } from '@/features/app-shell';
 import { useAuth } from '@/features/auth';
+import { useCalendarSync } from '@/features/calendar-sync-context';
 import { useNotifications } from '@/features/notifications-context';
 import { takeChatHandoff } from '@/features/chat-handoff';
 import { useImageAttachments } from '@/features/useImageAttachments';
@@ -66,7 +62,7 @@ import { useI18n } from '@/i18n/I18nProvider';
 import { copyText } from '@/platform/clipboard';
 import { haptics } from '@/platform/haptics';
 import { KeyboardInsetView } from '@/platform/keyboard';
-import { confirmOpenHttpUrl } from '@/platform/linking';
+import { confirmOpenAppActionUrl, confirmOpenHttpUrl } from '@/platform/linking';
 import { CODE_FONT } from '@/theme/code-font';
 import { continuousCorners, layout, radius, typeScale, useTheme } from '@/theme';
 import { balanceStreamingMarkdown } from '@/utils/streaming-markdown';
@@ -114,9 +110,29 @@ const TRANSITION_WAIT_TIMEOUT_MS = 1_200;
 export default function ThreadScreen() {
   const { tokens } = useTheme();
   const { t: strings } = useI18n();
-  const { openDrawer, setActiveChat, clearActiveChatIf, markThreadRead } = useAppShell();
+  const { setActiveChat, clearActiveChatIf, markThreadRead } = useAppShell();
   const { clearLiveUnread } = useNotifications();
   const router = useRouter();
+  // Device-context turns: the synced digest KBs (schedule, contacts) ride
+  // every user turn. A ref mirror keeps the auto-send closure fresh without
+  // rebuilding the socket.
+  const {
+    enabled: calendarSyncEnabled,
+    kbId: calendarKbId,
+    contactsEnabled,
+    contactsKbId,
+  } = useCalendarSync();
+  const knowledgeBaseIds = useMemo(() => {
+    const ids = [
+      calendarSyncEnabled && calendarKbId ? calendarKbId : null,
+      contactsEnabled && contactsKbId ? contactsKbId : null,
+    ].filter((id): id is string => id !== null);
+    return ids.length > 0 ? ids : undefined;
+  }, [calendarSyncEnabled, calendarKbId, contactsEnabled, contactsKbId]);
+  const knowledgeBaseIdsRef = useRef(knowledgeBaseIds);
+  useEffect(() => {
+    knowledgeBaseIdsRef.current = knowledgeBaseIds;
+  }, [knowledgeBaseIds]);
   const { baseUrl, token, httpClient, user, dropSession, sessionGeneration } = useAuth();
   // Route params: `threadId` is a path segment (`new` / `open` / forged deep
   // link). Internal suggestion pills pass `prompt` — never put user text in
@@ -317,14 +333,27 @@ export default function ThreadScreen() {
   );
 
   const onMarkdownLink = useCallback(
-    (url: string) =>
-      confirmOpenHttpUrl(url, {
+    (url: string) => {
+      // Device actions (call / SMS / email) confirm separately from web
+      // links — the OS handler, not the browser, receives them. Exactly one
+      // dialog runs per tap; both handlers return false (async alert).
+      confirmOpenAppActionUrl(url, {
+        title: strings.chat.actionLinkTitle,
+        message: strings.chat.actionLinkMessage,
+        cancel: strings.common.cancel,
+        open: strings.chat.actionLinkConfirm,
+      });
+      return confirmOpenHttpUrl(url, {
         title: strings.chat.openLinkTitle,
         message: strings.chat.openLinkMessage,
         cancel: strings.common.cancel,
         open: strings.chat.openLinkConfirm,
-      }),
+      });
+    },
     [
+      strings.chat.actionLinkConfirm,
+      strings.chat.actionLinkMessage,
+      strings.chat.actionLinkTitle,
       strings.chat.openLinkConfirm,
       strings.chat.openLinkMessage,
       strings.chat.openLinkTitle,
@@ -614,7 +643,15 @@ export default function ThreadScreen() {
       if (disposed) {
         return;
       }
-      if (threadId && socket.sendUserTurn({ text, thread_id: threadId, attachments })) {
+      if (
+        threadId &&
+        socket.sendUserTurn({
+          text,
+          thread_id: threadId,
+          attachments,
+          knowledge_base_ids: knowledgeBaseIdsRef.current,
+        })
+      ) {
         return;
       }
       dispatch({
@@ -754,7 +791,15 @@ export default function ThreadScreen() {
     dispatch({ type: 'userSend', text, attachments });
     void (async () => {
       const threadId = await ensureThreadRef.current?.();
-      if (threadId && socketRef.current?.sendUserTurn({ text, thread_id: threadId, attachments })) {
+      if (
+        threadId &&
+        socketRef.current?.sendUserTurn({
+          text,
+          thread_id: threadId,
+          attachments,
+          knowledge_base_ids: knowledgeBaseIdsRef.current,
+        })
+      ) {
         return;
       }
       dispatch({

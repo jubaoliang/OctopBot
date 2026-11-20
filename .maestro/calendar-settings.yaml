@@ -1,0 +1,31 @@
+# Connect apps: drawer entry renders the capability cards; the calendar
+# card expands on connect. With calendars present (E2E emulator) a
+# per-calendar switch shows; sync-now row proves the granted state.
+# Seed a session first when needed: octopbot://dev-session?url=…&token=…
+appId: dev.octop.octopbot
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'composer-input'
+    timeout: 180000
+- tapOn:
+    id: 'header-menu'
+- tapOn:
+    id: 'drawer-connect'
+- extendedWaitUntil:
+    visible:
+      id: 'connect-calendar-card'
+    timeout: 30000
+- assertVisible:
+    id: 'connect-contacts-card'
+- assertVisible:
+    id: 'connect-phone-card'
+- tapOn:
+    id: 'connect-calendar-switch'
+- extendedWaitUntil:
+    visible:
+      id: 'connect-calendar-sync-now'
+    timeout: 20000
+- tapOn:
+    id: 'connect-calendar-switch'

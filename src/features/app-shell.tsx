@@ -398,6 +398,10 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
           router.push('/usage');
           return;
         }
+        if (route === 'connect') {
+          router.push('/connect');
+          return;
+        }
         router.push('/settings');
       },
       loadGroupThreads,

@@ -15,7 +15,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { BookOpen, Settings } from 'lucide-react-native';
+import { Blocks, BookOpen, Settings } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -95,7 +95,7 @@ export interface DrawerTaskGroup {
   color?: string | null;
 }
 
-export type DrawerRoute = 'knowledge' | 'usage' | 'settings';
+export type DrawerRoute = 'knowledge' | 'usage' | 'settings' | 'connect';
 
 /** Conversations with server-reported unread across all groups. */
 export function countUnreadThreads(groups: DrawerTaskGroup[]): number {
@@ -235,6 +235,13 @@ export function AppDrawer({
         </View>
 
         <View style={styles.menuList}>
+          <NavRow
+            icon={<Blocks size={20} color={t.textBody} />}
+            label={strings.drawer.connectApps}
+            active={activeRoute === 'connect'}
+            testID="drawer-connect"
+            onPress={() => onNavigate('connect')}
+          />
           <NavRow
             icon={<BookOpen size={20} color={t.textBody} />}
             label={strings.drawer.knowledge}

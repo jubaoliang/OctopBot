@@ -19,7 +19,7 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "permissions": ["RECORD_AUDIO", "CAMERA"],
+      "permissions": ["RECORD_AUDIO", "CAMERA", "READ_CALENDAR", "READ_CONTACTS"],
       "predictiveBackGestureEnabled": false,
       "softwareKeyboardLayoutMode": "resize"
     },
@@ -84,6 +84,18 @@
               }
             ]
           }
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow Octop to read your calendar so your assistant knows your schedule."
+        }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Allow Octop to read your contacts' names, phone numbers and emails so your assistant can look people up. Syncing is off until you enable it in Connect apps."
         }
       ],
       "expo-font",

@@ -19,7 +19,8 @@ export interface AttachTrayProps {
  *
  * Tiles only launch system pickers (Photos, Camera, Files) — no in-app
  * gallery. Kept inline (not a Modal menu) so the composer stays a chat
- * surface rather than a web-style pull-down.
+ * surface rather than a web-style pull-down. Contacts are not attachable:
+ * they flow as user context (see the Connect apps screen).
  */
 export function AttachTray({ onPick, labels }: AttachTrayProps) {
   const t = useTokens();

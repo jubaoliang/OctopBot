@@ -1,0 +1,93 @@
+import * as ExpoCalendar from 'expo-calendar';
+
+import { calendarReader } from '../calendar';
+
+jest.mock('expo-calendar', () => ({
+  getCalendarPermissions: jest.fn(),
+  requestCalendarPermissions: jest.fn(),
+  getCalendars: jest.fn(),
+  listEvents: jest.fn(),
+  EntityTypes: { EVENT: 'EVENT' },
+}));
+
+const expo = jest.mocked(ExpoCalendar);
+
+describe('calendarReader', () => {
+  beforeEach(() => {
+    jest.resetAllMocks();
+  });
+
+  it('maps permission responses', async () => {
+    (expo.getCalendarPermissions as jest.Mock).mockResolvedValue({ granted: true });
+    await expect(calendarReader.getPermissionStatus()).resolves.toBe('granted');
+    (expo.requestCalendarPermissions as jest.Mock).mockResolvedValue({
+      granted: false,
+      status: 'denied',
+    });
+    await expect(calendarReader.requestPermissions()).resolves.toBe('denied');
+    (expo.getCalendarPermissions as jest.Mock).mockResolvedValue({ granted: false });
+    await expect(calendarReader.getPermissionStatus()).resolves.toBe('undetermined');
+  });
+
+  it('degrades permission failures to denied', async () => {
+    (expo.getCalendarPermissions as jest.Mock).mockRejectedValue(new Error('no provider'));
+    await expect(calendarReader.getPermissionStatus()).resolves.toBe('denied');
+  });
+
+  it('maps device calendars', async () => {
+    (expo.getCalendars as jest.Mock).mockResolvedValue([
+      { id: 'c1', title: 'Work', source: { name: 'work@example.com' }, allowsModifications: true },
+      { id: 'c2', title: 'Family', source: null, allowsModifications: false },
+    ]);
+    await expect(calendarReader.getReadableCalendars()).resolves.toEqual([
+      { id: 'c1', title: 'Work', source: 'work@example.com', allowsWrites: true },
+      { id: 'c2', title: 'Family', source: null, allowsWrites: false },
+    ]);
+    expect(expo.getCalendars).toHaveBeenCalledWith(ExpoCalendar.EntityTypes.EVENT);
+  });
+
+  it('normalizes and sorts events, dropping broken dates', async () => {
+    (expo.listEvents as jest.Mock).mockResolvedValue([
+      {
+        id: 'e2',
+        title: 'Later',
+        startDate: '2026-03-02T10:00:00.000Z',
+        endDate: '2026-03-02T11:00:00.000Z',
+        allDay: false,
+        location: 'Office',
+      },
+      {
+        id: 'e1',
+        title: 'First',
+        startDate: '2026-03-01T09:00:00.000Z',
+        endDate: '2026-03-01T10:00:00.000Z',
+        allDay: true,
+        location: null,
+      },
+      {
+        id: 'e3',
+        title: 'Broken',
+        startDate: 'not-a-date',
+        endDate: '2026-03-03T09:00:00.000Z',
+        allDay: false,
+        location: null,
+      },
+    ]);
+    const start = new Date('2026-03-01T00:00:00.000Z');
+    const end = new Date('2026-03-08T00:00:00.000Z');
+    const events = await calendarReader.listEvents(['c1'], start, end);
+    expect(events.map(event => event.id)).toEqual(['e1', 'e2']);
+    expect(events[1]).toMatchObject({
+      id: 'e2',
+      title: 'Later',
+      start: Date.parse('2026-03-02T10:00:00.000Z'),
+      allDay: false,
+      location: 'Office',
+    });
+  });
+
+  it('skips the query when no calendars are selected', async () => {
+    await expect(calendarReader.listEvents([], new Date(), new Date())).resolves.toEqual([]);
+    expect(expo.listEvents).not.toHaveBeenCalled();
+  });
+});

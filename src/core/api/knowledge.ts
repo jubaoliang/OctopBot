@@ -28,6 +28,28 @@ export class KnowledgeApi {
     }
     return typeof raw?.text === 'string' ? raw.text : '';
   }
+
+  /** Creates a knowledge base owned by the current user (private). */
+  createBase(name: string, description = ''): Promise<KnowledgeBase> {
+    return this.http.post('/api/knowledge-bases', { name, description, shared: false });
+  }
+
+  /** Creates a markdown (default) or plain-text document with initial content. */
+  createTextDocument(
+    kbId: string,
+    body: { name: string; content: string; format?: 'md' | 'txt' },
+  ): Promise<KnowledgeDocument> {
+    return this.http.post(`/api/knowledge-bases/${kbId}/documents/text`, {
+      name: body.name,
+      format: body.format ?? 'md',
+      content: body.content,
+    });
+  }
+
+  /** Replaces a markdown / plain-text document's content (server reindexes). */
+  updateTextContent(kbId: string, docId: string, content: string): Promise<KnowledgeDocument> {
+    return this.http.put(`/api/knowledge-bases/${kbId}/documents/${docId}/content`, { content });
+  }
 }
 
 /** Envelope for `GET …/documents/{doc_id}/preview`. */

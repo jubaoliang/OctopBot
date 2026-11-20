@@ -12,6 +12,10 @@ function fakeHttp() {
       calls.push({ path, body });
       return Promise.resolve(undefined);
     },
+    put: (path: string, body?: unknown) => {
+      calls.push({ path, body });
+      return Promise.resolve(undefined);
+    },
     patch: (path: string, body?: unknown) => {
       calls.push({ path, body });
       return Promise.resolve(undefined);
@@ -55,6 +59,46 @@ describe('KnowledgeApi request shapes', () => {
       get: jest.fn().mockResolvedValue('raw preview'),
     } as unknown as HttpClient;
     await expect(new KnowledgeApi(http).preview('kb1', 'd1')).resolves.toBe('raw preview');
+  });
+
+  it('creates a private base with a description', async () => {
+    const { http, calls } = fakeHttp();
+    await new KnowledgeApi(http).createBase('My Schedule', 'Rolling device schedule');
+    expect(calls[0]).toEqual({
+      path: '/api/knowledge-bases',
+      body: { name: 'My Schedule', description: 'Rolling device schedule', shared: false },
+    });
+  });
+
+  it('creates a markdown text document with content', async () => {
+    const { http, calls } = fakeHttp();
+    await new KnowledgeApi(http).createTextDocument('kb1', {
+      name: 'schedule.md',
+      content: '# Schedule',
+    });
+    expect(calls[0]).toEqual({
+      path: '/api/knowledge-bases/kb1/documents/text',
+      body: { name: 'schedule.md', format: 'md', content: '# Schedule' },
+    });
+  });
+
+  it('creates a plain-text document when format is txt', async () => {
+    const { http, calls } = fakeHttp();
+    await new KnowledgeApi(http).createTextDocument('kb1', {
+      name: 'notes.txt',
+      content: 'hi',
+      format: 'txt',
+    });
+    expect(calls[0].body).toMatchObject({ format: 'txt' });
+  });
+
+  it('updates document content', async () => {
+    const { http, calls } = fakeHttp();
+    await new KnowledgeApi(http).updateTextContent('kb1', 'doc1', '# Updated');
+    expect(calls[0]).toEqual({
+      path: '/api/knowledge-bases/kb1/documents/doc1/content',
+      body: { content: '# Updated' },
+    });
   });
 });
 

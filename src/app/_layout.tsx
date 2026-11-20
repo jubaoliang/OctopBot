@@ -18,6 +18,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AuthProvider, useAuth } from '@/features/auth';
 import { LoginScreen } from '@/features/LoginScreen';
 import { AppShellProvider, useAppShell } from '@/features/app-shell';
+import { CalendarSyncProvider } from '@/features/calendar-sync';
 import { NotificationsProvider } from '@/features/notifications';
 import { registerLastAgentStore } from '@/features/last-agent-store';
 import { I18nProvider, useI18n } from '@/i18n/I18nProvider';
@@ -48,6 +49,9 @@ function drawerRouteFor(pathname: string): DrawerRoute | null {
   }
   if (pathname.startsWith('/usage')) {
     return 'usage';
+  }
+  if (pathname.startsWith('/connect')) {
+    return 'connect';
   }
   if (pathname.startsWith('/settings') || pathname.startsWith('/licenses')) {
     return 'settings';
@@ -177,7 +181,9 @@ function RootWithBoundary() {
       <AuthProvider storage={expoSecureStorage}>
         <AppShellProvider>
           <NotificationsProvider storage={expoSecureStorage}>
-            <RootNavigator />
+            <CalendarSyncProvider storage={expoSecureStorage}>
+              <RootNavigator />
+            </CalendarSyncProvider>
           </NotificationsProvider>
         </AppShellProvider>
       </AuthProvider>
