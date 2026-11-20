@@ -1,6 +1,6 @@
 import { ActivityIndicator, Image, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
-import Svg, { Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg';
+import Svg, { Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { motion, useTheme } from '@/theme';
 
@@ -19,6 +19,62 @@ const WORDMARK_WIDTH = 0.36;
 /** The lockup sits just above the middle, leaving the lower half open. */
 const CENTRE = 0.425;
 const SPINNER_GAP = 26;
+
+type Band = {
+  key: string;
+  /** How far down the light reaches, as a share of the height. */
+  depth: number;
+  /** Degrees of lean; negative lifts the right side, so the light pools left. */
+  tilt: number;
+  /** Opacity where the band is brightest. */
+  peak: number;
+};
+
+/**
+ * Straight-edged layers rather than one radial field. A radial gradient whose
+ * centre sits just above the screen paints its iso-lines as arcs, and one arc
+ * under another reads as a sun behind the top edge — even brightness, clean
+ * round rim. Light from a large distant source is closer to a straight
+ * fall-off, so each layer here is a full-width band with a straight edge, and
+ * the three lean at different angles and reach different depths. Where they
+ * cross, the band is thicker on one side than the other and its lower boundary
+ * becomes a broken line instead of a dome.
+ *
+ * Every band runs past both sides of the screen and fades to nothing at its
+ * own edges, so none of them shows a seam.
+ */
+const BANDS: Band[] = [
+  { key: 'a', depth: 0.34, tilt: -13, peak: 0.22 },
+  { key: 'b', depth: 0.26, tilt: 7, peak: 0.14 },
+  { key: 'c', depth: 0.3, tilt: -3, peak: 0.12 },
+];
+
+/** Where each band starts fading in, as a share of the height. */
+const BAND_TOP = -0.16;
+
+type Patch = {
+  key: string;
+  /** Centre and radii, as shares of the viewport. */
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  tilt: number;
+  peak: number;
+};
+
+/**
+ * What stops the bands from reading as a plain gradient: flat, soft patches set
+ * at uneven points along the edge. Each only thickens the light where it sits,
+ * so the boundary steps in and out instead of following one line, and the top
+ * edge is no longer equally bright all the way across.
+ */
+const PATCHES: Patch[] = [
+  { key: 'a', cx: 0.16, cy: -0.01, rx: 0.34, ry: 0.2, tilt: -14, peak: 0.36 },
+  { key: 'b', cx: 0.44, cy: -0.08, rx: 0.2, ry: 0.12, tilt: 4, peak: 0.2 },
+  { key: 'c', cx: 0.8, cy: 0.02, rx: 0.3, ry: 0.18, tilt: 12, peak: 0.32 },
+  { key: 'd', cx: 0.62, cy: -0.05, rx: 0.22, ry: 0.13, tilt: -8, peak: 0.16 },
+];
 
 /**
  * Launch screen: the mascot and the wordmark on the theme background, with a
@@ -41,37 +97,38 @@ export function LaunchSplash() {
   const wordmarkHeight = wordmark * WORDMARK_RATIO;
   const lockupTop = height * CENTRE - (mascot + wordmarkHeight) / 2;
 
-  // The same alpha lands very differently on paper and on near-black, so each
-  // theme carries its own ramp instead of one scaled by a factor. The dark one
-  // keeps a paler core so the orange does not read as paint; the light one is
-  // the warm colour straight through, the way it looks on a sheet of paper.
-  const glowStops = [
-    ...(resolvedMode === 'dark'
-      ? [
-          { offset: 0, color: t.splashGlowCore, opacity: 0.24 },
-          { offset: 0.45, color: t.splashGlow, opacity: 0.12 },
-          { offset: 0.75, color: t.splashGlow, opacity: 0.055 },
-          { offset: 0.9, color: t.splashGlow, opacity: 0.028 },
-        ]
-      : [
-          { offset: 0, color: t.splashGlow, opacity: 0.6 },
-          { offset: 0.45, color: t.splashGlow, opacity: 0.29 },
-          { offset: 0.75, color: t.splashGlow, opacity: 0.17 },
-          { offset: 0.9, color: t.splashGlow, opacity: 0.11 },
-        ]),
-    { offset: 1, color: t.splashGlow, opacity: 0 },
-  ];
+  // The same alpha lands very differently on paper and on near-black, so the
+  // dark theme runs the whole thing at a fraction of the light one's, and keeps
+  // the paler core at the hot end so the orange does not read as paint.
+  const dark = resolvedMode === 'dark';
+  const lift = dark ? 0.5 : 1;
+  const patchColor = dark ? t.splashGlowCore : t.splashGlow;
+  const top = height * BAND_TOP;
 
-  // The source sits above the top edge so only its lower fringe reaches the
-  // screen, which is what makes it read as light rather than a painted wash.
-  // Wide and shallow-graded on purpose: it has to reach the full width of the
-  // top edge and fall away only around a third of the way down.
-  const light = {
-    cx: width * 0.3,
-    cy: -height * 0.08,
-    rx: width * 0.85,
-    ry: height * 0.42,
-  };
+  const bands = BANDS.map(band => {
+    const bottom = height * band.depth;
+    const span = bottom - top;
+    // Hot just above the visible edge, then a fall-off that thins out rather
+    // than dimming on a curve — the eye reads a straight fade as distance.
+    const profile = [
+      { y: top, k: 0 },
+      { y: -height * 0.08, k: 0.8 },
+      { y: -height * 0.02, k: 1 },
+      { y: bottom * 0.35, k: 0.45 },
+      { y: bottom * 0.7, k: 0.15 },
+      { y: bottom, k: 0 },
+    ];
+    return {
+      ...band,
+      top,
+      bottom,
+      stops: profile.map(({ y, k }) => ({
+        offset: (y - top) / span,
+        color: dark && k > 0.6 ? t.splashGlowCore : t.splashGlow,
+        opacity: k * band.peak * lift,
+      })),
+    };
+  });
   const entering = reduceMotion ? undefined : FadeIn.duration(motion.sheet);
 
   return (
@@ -82,32 +139,61 @@ export function LaunchSplash() {
     >
       <Svg style={StyleSheet.absoluteFill} width={width} height={height} pointerEvents="none">
         <Defs>
-          {/* Hot at the point where it meets the edge, cooling as it falls
-              away. One field rather than stacked lobes: overlapping them
-              leaves a seam you can see on a near-black background. The ramp
-              is long and shallow so the fall-off stays soft across the whole
-              third of the screen it covers. */}
-          <RadialGradient id="splashLight" cx="50%" cy="50%" r="50%">
-            {glowStops.map(stop => (
-              <Stop
-                key={stop.offset}
-                offset={stop.offset}
-                stopColor={stop.color}
-                stopOpacity={stop.opacity}
-              />
-            ))}
+          {bands.map(band => (
+            <LinearGradient
+              key={band.key}
+              id={`splash-${band.key}`}
+              x1="0"
+              y1={band.top}
+              x2="0"
+              y2={band.bottom}
+              gradientUnits="userSpaceOnUse"
+            >
+              {band.stops.map(stop => (
+                <Stop
+                  key={stop.offset}
+                  offset={stop.offset}
+                  stopColor={stop.color}
+                  stopOpacity={stop.opacity}
+                />
+              ))}
+            </LinearGradient>
+          ))}
+        </Defs>
+
+        <Defs>
+          <RadialGradient id="splash-patch" cx="50%" cy="50%" r="50%">
+            <Stop offset="0" stopColor={patchColor} stopOpacity={1} />
+            <Stop offset="0.45" stopColor={patchColor} stopOpacity={0.55} />
+            <Stop offset="0.75" stopColor={t.splashGlow} stopOpacity={0.18} />
+            <Stop offset="1" stopColor={t.splashGlow} stopOpacity={0} />
           </RadialGradient>
         </Defs>
 
-        {/* leaning in from the upper left, so the light has a direction */}
-        <Ellipse
-          cx={light.cx}
-          cy={light.cy}
-          rx={light.rx}
-          ry={light.ry}
-          fill="url(#splashLight)"
-          transform={`rotate(-14 ${light.cx} ${light.cy})`}
-        />
+        {bands.map(band => (
+          <Rect
+            key={band.key}
+            x={-width * 0.4}
+            y={band.top}
+            width={width * 1.8}
+            height={band.bottom - band.top}
+            fill={`url(#splash-${band.key})`}
+            transform={`rotate(${band.tilt} ${width / 2} ${(band.top + band.bottom) / 2})`}
+          />
+        ))}
+
+        {PATCHES.map(patch => (
+          <Ellipse
+            key={patch.key}
+            cx={width * patch.cx}
+            cy={height * patch.cy}
+            rx={width * patch.rx}
+            ry={height * patch.ry}
+            opacity={patch.peak * lift}
+            fill="url(#splash-patch)"
+            transform={`rotate(${patch.tilt} ${width * patch.cx} ${height * patch.cy})`}
+          />
+        ))}
       </Svg>
 
       <Animated.View
