@@ -1,38 +1,51 @@
 ---
 name: publish
 description: >-
-  发版 OctopBot 移动客户端（单分支 + chore PR）：从 develop 切 chore/release-x.y.z，升级 app.json 与 package.json 版本、
-  过质量门，开一个 chore 的 PR 合回 develop，合入后在 develop tip 打 v* tag 并推送，最后用 EAS production 构建
-  （提交商店仅在用户明确要求时）。在用户说「发版」「发布」「release」「bump version」「切版本」「打个 tag」「上传构建」时使用。
+  发版 OctopBot 移动客户端（单分支 + chore PR + Actions 构建）：从 develop 切 chore/release-x.y.z，升级 app.json 与
+  package.json 版本、过质量门，开一个 chore 的 PR 合回 develop，合入后在 develop tip 打 v* tag 并推送，
+  由 .github/workflows/release.yml 跑 EAS production 构建并回填构建链接（提交商店仅在用户明确要求时）。
+  在用户说「发版」「发布」「release」「bump version」「切版本」「打个 tag」「上传构建」时使用。
 disable-model-invocation: true
 ---
 
 # Publish / 发版
 
 `develop` 既是集成分支也是发版分支——没有 `main`，也不切长命 release 分支。
-版本改动本身走一个 **chore 分支 + PR 合回 develop**（让 CI 跑在 PR 上、改动可追溯），合入后 tag 打在 `develop` tip。
+版本改动走 **chore 分支 + PR 合回 develop**；合入后 tag 打在 `develop` tip，**构建交给 GitHub Actions**，本地不跑 EAS。
 
 ```
-chore/release-A.B.C  ──PR(squash)──▶  develop  ──tag vA.B.C──▶  EAS production build
+chore/release-A.B.C ──PR(squash)──▶ develop ──tag vA.B.C──▶ Release workflow ──▶ EAS production build
 ```
 
 **开始时宣告：** "正在使用 publish 技能发布版本 {VERSION}。"
 
 ## 配置项
 
-| 配置项                   | 默认值                    | 说明                                                        |
-| ------------------------ | ------------------------- | ----------------------------------------------------------- |
-| `VERSION_FILE`           | `app.json`                | 版本唯一真源：`expo.version`                                |
-| `SECONDARY_VERSION_FILE` | `package.json`            | 必须与 `expo.version` 相等                                  |
-| `LOCK_FILE`              | `package-lock.json`       | 根 `version` 需与上面一致（当前是脏的 `1.0.0`，顺手对齐）   |
-| `LICENSES_FILE`          | `src/legal/licenses.json` | 依赖变更时用 `npm run licenses` 重建                        |
-| `VERSION_GUARD`          | `npm run check:version`   | CI 门：两个版本号必须相等                                   |
-| `TAG_PREFIX`             | `v`                       | 生成 `v1.0.0-alpha.2` 风格标签                              |
-| `REMOTE`                 | `origin`                  | Git 远程仓库名                                              |
-| `BRANCH`                 | `develop`                 | 唯一的集成分支，也是发版分支（PR 的目标、tag 的落点）       |
-| `WORK_BRANCH_PREFIX`     | `chore/release-`          | 版本 PR 用的短命分支，命名沿用仓库 `chore/...` 习惯         |
-| `MERGE_METHOD`           | `squash`                  | 与仓库既有 PR 一致：squash 后 develop 只多一条 release 提交 |
-| `EAS_PROFILE`            | `production`              | `eas.json` 中构建号自增、面向商店的 profile                 |
+| 配置项                   | 默认值                          | 说明                                                        |
+| ------------------------ | ------------------------------- | ----------------------------------------------------------- |
+| `VERSION_FILE`           | `app.json`                      | 版本唯一真源：`expo.version`                                |
+| `SECONDARY_VERSION_FILE` | `package.json`                  | 必须与 `expo.version` 相等                                  |
+| `LOCK_FILE`              | `package-lock.json`             | 根 `version` 需与上面一致（当前是脏的 `1.0.0`，顺手对齐）   |
+| `LICENSES_FILE`          | `src/legal/licenses.json`       | 依赖变更时用 `npm run licenses` 重建                        |
+| `VERSION_GUARD`          | `npm run check:version`         | CI 门：两个版本号必须相等                                   |
+| `TAG_PREFIX`             | `v`                             | 生成 `v1.0.0-alpha.2` 风格标签                              |
+| `REMOTE`                 | `origin`                        | Git 远程仓库名                                              |
+| `BRANCH`                 | `develop`                       | 唯一的集成分支，也是发版分支（PR 的目标、tag 的落点）       |
+| `WORK_BRANCH_PREFIX`     | `chore/release-`                | 版本 PR 用的短命分支，命名沿用仓库 `chore/...` 习惯         |
+| `MERGE_METHOD`           | `squash`                        | 与仓库既有 PR 一致：squash 后 develop 只多一条 release 提交 |
+| `WORKFLOW_FILE`          | `.github/workflows/release.yml` | tag 推上去后由它构建；技能不本地跑 EAS                      |
+| `WORKFLOW_NAME`          | `Release`                       | `gh run list --workflow Release` 用的名字                   |
+| `EAS_PROFILE`            | `production`                    | 构建 profile，固定在 `release.yml` 里；改这里也要同步它     |
+
+**一次性接入（首次发版前必须就位，否则 workflow 会在 build job 明确报错）：**
+
+- 仓库 secret `EXPO_TOKEN`（https://expo.dev/settings/access-tokens）
+- `app.json` → `expo.extra.eas.projectId`（`npx eas-cli init` 一次并提交）
+
+```bash
+gh secret list --json name --jq '.[].name' | grep -qx EXPO_TOKEN && echo "secret ok"
+node -p 'require("./app.json").expo.extra?.eas?.projectId ?? "MISSING projectId"'
+```
 
 ## 调用方式
 
@@ -74,7 +87,18 @@ chore/release-A.B.C  ──PR(squash)──▶  develop  ──tag vA.B.C──�
    - ≤ 当前版本 → 中止："新版本必须大于 `{current}`。"
    - `{TAG_PREFIX}{目标版本}` 已存在 → 中止："这个号已经发过了，换一个。"（`v1.0.0-alpha.1` 已占用）
    - 远端已存在同名 `{WORK_BRANCH_PREFIX}{version}` → 中止，给删除指令
-8. 展示确认块：
+8. 接入前置检查（缺了就中止，否则 tag 推上去也会在 build job 失败）：
+
+   ```bash
+   base=https://api.github.com/repos/$(gh repo view --json nameWithOwner -q .nameWithOwner)
+   gh api "${base}/actions/secrets" --jq '.secrets[].name' | grep -qx EXPO_TOKEN && echo "EXPO_TOKEN ok"
+   node -p 'require("./app.json").expo.extra?.eas?.projectId ?? "MISSING projectId — 先跑 npx eas-cli init"'
+   gh workflow view {WORKFLOW_NAME} >/dev/null 2>&1 || echo "MISSING {WORKFLOW_FILE}"
+   ```
+
+   `EXPO_TOKEN` 缺失或 `projectId` 仍是 `MISSING` → 中止，说明这一步只需做一次。
+
+9. 展示确认块：
 
 ```
 当前版本 (app.json @ develop):  X.Y.Z
@@ -82,7 +106,7 @@ chore/release-A.B.C  ──PR(squash)──▶  develop  ──tag vA.B.C──�
 上次发布 tag:                    vX.Y.Z (YYYY-MM-DD)
 发版分支:                        chore/release-A.B.C → PR → develop（squash）
 本次发布提交数:                   N（{last_tag}..HEAD）
-构建:                            eas build --profile production --platform all
+构建:                            push tag → Release workflow（EAS production，双平台）
 开源许可清单:                     依赖有变更则需 npm run licenses
 
 确认发布 X.Y.Z → A.B.C？[y/N]
@@ -252,41 +276,41 @@ Maestro 需要模拟器 + 真实 Octop 实例（Android 是基线）。
    git push {REMOTE} --delete {TAG_PREFIX}{version}
    git tag -d {TAG_PREFIX}{version}
    ```
-4. 可选发布说明（问用户，默认 `y`——这是唯一可追溯的发版记录）：
-   ```bash
-   gh release create {TAG_PREFIX}{version} --title "{TAG_PREFIX}{version}" --generate-notes
-   ```
-   要中文时改 `--notes`：按 `feat:` → 新增、`fix:` → 修复、`refactor:`/`perf:` → 变更、`!:` → **Breaking** 归段，忽略 `chore:` / `ci:` / `test:`。
+4. **推 tag 就是发版指令**：`{WORKFLOW_FILE}` 已监听 `v*`，tag 一推上去就开始跑。
+   Release notes 不在这里手写——workflow 会用 GitHub 自动生成的 notes 建/更新 Release，并把构建链接贴进去。
 
-### 步骤 8 — 清理分支、EAS 构建
+### 步骤 8 — 等 Release workflow 构建
 
-1. 删除 chore 分支（PR 已合，可安全删）：
+1. 找到这次 tag 触发的运行，并盯住它：
    ```bash
-   git branch -D {WORK_BRANCH_PREFIX}{version}
-   git push {REMOTE} --delete {WORK_BRANCH_PREFIX}{version}
+   gh run list --workflow {WORKFLOW_NAME} --limit 3 \
+     --json databaseId,headBranch,status,conclusion,displayTitle
+   gh run watch {id} --exit-status      # 两个 job 都必须 success
    ```
-   失败仅警告（非致命），给出手动命令。
-2. 登录检查（仓库没有全局 `eas`，用 `npx eas-cli`）：
+   期望顺序：`Tag matches version, gates pass` → `EAS production build`。
+2. 失败处理，按原因分两类：
+   - **基础设施类**（`EXPO_TOKEN` / `projectId` / EAS 服务 / 网络）→ 补齐前置后对同一次运行重跑：
+     ```bash
+     gh run rerun {id} --failed
+     ```
+   - **代码类**（verify job 的 lint / typecheck / test / 版本门失败）→ **不要**重跑，也不要删 tag 重推；
+     修完按新版本号走一遍完整流程（tag 已发出，那个号作废）。
    ```bash
-   npx eas-cli@latest whoami
+   gh run view {id} --log-failed | tail -50   # 先看失败原因再决定
    ```
-   未登录 → 提示 `npx eas-cli login`，**结束本步骤**（tag 已发，此步失败非致命），不要代为登录。
-3. 构建：
+3. 取构建链接（workflow 已写进 Release 和 job summary）：
    ```bash
-   npx eas-cli@latest build --profile {EAS_PROFILE} --platform all
+   gh release view {TAG_PREFIX}{version} --json body -q .body
+   gh run view {id} --log --job $(gh run view {id} --json jobs -q '.jobs[] | select(.name=="EAS production build") | .databaseId') | grep -i expo.dev/builds
    ```
-   - 构建号由 EAS 自增，本地不要碰。
-   - 本次动过 `app.json` 的 plugins / permissions → 提醒：这是完整原生构建，本地调试的 dev client 也要重建。
-4. 记录结果：
-   ```bash
-   npx eas-cli@latest build:list --limit 1 --json
-   ```
-5. 分发前校验制品：
+   汇报 Android / iOS 两个构建页链接；构建号由 EAS 自增，`eas.json` 的 `production.autoIncrement` 负责，本地不要碰。
+4. 提醒：本次动过 `app.json` 的 plugins / permissions → 这是完整原生构建，本地调试的 dev client 也要重建。
+5. 分发前校验制品（从 Release / EAS 页面下载 APK 后）：
    ```bash
    apksigner verify --print-certs path/to/app.apk
    ```
    CN 为 `Android Debug` 或别名 `androiddebugkey` → 拒绝分发。
-6. **提交商店只在用户明确要求时**：
+6. **提交商店只在用户明确要求时**，且仍走本地 CLI（workflow 只构建、不 submit）：
    ```bash
    npx eas-cli@latest submit --profile {EAS_PROFILE} --platform android|ios
    ```
@@ -294,33 +318,43 @@ Maestro 需要模拟器 + 真实 Octop 实例（Android 是基线）。
 
 ### 步骤 9 — 收尾汇报
 
-留在 `{BRANCH}`（步骤 6 已切回），汇报：
+1. 删除 chore 分支（PR 已合，可安全删）：
+   ```bash
+   git branch -D {WORK_BRANCH_PREFIX}{version}
+   git push {REMOTE} --delete {WORK_BRANCH_PREFIX}{version}
+   ```
+   失败仅警告（非致命），给出手动命令。
+2. 留在 `{BRANCH}`（步骤 6 已切回），汇报：
 
 - 版本 `X.Y.Z → A.B.C`、PR 链接、squash 后的 commit、tag、GitHub Release 链接
-- EAS 构建 id / 平台 / 构建号，以及"装完去 `Me → Settings → About` 确认显示 `{version} ({build})`"
-- 未做的项（E2E / submit / Release notes）明确列出，不要默认它们做过
+- Release workflow 的 run 链接、两个 job 的结论、Android / iOS 构建页链接与构建号
+- "装完去 `Me → Settings → About` 确认显示 `{version} ({build})`"
+- 未做的项（E2E / submit）明确列出，不要默认它们做过
 
 ## 错误处理参考
 
-| 场景                                           | 行为                                        |
-| ---------------------------------------------- | ------------------------------------------- |
-| 当前不在 `develop`                             | 中止，提示切分支                            |
-| 本地落后 / 领先 / 分叉                         | 落后可 `pull --ff-only`；领先或分叉一律中止 |
-| 工作树不干净                                   | 中止：先提交或 stash                        |
-| `app.json` 与 `package.json` 版本不一致        | 中止：先修 `check:version`                  |
-| 目标版本 ≤ 当前版本，或 tag 已存在             | 中止：换一个更大的版本号                    |
-| `app.json` 里 `"version"` 命中多于 1 行        | 中止并展示命中行                            |
-| 依赖有变更但许可清单未更新                     | 中止：`npm run licenses` 后一并提交         |
-| `check:version` / lint / typecheck / test 失败 | 中止（尚未提交）                            |
-| Maestro 失败                                   | 中止（尚未提交）                            |
-| 推送 chore 分支失败                            | 中止并给出手动命令，禁止强推                |
-| PR 目标分支被错写成别的分支                    | 中止，重建 PR（必须 base `develop`）        |
-| PR 的 CI 红                                    | 中止：不合入、不打 tag                      |
-| 分支保护拦住 squash merge                      | 中止，让用户手动合，不绕过保护              |
-| 合入后 develop tip 版本号不是目标版本          | 中止：不打 tag，先排查 squash 前的基线      |
-| tag 已存在                                     | 中止并给删除指令                            |
-| tag 推送后 EAS 登录 / 构建失败                 | 非致命：给出手动命令与 `build:list` 查法    |
-| APK 是 debug 签名                              | 拒绝分发                                    |
+| 场景                                           | 行为                                                              |
+| ---------------------------------------------- | ----------------------------------------------------------------- |
+| 当前不在 `develop`                             | 中止，提示切分支                                                  |
+| 本地落后 / 领先 / 分叉                         | 落后可 `pull --ff-only`；领先或分叉一律中止                       |
+| 工作树不干净                                   | 中止：先提交或 stash                                              |
+| `app.json` 与 `package.json` 版本不一致        | 中止：先修 `check:version`                                        |
+| 目标版本 ≤ 当前版本，或 tag 已存在             | 中止：换一个更大的版本号                                          |
+| `app.json` 里 `"version"` 命中多于 1 行        | 中止并展示命中行                                                  |
+| 依赖有变更但许可清单未更新                     | 中止：`npm run licenses` 后一并提交                               |
+| `check:version` / lint / typecheck / test 失败 | 中止（尚未提交）                                                  |
+| Maestro 失败                                   | 中止（尚未提交）                                                  |
+| 推送 chore 分支失败                            | 中止并给出手动命令，禁止强推                                      |
+| PR 目标分支被错写成别的分支                    | 中止，重建 PR（必须 base `develop`）                              |
+| PR 的 CI 红                                    | 中止：不合入、不打 tag                                            |
+| 分支保护拦住 squash merge                      | 中止，让用户手动合，不绕过保护                                    |
+| 合入后 develop tip 版本号不是目标版本          | 中止：不打 tag，先排查 squash 前的基线                            |
+| tag 已存在                                     | 中止并给删除指令                                                  |
+| `EXPO_TOKEN` / `projectId` 缺失                | 中止（步骤 1 的前置检查），补齐后重来                             |
+| tag 推了但 workflow 没跑                       | `gh workflow list` 检查 `{WORKFLOW_NAME}` 是否存在、tag 是否 `v*` |
+| workflow 的 verify job 失败（代码 / 版本门）   | 不重跑、不删 tag；修完换新版本号重走流程                          |
+| workflow 的 build job 失败（凭证 / EAS 侧）    | `gh run rerun {id} --failed`                                      |
+| APK 是 debug 签名                              | 拒绝分发                                                          |
 
 ## 红线规则
 
@@ -332,9 +366,11 @@ Maestro 需要模拟器 + 真实 Octop 实例（Android 是基线）。
 - 质量门或 PR checks 未过就合入、就打 tag
 - `--no-verify` 绕过钩子、`--force` 推分支、绕过分支保护
 - 未经用户明确要求就 `eas submit`，或代为登录 / 操作凭证
+- 本地跑 `eas build` 绕开 `{WORKFLOW_FILE}`——构建只有 Actions 一条路（本地只留 `whoami` / `submit`）
+- 删掉 tag 重推同一个版本号来"重试"；代码类失败一律换新号
 - 分发 debug 签名 APK 或本地 `prebuild` 出的 release APK
 - 跳过步骤 1 的版本确认、步骤 6 的合入确认
-- 任何步骤失败后继续往下（清理与 EAS 的非致命失败除外）
+- 任何步骤失败后继续往下（分支清理与 workflow 失败处理除外）
 - 在 `develop` 之外的 commit 上打发版 tag
 
 **始终：**
@@ -342,9 +378,9 @@ Maestro 需要模拟器 + 真实 Octop 实例（Android 是基线）。
 - 版本 PR 的 base 是 `{BRANCH}`、head 是 `{WORK_BRANCH_PREFIX}{version}`，标题 `chore(release): {version}`，squash 合入
 - 一次提交里同时升级 `app.json`、`package.json`、`package-lock.json` 根版本，`check:version` 必过
 - 依赖有变动就重建 `src/legal/licenses.json`
-- 合入后先复核 `develop` tip 的版本号，再打 tag，再构建
-- 构建号交给 EAS；发完删掉 chore 分支
-- 汇报如实写明省略项
+- 合入后先复核 `develop` tip 的版本号，再打 tag，再等 workflow
+- 构建号交给 EAS 自增；发完删掉 chore 分支
+- 汇报如实写明 run 结论与省略项
 
 ## 配置
 
