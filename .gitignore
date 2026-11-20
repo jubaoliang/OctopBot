@@ -19,6 +19,11 @@ android/
 .env
 .env.*
 
+# Signing material — never commit, the release APK identity depends on it
+*.keystore
+*.jks
+*.p12
+
 # Tests & coverage
 coverage/
 
