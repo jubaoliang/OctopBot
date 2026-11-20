@@ -48,7 +48,7 @@ Keep the marketing version in sync — one number, two files:
 | `expo.version` | `app.json`     | Source of truth shown to users / store listing |
 | `version`      | `package.json` | Must equal `expo.version`                      |
 
-Native build numbers (iOS `CFBundleVersion` / Android `versionCode`) are **not** hand-edited in the repo. EAS production uses `appVersionSource: "remote"` and `autoIncrement: true` in `eas.json`.
+Native build numbers (`versionCode`, later iOS `CFBundleVersion`) are **not** hand-edited in the repo and not written into `app.json`. The release workflow injects `versionCode = VERSION_CODE_BASE + github.run_number` at build time; `eas.json` is no longer used for builds.
 
 Before a store-facing release:
 
@@ -56,7 +56,7 @@ Before a store-facing release:
 2. Run `npm run check:version` (also a CI gate).
 3. Confirm Settings → About → Version shows the new marketing number after a rebuild.
 
-The full release path (version bump on a `chore/release-x.y.z` branch → PR squashed into `develop` → `v*` tag on the `develop` tip → [`.github/workflows/release.yml`](.github/workflows/release.yml) runs the EAS production build) is scripted in [`.agents/skills/publish/SKILL.md`](.agents/skills/publish/SKILL.md) — invoke it with `/publish <version>`. `develop` is the release branch; there is no separate `main`.
+The full release path (version bump on a `chore/release-x.y.z` branch → PR squashed into `develop` → `v*` tag on the `develop` tip → [`.github/workflows/release.yml`](.github/workflows/release.yml) builds a signed Android APK with Gradle and attaches it to the GitHub Release) is scripted in [`.agents/skills/publish/SKILL.md`](.agents/skills/publish/SKILL.md) — invoke it with `/publish <version>`. `develop` is the release branch; there is no separate `main`. iOS is not built: that needs an Apple Developer account.
 
 Do not add `runtimeVersion` / OTA channels until `expo-updates` is intentionally enabled.
 

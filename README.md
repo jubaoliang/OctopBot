@@ -83,14 +83,14 @@ npm run ios        # or: npm run android — first run compiles the native proje
 
 ## 📦 Release builds
 
-Store releases use [EAS Build](https://docs.expo.dev/build/introduction/) profiles in [`eas.json`](eas.json) (`development` / `preview` / `production`). Credentials stay on EAS or in CI secrets — never commit keystores or passwords. Before any Play upload, verify the artifact is **not** debug-signed:
+Store releases are built by [`.github/workflows/release.yml`](.github/workflows/release.yml) on a `v*` tag: Gradle compiles a signed Android APK and attaches it to the GitHub Release. No Expo account is needed. The four `ANDROID_KEYSTORE_*` repo secrets carry the signing credentials — never commit keystores or passwords. iOS is not built yet; it needs an Apple Developer account. Before any Play upload, verify the artifact is **not** debug-signed:
 
 ```bash
 apksigner verify --print-certs path/to/app.apk
 # Reject if the certificate CN is Android Debug or the alias is androiddebugkey.
 ```
 
-Local `android/` trees from `expo prebuild` may still default release to the debug keystore; do not distribute those APKs.
+Local `android/` trees from `expo prebuild` still default release to the debug keystore; do not distribute those APKs.
 
 ## 📁 Project layout
 

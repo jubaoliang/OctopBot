@@ -22,7 +22,7 @@ Official mobile client for [TencentCloud/Octop](https://github.com/TencentCloud/
 - Scripts: `npm start` / `npm run ios` / `npm run android` / `npm run web`, `npm run lint` (eslint, strict), `npm run typecheck`, `npm test` (jest), `npm run format` (prettier), `npm run licenses` (regenerate Acknowledgements), `npm run check:version` (package.json ↔ app.json), `npm run reset-project` (template helper — never run casually).
 - Import aliases (tsconfig paths): `@/*` → `src/*`, `@/assets/*` → `assets/*`. Use them; no deep relative imports.
 - Contributor onboarding: [`CONTRIBUTING.md`](CONTRIBUTING.md).
-- **Marketing version:** `app.json` → `expo.version` is the source of truth; `package.json` `version` must match (CI: `npm run check:version`). Native build numbers are EAS remote auto-increment (`eas.json`); Settings shows them via `src/platform/app-version.ts`.
+- **Marketing version:** `app.json` → `expo.version` is the source of truth; `package.json` `version` must match (CI: `npm run check:version`). Native build numbers are injected by the release workflow (`versionCode = VERSION_CODE_BASE + github.run_number`), never hand-edited or written into `app.json`; Settings shows them via `src/platform/app-version.ts`.
 
 ## Design source of truth
 
