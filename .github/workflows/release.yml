@@ -160,6 +160,9 @@ jobs:
         env:
           CI: '1'
           EXPO_NO_TELEMETRY: '1'
+          # versionCode is written into app.json just above, so the tree is dirty by
+          # design; never let a git-status prompt block a non-interactive run.
+          EXPO_NO_GIT_STATUS: '1'
 
       - name: Configure release signing
         run: python3 scripts/configure-android-signing.py
