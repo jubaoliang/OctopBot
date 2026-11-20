@@ -10,6 +10,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { enableFreeze } from 'react-native-screens';
 
 import { AppDrawer, type DrawerRoute } from '@/components/AppDrawer';
 import { LaunchSplash } from '@/components/LaunchSplash';
@@ -22,7 +23,7 @@ import { I18nProvider, useI18n } from '@/i18n/I18nProvider';
 import { NATIVE_HEADERS } from '@/platform/screen-header';
 import { expoSecureStorage } from '@/platform/secure-store';
 import { KeyboardProvider } from '@/platform/keyboard';
-import { darkTokens, lightTokens, ThemeProvider, useTheme } from '@/theme';
+import { darkTokens, lightTokens, ThemeProvider, useTheme, useStackAnimation } from '@/theme';
 
 /** How long the launch screen stays up at minimum. */
 const LAUNCH_HOLD_MS = 800;
@@ -31,6 +32,13 @@ void SplashScreen.preventAutoHideAsync().catch(() => {
   // The splash screen may already be hidden during fast refresh or headless rendering.
 });
 SplashScreen.setOptions({ duration: 400, fade: true });
+
+// Suspends re-renders of blurred screens (inactive tabs, covered stack
+// screens) so background React work cannot jank the visible transition.
+// This also makes freezeOnBlur default to true for every navigator: a
+// streaming chat thread keeps its socket alive while blurred, and its
+// queued updates replay in one commit on focus. No-op on web.
+enableFreeze(true);
 
 /** Maps the current path to the drawer row that should read as selected. */
 function drawerRouteFor(pathname: string): DrawerRoute | null {
@@ -48,6 +56,8 @@ function drawerRouteFor(pathname: string): DrawerRoute | null {
 
 function RootNavigator() {
   const { resolvedMode, tokens } = useTheme();
+  // Reduce Motion swaps the platform push for a fade (HIG: fewer/gentler).
+  const stackAnimation = useStackAnimation();
   const {
     drawerOpen,
     drawerPresented,
@@ -120,6 +130,7 @@ function RootNavigator() {
           <Stack
             screenOptions={{
               headerShown: NATIVE_HEADERS,
+              ...stackAnimation,
               contentStyle: { backgroundColor: tokens.bg },
             }}
           >

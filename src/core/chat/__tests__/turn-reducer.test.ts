@@ -1,4 +1,5 @@
 import {
+  endsStopWait,
   initialChatTurnState,
   mergeHistoryTurns,
   reduceChatTurn,
@@ -171,5 +172,34 @@ describe('mergeHistoryTurns', () => {
     expect(
       mergeHistoryTurns(live, history).map(t => (t.kind === 'hitl' ? t.summary : t.text)),
     ).toEqual(['a', 'b']);
+  });
+});
+
+describe('endsStopWait', () => {
+  it('matches every frame type that clears stopRequested in the reducer', () => {
+    const terminal: Record<string, unknown>[] = [
+      { type: 'turn.started', thread_id: 't-1' },
+      { type: 'turn.resumed', thread_id: 't-1' },
+      { type: 'turn.ended', thread_id: 't-1' },
+      { type: 'done', thread_id: 't-1' },
+      { type: 'error', thread_id: 't-1' },
+      { type: 'hitl_required', thread_id: 't-1' },
+      { type: 'turn_status', thread_id: 't-1', active: false },
+      { type: 'turn_status', thread_id: 't-1' },
+    ];
+    for (const frame of terminal) {
+      expect(endsStopWait(frame as never)).toBe(true);
+    }
+  });
+
+  it('does not match streaming or non-terminal frames', () => {
+    const nonTerminal: Record<string, unknown>[] = [
+      { type: 'turn_status', thread_id: 't-1', active: true },
+      { type: 'token', thread_id: 't-1', content: 'x' },
+      { type: 'reasoning', thread_id: 't-1', content: 'x' },
+    ];
+    for (const frame of nonTerminal) {
+      expect(endsStopWait(frame as never)).toBe(false);
+    }
   });
 });

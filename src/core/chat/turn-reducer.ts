@@ -108,6 +108,27 @@ function frameThreadId(frame: ServerFrame): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+/**
+ * Frames that clear `stopRequested` in the reducer. The stop watchdog in
+ * the thread screen disarms on the same predicate — one source of truth,
+ * so the two cannot drift.
+ */
+export function endsStopWait(frame: ServerFrame): boolean {
+  switch (frame.type) {
+    case 'turn.started':
+    case 'turn.resumed':
+    case 'turn.ended':
+    case 'done':
+    case 'error':
+    case 'hitl_required':
+      return true;
+    case 'turn_status':
+      return (frame as { active?: unknown }).active !== true;
+    default:
+      return false;
+  }
+}
+
 function isCountable(frame: ServerFrame): CountableFrame | null {
   switch (frame.type) {
     case 'reasoning':
