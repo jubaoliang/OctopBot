@@ -15,12 +15,13 @@ import {
   NativeSyntheticEvent,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
-import { Check, ChevronDown, Copy, RefreshCw } from 'lucide-react-native';
+import { ArrowUp, Check, ChevronDown, Copy, RefreshCw } from 'lucide-react-native';
 import Markdown from 'react-native-markdown-display';
 
 import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
@@ -33,7 +34,7 @@ import { IconButton } from '@/components/IconButton';
 import { PressableScale } from '@/components/PressableScale';
 import { TypingDots } from '@/components/TypingDots';
 import { mediaPreviewPath } from '@/core/api/attachments';
-import { ChatApi } from '@/core/api/chat';
+import { ChatApi, type HitlDecision } from '@/core/api/chat';
 import {
   historyAttachments,
   processCountsFromHistory,
@@ -44,7 +45,13 @@ import type { ServerFrame, TurnAttachment } from '@/core/api/types';
 import { ChatSocket, type ChatConnectionStatus } from '@/core/chat/chat-socket';
 import { emptyProcessCounts } from '@/core/chat/process-counts';
 import { stepsFromHistory, type ProcessStep } from '@/core/chat/process-steps';
-import { initialChatTurnState, reduceChatTurn, type ChatTurn } from '@/core/chat/turn-reducer';
+import {
+  initialChatTurnState,
+  reduceChatTurn,
+  type ChatTurn,
+  type HitlCardQuestion,
+  type HitlDecisionType,
+} from '@/core/chat/turn-reducer';
 import { useAppShell } from '@/features/app-shell';
 import { useAuth } from '@/features/auth';
 import { takeChatHandoff } from '@/features/chat-handoff';
@@ -391,6 +398,7 @@ export default function ThreadScreen() {
         frame,
         defaults: {
           hitlTitle: stringsRef.current.chat.hitlTitle,
+          hitlQuestionTitle: stringsRef.current.chat.hitlQuestionTitle,
           sendFailed: stringsRef.current.chat.sendFailed,
         },
       });
@@ -654,7 +662,7 @@ export default function ThreadScreen() {
     send(text, attachments);
   };
 
-  const decideHitl = (decision: 'approve' | 'reject') => {
+  const decideHitl = (decision: HitlDecision) => {
     const pendingId = chatRef.current.hitl?.pendingId;
     const threadId = threadRef.current;
     // No real pending id → nothing actionable (fail closed).
@@ -662,7 +670,10 @@ export default function ThreadScreen() {
       return;
     }
     decidingRef.current = true;
-    dispatch({ type: 'hitlDecide' });
+    dispatch({
+      type: 'hitlDecide',
+      userMessage: decision.type === 'respond' ? decision.message : undefined,
+    });
     const controller = new AbortController();
     hitlAbortRef.current = controller;
     const run = { timedOut: false, sawTerminal: false };
@@ -674,7 +685,7 @@ export default function ThreadScreen() {
       try {
         await new ChatApi(httpClientRef.current).resumeHitl(
           agentId,
-          { thread_id: threadId, pending_id: pendingId, decisions: [{ type: decision }] },
+          { thread_id: threadId, pending_id: pendingId, decisions: [decision] },
           frame => {
             // Late frames after abort / unmount are ignored.
             if (controller.signal.aborted) {
@@ -813,10 +824,14 @@ export default function ThreadScreen() {
           <HitlCard
             summary={item.summary}
             detail={item.detail}
+            actionType={item.actionType}
+            questions={item.questions}
+            allowedDecisions={item.allowedDecisions}
             approveLabel={strings.chat.hitlApprove}
             rejectLabel={strings.chat.hitlReject}
-            onApprove={() => decideHitl('approve')}
-            onReject={() => decideHitl('reject')}
+            sendLabel={strings.chat.hitlSendResponse}
+            customPlaceholder={strings.chat.hitlCustomResponsePlaceholder}
+            onDecide={decideHitl}
           />
         );
       case 'assistant': {
@@ -1135,19 +1150,43 @@ const ErrorTurnItem = memo(function ErrorTurnItem({
 const HitlCard = memo(function HitlCard({
   summary,
   detail,
+  actionType,
+  questions,
+  allowedDecisions,
   approveLabel,
   rejectLabel,
-  onApprove,
-  onReject,
+  sendLabel,
+  customPlaceholder,
+  onDecide,
 }: {
   summary: string;
   detail?: string;
+  actionType?: 'question' | 'approval';
+  questions?: HitlCardQuestion[];
+  allowedDecisions?: HitlDecisionType[];
   approveLabel: string;
   rejectLabel: string;
-  onApprove: () => void;
-  onReject: () => void;
+  sendLabel: string;
+  customPlaceholder: string;
+  onDecide: (decision: HitlDecision) => void;
 }) {
   const { tokens } = useTheme();
+  const [customText, setCustomText] = useState('');
+
+  const showQuestionFlow =
+    actionType === 'question' || (allowedDecisions && allowedDecisions.includes('respond'));
+  const showApprove = !allowedDecisions || allowedDecisions.includes('approve');
+  const showReject = !allowedDecisions || allowedDecisions.includes('reject');
+
+  const handleCustomSend = () => {
+    const trimmed = customText.trim();
+    if (!trimmed) {
+      return;
+    }
+    haptics.impact('light');
+    onDecide({ type: 'respond', message: trimmed });
+  };
+
   return (
     <View
       style={[
@@ -1159,26 +1198,120 @@ const HitlCard = memo(function HitlCard({
       {detail ? (
         <Text style={[styles.hitlDetail, { color: tokens.textSecondary }]}>{detail}</Text>
       ) : null}
-      <View style={styles.hitlActions}>
-        <PressableScale
-          accessibilityRole="button"
-          testID="hitl-reject"
-          onPress={onReject}
-          style={[styles.hitlButton, { backgroundColor: tokens.overlaySubtle }]}
-        >
-          <Text style={[styles.hitlButtonLabel, { color: tokens.textPrimary }]}>{rejectLabel}</Text>
-        </PressableScale>
-        <PressableScale
-          accessibilityRole="button"
-          testID="hitl-approve"
-          onPress={onApprove}
-          style={[styles.hitlButton, { backgroundColor: tokens.accent }]}
-        >
-          <Text style={[styles.hitlButtonLabel, { color: tokens.textInverse }]}>
-            {approveLabel}
-          </Text>
-        </PressableScale>
-      </View>
+
+      {showQuestionFlow ? (
+        <View style={styles.hitlQuestionSection}>
+          {questions?.map((q, qIndex) => (
+            <View key={`q-${qIndex}`} style={styles.hitlQuestionItem}>
+              {qIndex > 0 && q.question ? (
+                <Text style={[styles.hitlQuestionSubtext, { color: tokens.textPrimary }]}>
+                  {q.question}
+                </Text>
+              ) : null}
+              {q.options && q.options.length > 0 ? (
+                <View style={styles.hitlOptionsList}>
+                  {q.options.map((opt, optIndex) => (
+                    <PressableScale
+                      key={`opt-${optIndex}`}
+                      accessibilityRole="button"
+                      testID={`hitl-option-${optIndex}`}
+                      scaleTo={0.98}
+                      onPress={() => {
+                        haptics.impact('light');
+                        onDecide({ type: 'respond', message: opt.value || opt.label });
+                      }}
+                      style={[
+                        styles.hitlOptionButton,
+                        {
+                          backgroundColor: tokens.overlaySubtle,
+                          borderColor: tokens.borderSubtle,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.hitlOptionLabel, { color: tokens.textPrimary }]}>
+                        {opt.label}
+                      </Text>
+                      {opt.description ? (
+                        <Text style={[styles.hitlOptionDesc, { color: tokens.textSecondary }]}>
+                          {opt.description}
+                        </Text>
+                      ) : null}
+                    </PressableScale>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          ))}
+
+          <View
+            style={[
+              styles.hitlInputRow,
+              {
+                backgroundColor: tokens.overlaySubtle,
+                borderColor: tokens.borderSubtle,
+              },
+            ]}
+          >
+            <TextInput
+              style={[styles.hitlTextInput, { color: tokens.textPrimary }]}
+              value={customText}
+              onChangeText={setCustomText}
+              placeholder={customPlaceholder}
+              placeholderTextColor={tokens.textTertiary}
+              selectionColor={tokens.accent}
+              returnKeyType="send"
+              onSubmitEditing={handleCustomSend}
+            />
+            {customText.trim().length > 0 ? (
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={sendLabel}
+                testID="hitl-custom-send"
+                hitSlop={6}
+                onPress={handleCustomSend}
+                style={[styles.hitlSendButton, { backgroundColor: tokens.accent }]}
+              >
+                <ArrowUp size={16} color={tokens.textInverse} />
+              </PressableScale>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+
+      {showApprove || showReject ? (
+        <View style={styles.hitlActions}>
+          {showReject ? (
+            <PressableScale
+              accessibilityRole="button"
+              testID="hitl-reject"
+              onPress={() => {
+                haptics.impact('light');
+                onDecide({ type: 'reject' });
+              }}
+              style={[styles.hitlButton, { backgroundColor: tokens.overlaySubtle }]}
+            >
+              <Text style={[styles.hitlButtonLabel, { color: tokens.textPrimary }]}>
+                {rejectLabel}
+              </Text>
+            </PressableScale>
+          ) : null}
+          {showApprove ? (
+            <PressableScale
+              accessibilityRole="button"
+              testID="hitl-approve"
+              onPress={() => {
+                haptics.impact('light');
+                onDecide({ type: 'approve' });
+              }}
+              style={[styles.hitlButton, { backgroundColor: tokens.accent }]}
+            >
+              <Text style={[styles.hitlButtonLabel, { color: tokens.textInverse }]}>
+                {approveLabel}
+              </Text>
+            </PressableScale>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 });
@@ -1260,13 +1393,52 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     gap: 12,
     padding: 14,
-    borderRadius: radius.pill,
+    borderRadius: radius.card,
     ...continuousCorners,
     borderWidth: StyleSheet.hairlineWidth,
   },
   hitlSummary: { ...typeScale.reading },
   hitlDetail: { ...typeScale.footnote },
-  hitlActions: { flexDirection: 'row', gap: 10, justifyContent: 'flex-end' },
+  hitlQuestionSection: { gap: 10 },
+  hitlQuestionItem: { gap: 8 },
+  hitlQuestionSubtext: { ...typeScale.subheadline },
+  hitlOptionsList: { gap: 8 },
+  hitlOptionButton: {
+    minHeight: layout.hitTarget,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: radius.input,
+    ...continuousCorners,
+    borderWidth: StyleSheet.hairlineWidth,
+    justifyContent: 'center',
+  },
+  hitlOptionLabel: { ...typeScale.headline },
+  hitlOptionDesc: { ...typeScale.caption1, marginTop: 2 },
+  hitlInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: layout.hitTarget,
+    borderRadius: radius.input,
+    ...continuousCorners,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingLeft: 12,
+    paddingRight: 6,
+  },
+  hitlTextInput: {
+    flex: 1,
+    minHeight: layout.hitTarget,
+    ...typeScale.body,
+    paddingVertical: 0,
+  },
+  hitlSendButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    ...continuousCorners,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hitlActions: { flexDirection: 'row', gap: 10, justifyContent: 'flex-end', marginTop: 4 },
   hitlButton: {
     minHeight: layout.hitTarget,
     paddingHorizontal: 16,
