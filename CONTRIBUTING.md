@@ -56,6 +56,8 @@ Before a store-facing release:
 2. Run `npm run check:version` (also a CI gate).
 3. Confirm Settings → About → Version shows the new marketing number after a rebuild.
 
+The full release path (version bump on a `chore/release-x.y.z` branch → PR squashed into `develop` → `v*` tag on the `develop` tip → [`.github/workflows/release.yml`](.github/workflows/release.yml) runs the EAS production build) is scripted in [`.agents/skills/publish/SKILL.md`](.agents/skills/publish/SKILL.md) — invoke it with `/publish <version>`. `develop` is the release branch; there is no separate `main`.
+
 Do not add `runtimeVersion` / OTA channels until `expo-updates` is intentionally enabled.
 
 ## Acknowledgements / open-source licenses

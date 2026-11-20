@@ -1,0 +1,158 @@
+# Release: a `v*` tag is the publish button.
+# Tag push → gates → EAS production build → GitHub Release gets the build links.
+#
+# One-time setup before the first release:
+#   1. Repo secret `EXPO_TOKEN` — https://expo.dev/settings/access-tokens
+#   2. `app.json` → `expo.extra.eas.projectId` (run `npx eas-cli init` once, commit the file)
+#   3. Android keystore / iOS distribution cert already held by EAS for the `production` profile
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # create / update the GitHub Release
+
+# Never cancel a release build mid-flight; queue instead.
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Tag matches version, gates pass
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          HUSKY: '0'
+
+      - name: Tag matches app.json and package.json
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          app="$(node -p 'require("./app.json").expo.version')"
+          pkg="$(node -p 'require("./package.json").version')"
+          echo "tag=$tag app.json=$app package.json=$pkg"
+          if [ "$tag" != "$app" ] || [ "$tag" != "$pkg" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match app.json ($app) and package.json ($pkg)"
+            exit 1
+          fi
+
+      - name: Version sync
+        run: npm run check:version
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test -- --ci --coverage=false
+
+  build:
+    name: EAS production build
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          HUSKY: '0'
+
+      - name: Check release prerequisites
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::missing repo secret EXPO_TOKEN — create one at https://expo.dev/settings/access-tokens and add it under Settings → Secrets → Actions"
+            exit 1
+          fi
+          node -e '
+            const projectId = require("./app.json").expo?.extra?.eas?.projectId;
+            if (!projectId) {
+              console.error("::error::app.json has no expo.extra.eas.projectId — run `npx eas-cli init` once and commit app.json");
+              process.exit(1);
+            }
+            console.log("EAS project: " + projectId);
+          '
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+          packager: npm
+
+      - name: Start EAS builds
+        id: start
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas build --profile production --platform all --non-interactive --no-wait --json \
+            | tee "$RUNNER_TEMP/builds.json"
+          node -e '
+            const fs = require("node:fs");
+            const builds = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + "/builds.json", "utf8"));
+            for (const build of builds) {
+              const url = build.buildDetailsPageUrl || ("https://expo.dev/builds/" + build.id);
+              console.log(build.platform.toLowerCase() + "=" + url);
+            }
+          ' >> "$GITHUB_OUTPUT"
+
+      - name: Job summary
+        env:
+          ANDROID_URL: ${{ steps.start.outputs.android }}
+          IOS_URL: ${{ steps.start.outputs.ios }}
+        run: |
+          {
+            echo "## Release ${GITHUB_REF_NAME}"
+            echo
+            echo "Build numbers are auto-incremented by EAS (appVersionSource: remote) — confirm \`version (build)\` under Me → Settings → About."
+            echo
+            if [ -n "$ANDROID_URL" ]; then echo "- Android: $ANDROID_URL"; fi
+            if [ -n "$IOS_URL" ]; then echo "- iOS: $IOS_URL"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Attach build links to the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          ANDROID_URL: ${{ steps.start.outputs.android }}
+          IOS_URL: ${{ steps.start.outputs.ios }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            -f tag_name="$TAG" --jq .body > "$RUNNER_TEMP/notes.md"
+          {
+            echo
+            echo "## Builds"
+            if [ -n "$ANDROID_URL" ]; then echo "- Android: $ANDROID_URL"; fi
+            if [ -n "$IOS_URL" ]; then echo "- iOS: $IOS_URL"; fi
+          } >> "$RUNNER_TEMP/notes.md"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
+          else
+            gh release create "$TAG" --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
+          fi
