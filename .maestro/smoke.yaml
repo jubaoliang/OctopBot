@@ -1,6 +1,6 @@
 # Smoke: logged-in shell — chat home, drawer knowledge/tokens/settings, tabs.
 # Dev client dev.octop.octopbot with Metro on :8081 (adb reverse tcp:8081).
-# Seed a session first via octopbot://dev-session?url=…&token=… when needed.
+# Seed a session first via octop://dev-session?url=…&token=… when needed.
 appId: dev.octop.octopbot
 ---
 - launchApp

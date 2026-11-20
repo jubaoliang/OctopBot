@@ -1,6 +1,6 @@
 # Chat round-trip: send → assistant reply → terminal composer idle.
 # Android baseline (dev.octop.octopbot). Seed a session first when needed:
-# octopbot://dev-session?url=…&token=…
+# octop://dev-session?url=…&token=…
 appId: dev.octop.octopbot
 ---
 - launchApp
