@@ -1,0 +1,32 @@
+# Notifications settings: the master toggle round-trip in Settings.
+# Starts enabled (default); asserts the denied-permission recovery row stays
+# hidden for an OS-granted device across both toggle directions.
+# Android baseline (dev.octop.octopbot). Seed a session first when needed:
+# octopbot://dev-session?url=…&token=…
+appId: dev.octop.octopbot
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'composer-input'
+    timeout: 180000
+- tapOn:
+    id: 'header-menu'
+- tapOn:
+    id: 'drawer-settings'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-notifications'
+    timeout: 30000
+- assertVisible:
+    id: 'settings-notifications-switch'
+# Off: the recovery row must not appear on a permission-granted device.
+- tapOn:
+    id: 'settings-notifications-switch'
+- assertNotVisible:
+    id: 'settings-notifications-system'
+# On: likewise no recovery row, no jump to system settings.
+- tapOn:
+    id: 'settings-notifications-switch'
+- assertNotVisible:
+    id: 'settings-notifications-system'

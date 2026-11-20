@@ -255,3 +255,48 @@ describe('ChatSocket', () => {
     expect(FakeSocket.created).toHaveLength(1);
   });
 });
+
+describe('ChatSocket heartbeat', () => {
+  beforeEach(() => {
+    FakeSocket.created = [];
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  async function openFirstSocket() {
+    const { socket, statuses } = makeSocket();
+    const connecting = socket.connect();
+    await Promise.resolve();
+    FakeSocket.created[0].open();
+    await connecting;
+    return { socket, statuses };
+  }
+
+  it('reconnects when a heartbeat ping goes unanswered', async () => {
+    const { socket, statuses } = await openFirstSocket();
+    // First tick answers nothing yet — sends the ping.
+    await jest.advanceTimersByTimeAsync(30_000);
+    expect(JSON.parse(FakeSocket.created[0].sent.at(-1) ?? '{}')).toMatchObject({ type: 'ping' });
+    // Next tick with no pong: half-open socket is force-closed, reconnect runs.
+    await jest.advanceTimersByTimeAsync(30_000);
+    expect(statuses.at(-1)?.status).toBe('reconnecting');
+    // Reconnect delay is 10ms — let it fire.
+    await jest.advanceTimersByTimeAsync(10);
+    expect(FakeSocket.created).toHaveLength(2);
+    socket.close();
+  });
+
+  it('keeps the connection while pong answers each ping', async () => {
+    const { socket, statuses } = await openFirstSocket();
+    for (let tick = 0; tick < 4; tick += 1) {
+      await jest.advanceTimersByTimeAsync(30_000);
+      FakeSocket.created[0].serverMessage({ type: 'pong' });
+    }
+    expect(FakeSocket.created).toHaveLength(1);
+    expect(statuses.at(-1)?.status).toBe('open');
+    socket.close();
+  });
+});

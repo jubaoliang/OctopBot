@@ -23,6 +23,7 @@ import { IconChevronDown, LogoHeader, MenuTokens } from '@/components/icons';
 import { AgentAvatar } from '@/components/AgentAvatar';
 import { Collapsible } from '@/components/Collapsible';
 import { DrawerThreadRow } from '@/components/DrawerThreadRow';
+import { UnreadBadge } from '@/components/UnreadBadge';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
 import { continuousCorners, layout, motion, radius, typeScale, useTokens } from '@/theme';
@@ -78,6 +79,8 @@ export interface DrawerThread {
   /** Server title; empty when the conversation has none yet. */
   title: string;
   pinned: boolean;
+  /** Server-reported unread messages; 0 = read. */
+  unreadCount: number;
 }
 
 export interface DrawerTaskGroup {
@@ -93,6 +96,14 @@ export interface DrawerTaskGroup {
 }
 
 export type DrawerRoute = 'knowledge' | 'usage' | 'settings';
+
+/** Conversations with server-reported unread across all groups. */
+export function countUnreadThreads(groups: DrawerTaskGroup[]): number {
+  return groups.reduce(
+    (sum, group) => sum + group.items.filter(item => item.unreadCount > 0).length,
+    0,
+  );
+}
 
 interface AppDrawerProps {
   /** Requested state; the drawer animates toward it. */
@@ -280,11 +291,15 @@ export function AppDrawer({
                 const moreLabel = showAll
                   ? strings.drawer.showFewer
                   : strings.drawer.moreThreads(hidden);
+                // Conversations with unread messages — the group capsule
+                // counts rows, mirroring what each row shows.
+                const groupUnread = group.items.filter(item => item.unreadCount > 0).length;
                 return (
                   <View key={group.agentId}>
                     <GroupRow
                       group={group}
                       expanded={expanded}
+                      unreadCount={groupUnread}
                       onPress={() => {
                         setCollapsed(prev => ({ ...prev, [group.name]: !expanded }));
                         if (!expanded) {
@@ -359,14 +374,16 @@ function MoreThreadsRow({
   );
 }
 
-/** Agent group header: avatar, name and the disclosure chevron. */
+/** Agent group header: avatar, name, unread capsule and the chevron. */
 function GroupRow({
   group,
   expanded,
+  unreadCount,
   onPress,
 }: {
   group: DrawerTaskGroup;
   expanded: boolean;
+  unreadCount: number;
   onPress: () => void;
 }) {
   const t = useTokens();
@@ -397,6 +414,7 @@ function GroupRow({
       >
         {group.name}
       </Text>
+      {unreadCount > 0 ? <UnreadBadge count={unreadCount} /> : null}
       <Chevron expanded={expanded} color={t.textTertiary} />
     </Pressable>
   );

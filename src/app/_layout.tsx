@@ -18,6 +18,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AuthProvider, useAuth } from '@/features/auth';
 import { LoginScreen } from '@/features/LoginScreen';
 import { AppShellProvider, useAppShell } from '@/features/app-shell';
+import { NotificationsProvider } from '@/features/notifications';
 import { registerLastAgentStore } from '@/features/last-agent-store';
 import { I18nProvider, useI18n } from '@/i18n/I18nProvider';
 import { NATIVE_HEADERS } from '@/platform/screen-header';
@@ -175,7 +176,9 @@ function RootWithBoundary() {
     >
       <AuthProvider storage={expoSecureStorage}>
         <AppShellProvider>
-          <RootNavigator />
+          <NotificationsProvider storage={expoSecureStorage}>
+            <RootNavigator />
+          </NotificationsProvider>
         </AppShellProvider>
       </AuthProvider>
     </ErrorBoundary>

@@ -34,6 +34,8 @@ export class ChatSocket {
   private attempt = 0;
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Set after a ping; cleared on pong. True at the next tick ⇒ dead socket. */
+  private awaitingPong = false;
   private state: ChatConnectionStatus = 'idle';
   private subscribedThread: string | null = null;
   private everOpened = false;
@@ -124,6 +126,7 @@ export class ChatSocket {
       }
       this.everOpened = true;
       this.attempt = 0;
+      this.awaitingPong = false;
       this.setStatus('open');
       this.startHeartbeat();
       if (this.subscribedThread) {
@@ -138,6 +141,10 @@ export class ChatSocket {
       }
       const frame = parseFrame(event.data);
       if (frame) {
+        if (frame.type === 'pong') {
+          // The heartbeat answer — the connection is alive.
+          this.awaitingPong = false;
+        }
         this.options.onFrame(frame);
       }
     });
@@ -241,14 +248,31 @@ export class ChatSocket {
     this.setStatus('reconnecting', `attempt ${this.attempt} in ${delay}ms`);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      void this.connect();
+      // Internal attempt: no caller holds the promise, and terminal
+      // outcomes already surface through onStatus — swallow the rejection
+      // (a client close() racing an in-flight attempt aborts it).
+      void this.connect().catch(() => undefined);
     }, delay);
   }
 
   private startHeartbeat(): void {
     this.stopHeartbeat();
+    this.awaitingPong = false;
     this.heartbeat = setInterval(() => {
-      this.ping();
+      if (this.awaitingPong) {
+        // The previous ping was never answered — a half-open socket keeps
+        // accepting writes with no error while the server side is gone.
+        // Force it closed so the close path schedules a reconnect.
+        try {
+          this.socket?.close();
+        } catch {
+          // ignore
+        }
+        return;
+      }
+      if (this.ping()) {
+        this.awaitingPong = true;
+      }
     }, this.options.heartbeatMs);
   }
 

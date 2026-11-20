@@ -10,6 +10,7 @@ import {
 } from 'react';
 import {
   Alert,
+  AppState,
   FlatList,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -58,6 +59,7 @@ import {
 } from '@/core/chat/turn-reducer';
 import { useAppShell } from '@/features/app-shell';
 import { useAuth } from '@/features/auth';
+import { useNotifications } from '@/features/notifications-context';
 import { takeChatHandoff } from '@/features/chat-handoff';
 import { useImageAttachments } from '@/features/useImageAttachments';
 import { useI18n } from '@/i18n/I18nProvider';
@@ -93,6 +95,7 @@ type MdRules = Record<string, MdRule>;
  */
 type TransitionAwareNavigation = {
   addListener: (event: 'transitionStart' | 'transitionEnd', callback: () => void) => () => void;
+  isFocused: () => boolean;
 };
 
 /** Stop waits this long for a terminal frame before surfacing an error. */
@@ -111,7 +114,8 @@ const TRANSITION_WAIT_TIMEOUT_MS = 1_200;
 export default function ThreadScreen() {
   const { tokens } = useTheme();
   const { t: strings } = useI18n();
-  const { setActiveChat, clearActiveChatIf } = useAppShell();
+  const { openDrawer, setActiveChat, clearActiveChatIf, markThreadRead } = useAppShell();
+  const { clearLiveUnread } = useNotifications();
   const router = useRouter();
   const { baseUrl, token, httpClient, user, dropSession, sessionGeneration } = useAuth();
   // Route params: `threadId` is a path segment (`new` / `open` / forged deep
@@ -558,6 +562,14 @@ export default function ThreadScreen() {
         socket.subscribe(threadId);
         threadRef.current = threadId;
         setActiveChat({ agentId, threadId });
+        // The thread is on screen now — consume the live signal, let the
+        // server drop its unread counter, and clear the local drawer badge
+        // once the confirm arrives (fire-and-forget).
+        clearLiveUnread();
+        void threads
+          .markRead(agentId, threadId)
+          .then(() => markThreadRead(agentId, threadId))
+          .catch(() => undefined);
         return threadId;
       }
       const created = await threads.create(agentId);
@@ -660,21 +672,49 @@ export default function ThreadScreen() {
     setActiveChat,
   ]);
 
-  // Focus-aware registration so stacked threads do not clobber each other.
+  // The read-ack for a thread that is on screen: consume the live signal,
+  // clear the local drawer badge, tell the server. Shared by the focus
+  // effect and app-resume — focus alone misses pushes that arrived while
+  // the app was backgrounded (the screen stays focused, no focus event).
+  const ackThreadRead = useCallback(() => {
+    const threadId = threadRef.current;
+    if (!threadId) {
+      return;
+    }
+    clearLiveUnread();
+    markThreadRead(agentId, threadId);
+    void new ThreadsApi(httpClientRef.current).markRead(agentId, threadId).catch(() => undefined);
+  }, [agentId, clearLiveUnread, markThreadRead]);
+
+  // Focus-aware registration so stacked threads do not clobber each other,
+  // plus the read path when RETURNING to a thread.
   useFocusEffect(
     useCallback(() => {
       const threadId = threadRef.current;
       if (threadId) {
         setActiveChat({ agentId, threadId });
       }
+      ackThreadRead();
       return () => {
         const id = threadRef.current;
         if (id) {
           clearActiveChatIf({ agentId, threadId: id });
         }
       };
-    }, [agentId, setActiveChat, clearActiveChatIf]),
+    }, [agentId, setActiveChat, clearActiveChatIf, ackThreadRead]),
   );
+
+  // App resume: the screen was focused the whole time, so no focus event
+  // fires — ack any pushes that arrived while backgrounded. Frozen blurred
+  // screens keep their listeners, so only ack when actually focused.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active' && navigation.isFocused()) {
+        ackThreadRead();
+      }
+    });
+    return () => subscription.remove();
+  }, [ackThreadRead, navigation]);
 
   // Release the history replay (and any future heavy mount work) once the
   // stack transition finishes. Events are targeted at this route; the wait

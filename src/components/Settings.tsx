@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { Check, ChevronRight } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 
@@ -110,6 +110,52 @@ export function SettingsRow({
         {disclosure ? <ChevronRight size={18} color={t.textPlaceholder} /> : null}
       </View>
     </Pressable>
+  );
+}
+
+/**
+ * Toggle row: same anatomy as `SettingsRow`, trailing `Switch` instead of
+ * a value/chevron. Switch colors follow the Automation job-row idiom.
+ */
+export function SettingsSwitchRow({
+  title,
+  value,
+  onValueChange,
+  last = false,
+  testID,
+}: {
+  title: string;
+  value: boolean;
+  onValueChange: (next: boolean) => void;
+  /** The last row of a group draws no separator (mirrors `SettingsRow`). */
+  last?: boolean;
+  testID?: string;
+}) {
+  const t = useTokens();
+  return (
+    <View style={styles.row} testID={testID}>
+      <View
+        style={[
+          styles.rowBody,
+          { borderBottomColor: t.borderSubtle },
+          last ? styles.rowBodyLast : null,
+        ]}
+      >
+        <Text style={[styles.rowTitle, { color: t.textBody }]} numberOfLines={1}>
+          {title}
+        </Text>
+        <Switch
+          accessibilityRole="switch"
+          accessibilityLabel={title}
+          value={value}
+          onValueChange={onValueChange}
+          trackColor={{ true: t.accent, false: t.overlayPressed }}
+          thumbColor={t.surfaceRaised}
+          ios_backgroundColor={t.overlayPressed}
+          testID={testID ? `${testID}-switch` : undefined}
+        />
+      </View>
+    </View>
   );
 }
 

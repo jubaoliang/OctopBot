@@ -6,13 +6,15 @@ import { useRouter } from 'expo-router';
 
 import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
 import { SegmentedControl } from '@/components/SegmentedControl';
-import { SettingsRow, SettingsSection } from '@/components/Settings';
+import { SettingsRow, SettingsSection, SettingsSwitchRow } from '@/components/Settings';
 import { VoiceApi } from '@/core/api/voice';
 import type { ActiveVoice, VoiceProvider } from '@/core/api/types';
 import { useAuth } from '@/features/auth';
+import { useNotifications } from '@/features/notifications-context';
 import { useI18n, localeNames, type Locale, type UserLocaleMode } from '@/i18n/I18nProvider';
 import { formatAppVersion } from '@/platform/app-version';
 import { haptics } from '@/platform/haptics';
+import { openAppSettings } from '@/platform/linking';
 import { layout, palettes, useTheme, useTokens } from '@/theme';
 import { isLightColor } from '@/utils/color';
 import type { UserThemeMode } from '@/theme/ThemeProvider';
@@ -35,6 +37,13 @@ export function SettingsScreen() {
   const { mode, setMode, resolvedMode, paletteId, setPaletteId } = useTheme();
   const { locale, localeMode, setLocaleMode, t: strings } = useI18n();
   const { user, httpClient } = useAuth();
+  const {
+    enabled: notificationsEnabled,
+    setEnabled: setNotificationsEnabled,
+    permission,
+    requestPermission,
+    refreshPermission,
+  } = useNotifications();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -44,6 +53,12 @@ export function SettingsScreen() {
     tts: BROWSER_STT,
   });
   const canEditVoice = Boolean(user?.permissions?.includes('voice'));
+
+  // The permission state may have changed since the last visit (system
+  // settings return, first push ask) — re-read on entry.
+  useEffect(() => {
+    void refreshPermission();
+  }, [refreshPermission]);
 
   const refreshVoice = useCallback(
     async (isCancelled?: () => boolean) => {
@@ -221,6 +236,40 @@ export function SettingsScreen() {
                 }}
               />
             ))}
+          </SettingsSection>
+
+          <SettingsSection
+            title={strings.settings.notificationsTitle}
+            footer={strings.settings.notificationsFooter}
+          >
+            <SettingsSwitchRow
+              title={strings.settings.notificationsAllow}
+              value={notificationsEnabled}
+              onValueChange={next => {
+                haptics.selection();
+                setNotificationsEnabled(next);
+                if (next && permission !== 'granted') {
+                  // First enable asks the OS; a hard denial falls through to
+                  // system settings where the user can recover.
+                  void requestPermission().then(state => {
+                    if (state === 'denied') {
+                      openAppSettings();
+                    }
+                  });
+                }
+              }}
+              last={!(notificationsEnabled && permission === 'denied')}
+              testID="settings-notifications"
+            />
+            {notificationsEnabled && permission === 'denied' ? (
+              <SettingsRow
+                title={strings.settings.notificationsSystem}
+                disclosure
+                last
+                testID="settings-notifications-system"
+                onPress={() => openAppSettings()}
+              />
+            ) : null}
           </SettingsSection>
 
           {cloudStt.length > 0 ? (

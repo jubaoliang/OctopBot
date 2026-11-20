@@ -4,6 +4,7 @@ import { Pin } from 'lucide-react-native';
 
 import { ActionSheet } from '@/platform/action-sheet';
 import type { DrawerThread } from '@/components/AppDrawer';
+import { UnreadBadge } from '@/components/UnreadBadge';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
 import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
@@ -68,6 +69,7 @@ export function DrawerThreadRow({ thread, title, onOpen, onPin, onDelete }: Draw
         >
           {title}
         </Text>
+        {thread.unreadCount > 0 ? <UnreadBadge count={thread.unreadCount} /> : null}
       </Pressable>
 
       <ActionSheet

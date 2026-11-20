@@ -3,20 +3,29 @@ import { Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import type { DrawerRoute, DrawerTaskGroup, DrawerThread } from '@/components/AppDrawer';
+import type { ThreadSummary } from '@/core/api/types';
 import { OctopApiError } from '@/core/api/errors';
 import { ThreadsApi } from '@/core/api/threads';
 import { fetchAgents, useAuth } from '@/features/auth';
-import { AppShellContext, type AppShellValue, useAppShell } from '@/features/app-shell-context';
+import {
+  AppShellContext,
+  type ActiveChat,
+  type AppShellValue,
+  useAppShell,
+} from '@/features/app-shell-context';
 import { useI18n } from '@/i18n/I18nProvider';
 
 export type { DrawerRoute };
 export { useAppShell };
 
-function mapThread(t: { thread_id: string; title?: string | null; pinned: boolean }): DrawerThread {
+function mapThread(
+  t: Pick<ThreadSummary, 'thread_id' | 'title' | 'pinned' | 'unread_count'>,
+): DrawerThread {
   return {
     threadId: t.thread_id,
     title: t.title?.trim() ?? '',
     pinned: t.pinned,
+    unreadCount: t.unread_count ?? 0,
   };
 }
 
@@ -228,7 +237,7 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   );
 
   const setActiveChat = useCallback(
-    (chat: { agentId: string; threadId: string } | null) => {
+    (chat: ActiveChat | null) => {
       const previous = openChatRef.current;
       openChatRef.current = chat;
       const changed =
@@ -243,6 +252,25 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
     },
     [refreshAgentThreads],
   );
+
+  const getActiveChat = useCallback(() => openChatRef.current, []);
+
+  const markThreadRead = useCallback((agentId: string, threadId: string) => {
+    // Optimistic local clear after the server confirm arrives — the drawer
+    // row badge, group capsule and tab dot drop without a full reload.
+    setGroups(prev =>
+      prev.map(g =>
+        g.agentId !== agentId
+          ? g
+          : {
+              ...g,
+              items: g.items.map(item =>
+                item.threadId === threadId ? { ...item, unreadCount: 0 } : item,
+              ),
+            },
+      ),
+    );
+  }, []);
 
   const clearActiveChatIf = useCallback((chat: { agentId: string; threadId: string }) => {
     const open = openChatRef.current;
@@ -357,6 +385,9 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       finishDrawerClose,
       // Render-level gate keeps the tree empty when signed out.
       drawerGroups: user ? groups : [],
+      reload,
+      getActiveChat,
+      markThreadRead,
       navigate: route => {
         setDrawerOpen(false);
         if (route === 'knowledge') {
@@ -385,6 +416,9 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       groups,
       user,
       router,
+      reload,
+      getActiveChat,
+      markThreadRead,
       loadGroupThreads,
       openThread,
       setActiveChat,
