@@ -36,8 +36,6 @@ export function ConnectAppsScreen() {
     setEnabled,
     permission,
     calendars,
-    selectedIds,
-    toggleCalendar,
     lastSyncAt,
     syncing,
     syncNow,
@@ -138,42 +136,7 @@ export function ConnectAppsScreen() {
                   >
                     {strings.settings.calendarSyncNone}
                   </Text>
-                ) : (
-                  <>
-                    <Text style={[styles.sectionLabel, { color: tokens.textTertiary }]}>
-                      {strings.connectApps.calendars}
-                    </Text>
-                    {calendars.map(calendar => (
-                      <View
-                        key={calendar.id}
-                        style={[styles.calendarRow, { backgroundColor: tokens.overlaySubtle }]}
-                      >
-                        <Text
-                          style={[styles.calendarName, { color: tokens.textBody }]}
-                          numberOfLines={1}
-                          maxFontSizeMultiplier={1.3}
-                        >
-                          {calendar.source
-                            ? `${calendar.title} (${calendar.source})`
-                            : calendar.title}
-                        </Text>
-                        <Switch
-                          accessibilityRole="switch"
-                          accessibilityLabel={calendar.title}
-                          value={selectedIds.includes(calendar.id)}
-                          onValueChange={() => {
-                            haptics.selection();
-                            toggleCalendar(calendar.id);
-                          }}
-                          trackColor={{ true: tokens.accent, false: tokens.overlayPressed }}
-                          thumbColor={tokens.surfaceRaised}
-                          ios_backgroundColor={tokens.overlayPressed}
-                          testID={`connect-calendar-${calendar.id}`}
-                        />
-                      </View>
-                    ))}
-                  </>
-                )}
+                ) : null}
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={strings.settings.calendarSyncNow}
@@ -335,23 +298,6 @@ const styles = StyleSheet.create({
   },
   cardBodyText: {
     ...typeScale.footnote,
-  },
-  sectionLabel: {
-    ...typeScale.caption1,
-  },
-  calendarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: layout.hitTarget,
-    borderRadius: radius.pill,
-    ...continuousCorners,
-    paddingHorizontal: 12,
-    gap: 12,
-  },
-  calendarName: {
-    ...typeScale.body,
-    flexShrink: 1,
   },
   syncRow: {
     flexDirection: 'row',

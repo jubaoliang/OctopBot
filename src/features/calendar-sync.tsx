@@ -13,7 +13,6 @@ import { useAuth } from '@/features/auth';
 import { CalendarSyncContext, type CalendarSyncValue } from '@/features/calendar-sync-context';
 
 const ENABLED_KEY = 'calendar.enabled';
-const CALENDAR_IDS_KEY = 'calendar.calendarIds';
 const KB_ID_KEY = 'calendar.kbId';
 const LAST_SYNC_KEY = 'calendar.lastSync';
 const CONTACTS_ENABLED_KEY = 'contacts.enabled';
@@ -42,7 +41,6 @@ export function CalendarSyncProvider({
     'undetermined',
   );
   const [calendars, setCalendars] = useState<DeviceCalendar[]>([]);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [kbId, setKbId] = useState<string | null>(null);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -55,7 +53,6 @@ export function CalendarSyncProvider({
   // effects that call it cannot loop on its identity changes.
   const httpClientRef = useRef(httpClient);
   const enabledRef = useRef(enabled);
-  const selectedIdsRef = useRef(selectedIds);
   const contactsEnabledRef = useRef(contactsEnabled);
   const contactsKbIdRef = useRef<string | null>(null);
   const syncingRef = useRef(false);
@@ -76,9 +73,6 @@ export function CalendarSyncProvider({
     enabledRef.current = enabled;
   }, [enabled]);
   useEffect(() => {
-    selectedIdsRef.current = selectedIds;
-  }, [selectedIds]);
-  useEffect(() => {
     contactsEnabledRef.current = contactsEnabled;
   }, [contactsEnabled]);
   useEffect(() => {
@@ -90,28 +84,17 @@ export function CalendarSyncProvider({
     let cancelled = false;
     void Promise.all([
       storage.get(ENABLED_KEY),
-      storage.get(CALENDAR_IDS_KEY),
       storage.get(KB_ID_KEY),
       storage.get(LAST_SYNC_KEY),
       storage.get(CONTACTS_ENABLED_KEY),
       storage.get(CONTACTS_KB_ID_KEY),
     ])
-      .then(([enabledValue, idsValue, kbValue, lastValue, contactsValue, contactsKbValue]) => {
+      .then(([enabledValue, kbValue, lastValue, contactsValue, contactsKbValue]) => {
         if (cancelled) {
           return;
         }
         if (enabledValue === 'true') {
           setEnabledState(true);
-        }
-        if (idsValue) {
-          try {
-            const ids = JSON.parse(idsValue) as unknown;
-            if (Array.isArray(ids)) {
-              setSelectedIds(ids.filter((id): id is string => typeof id === 'string'));
-            }
-          } catch {
-            // Corrupt payload — fall back to no selection.
-          }
         }
         if (kbValue) {
           kbIdRef.current = kbValue;
@@ -278,8 +261,11 @@ export function CalendarSyncProvider({
         // Re-check the switch AND the consent generation after the awaits:
         // a disable that landed mid-sync must win over this run's writes.
         if (status === 'granted' && enabledRef.current && consentGenRef.current === gen) {
+          // Every readable calendar feeds the digest — the connect switch
+          // is the consent gate, not per-calendar selection.
+          const allCalendars = await calendarReader.getReadableCalendars();
           const events = await calendarReader.listEvents(
-            selectedIdsRef.current,
+            allCalendars.map(calendar => calendar.id),
             now,
             new Date(now.getTime() + DIGEST_DAYS * 86_400_000),
           );
@@ -432,33 +418,10 @@ export function CalendarSyncProvider({
     [storage, requestContactsPermissions, disconnectContacts],
   );
 
-  const toggleCalendar = useCallback(
-    (id: string) => {
-      // Computed outside the updater: updaters must stay pure (React may
-      // run them twice), and the consent blanking below is a side effect.
-      const next = selectedIdsRef.current.includes(id)
-        ? selectedIdsRef.current.filter(item => item !== id)
-        : [...selectedIdsRef.current, id];
-      selectedIdsRef.current = next;
-      setSelectedIds(next);
-      void storage.set(CALENDAR_IDS_KEY, JSON.stringify(next)).catch(() => undefined);
-      // Consent: deselecting the last calendar blanks the server digest.
-      if (next.length === 0) {
-        disconnectSchedule();
-        return;
-      }
-      // A selection change is a digest change — refresh promptly.
-      void syncNow();
-    },
-    [disconnectSchedule, syncNow, storage],
-  );
-
   // Enable / login: run the first sync (both capabilities read their own
-  // permission inside syncNow; grants and selection changes trigger their
-  // own syncs). Deferred off the effect body so the sync's state updates
-  // never cascade inside the effect itself. permission/selectedIds are
-  // deliberately NOT dependencies — syncNow writes those states itself and
-  // would re-trigger itself.
+  // permission inside syncNow; a permission grant triggers its own sync).
+  // Deferred off the effect body so the sync's state updates never cascade
+  // inside the effect itself.
   useEffect(() => {
     if (!ready || !user) {
       return;
@@ -492,8 +455,6 @@ export function CalendarSyncProvider({
       refreshPermission,
       requestPermissions,
       calendars,
-      selectedIds,
-      toggleCalendar,
       kbId,
       lastSyncAt,
       syncing,
@@ -511,8 +472,6 @@ export function CalendarSyncProvider({
       refreshPermission,
       requestPermissions,
       calendars,
-      selectedIds,
-      toggleCalendar,
       kbId,
       lastSyncAt,
       syncing,

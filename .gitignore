@@ -38,3 +38,9 @@ coverage/
 .tmp-audit/
 
 .workbuddy/
+
+# Per-agent personal config: local skill symlinks into .agents/skills/.
+# Recreate after clone (repeat per agent dir, e.g. .claude or .qwen):
+#   mkdir -p .claude/skills && ln -s ../../.agents/skills/<name> .claude/skills/<name>
+.claude/
+.qwen/

@@ -21,9 +21,6 @@ export interface CalendarSyncValue {
   requestPermissions: () => Promise<CalendarPermissionState>;
   /** Device calendars holding events (loaded when permission is granted). */
   calendars: DeviceCalendar[];
-  /** Selected calendar ids (persisted); empty = nothing synced yet. */
-  selectedIds: string[];
-  toggleCalendar: (id: string) => void;
   /** The knowledge base carrying the schedule digest (persisted). */
   kbId: string | null;
   /** Epoch ms of the last successful sync, or null. */

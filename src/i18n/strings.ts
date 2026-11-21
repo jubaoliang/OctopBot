@@ -139,7 +139,6 @@ const zh = {
     title: '连接应用',
     calendar: '日历',
     calendarScope: '同步未来 7 天日程到知识库，助手即可感知你的安排',
-    calendars: '要同步的日历',
     denied: '在系统设置中开启权限',
     contacts: '通讯录',
     contactsScope: '同步联系人摘要到知识库，助手即可帮你查找联系人',
@@ -438,7 +437,6 @@ const en: Dict = {
     calendar: 'Calendar',
     calendarScope:
       'Sync the next 7 days into your knowledge base so the assistant knows your schedule',
-    calendars: 'Calendars to sync',
     denied: 'Enable access in system settings',
     contacts: 'Contacts',
     contactsScope:
