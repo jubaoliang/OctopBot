@@ -1,12 +1,28 @@
 # Tab shell coverage: Chat / Experts / Automation / Me (+ Settings entry).
 # Dev client with a seeded session (octopbot://dev-session when needed).
+# Requires at least one expert on the server: the composer's attach control
+# only renders once an expert is selected, and a fresh install has no
+# persisted last-agent to restore.
 appId: com.tencent.octopbot
 ---
 - launchApp
+# The tab bar exists on every tab — wait for the app to render, then reach
+# the home if a relaunch restored another tab or a thread.
 - extendedWaitUntil:
     visible:
-      id: 'composer-input'
+      id: 'tab-chat'
     timeout: 180000
+- runFlow:
+    when:
+      notVisible:
+        id: 'select-expert'
+    commands:
+      - tapOn:
+          id: 'tab-chat'
+- extendedWaitUntil:
+    visible:
+      id: 'select-expert'
+    timeout: 30000
 - assertVisible:
     id: 'tab-chat'
 - assertVisible:
@@ -15,6 +31,20 @@ appId: com.tencent.octopbot
     id: 'tab-automation'
 - assertVisible:
     id: 'tab-me'
+
+# Select an expert so composer-attach is present regardless of install history.
+- tapOn:
+    id: 'select-expert'
+- extendedWaitUntil:
+    visible:
+      id: 'expert-sheet'
+    timeout: 15000
+- tapOn:
+    id: 'expert-option-.*'
+# The sheet stays mounted through its exit animation with a full-screen
+# scrim — wait it out so the next tap is not swallowed by the dismissal.
+- assertNotVisible:
+    id: 'expert-sheet'
 
 - tapOn:
     id: 'tab-experts'

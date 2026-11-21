@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 
 import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
 import { SegmentedControl } from '@/components/SegmentedControl';
@@ -11,6 +11,7 @@ import { VoiceApi } from '@/core/api/voice';
 import type { ActiveVoice, VoiceProvider } from '@/core/api/types';
 import { useAuth } from '@/features/auth';
 import { useNotifications } from '@/features/notifications-context';
+import { useTransitionGate, type TransitionAwareNavigation } from '@/features/use-transition-gate';
 import { useI18n, localeNames, type Locale, type UserLocaleMode } from '@/i18n/I18nProvider';
 import { formatAppVersion } from '@/platform/app-version';
 import { haptics } from '@/platform/haptics';
@@ -45,7 +46,11 @@ export function SettingsScreen() {
     refreshPermission,
   } = useNotifications();
   const router = useRouter();
+  const navigation = useNavigation<TransitionAwareNavigation>();
   const insets = useSafeAreaInsets();
+  // The voice-provider fetch waits out the push so a fast LAN reply can
+  // never land its render mid-transition.
+  const { waitSettled } = useTransitionGate(navigation);
 
   const [voiceProviders, setVoiceProviders] = useState<VoiceProvider[]>([]);
   const [activeVoice, setActiveVoice] = useState<ActiveVoice>({
@@ -86,12 +91,15 @@ export function SettingsScreen() {
     }
     let cancelled = false;
     void (async () => {
-      await refreshVoice(() => cancelled);
+      await waitSettled();
+      if (!cancelled) {
+        await refreshVoice(() => cancelled);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [user, refreshVoice]);
+  }, [user, refreshVoice, waitSettled]);
 
   const cloudStt = useMemo(
     () =>

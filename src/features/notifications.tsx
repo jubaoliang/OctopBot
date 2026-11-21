@@ -9,7 +9,7 @@ import { localNotifications, type NotificationPermissionState } from '@/platform
 
 import { useAuth } from '@/features/auth';
 import { useAppShell } from '@/features/app-shell';
-import { countUnreadThreads } from '@/components/AppDrawer';
+import { countUnreadThreads } from '@/utils/count-unread';
 import { useI18n } from '@/i18n/I18nProvider';
 import { NotificationsContext, type NotificationsValue } from '@/features/notifications-context';
 

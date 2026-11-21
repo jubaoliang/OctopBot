@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import { ChartNoAxesColumn, CloudOff } from 'lucide-react-native';
 import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
 
@@ -16,6 +16,11 @@ import { OctopApiError } from '@/core/api/errors';
 import type { AgentSummary, UsageBucket, UsageSummary } from '@/core/api/types';
 import { UsageApi } from '@/core/api/usage';
 import { fetchAgents, useAuth } from '@/features/auth';
+import {
+  useGatedLoad,
+  useTransitionGate,
+  type TransitionAwareNavigation,
+} from '@/features/use-transition-gate';
 import { useI18n } from '@/i18n/I18nProvider';
 import { layout, motion, typeScale, useTokens } from '@/theme';
 import {
@@ -73,7 +78,11 @@ export function UsageScreen() {
   const { t: strings } = useI18n();
   const { httpClient, user, ready } = useAuth();
   const router = useRouter();
+  const navigation = useNavigation<TransitionAwareNavigation>();
   const insets = useSafeAreaInsets();
+  // The chart is the heaviest thing this screen renders; its data load waits
+  // out the push so the reply can never land mid-transition.
+  const { waitSettled } = useTransitionGate(navigation);
 
   const [windowId, setWindowId] = useState<WindowId>('last_7d');
   const [data, setData] = useState<UsageData | null>(null);
@@ -128,12 +137,10 @@ export function UsageScreen() {
     [httpClient],
   );
 
-  useEffect(() => {
-    if (!ready || !user) {
-      return;
-    }
-    void load(windowId);
-  }, [ready, user, windowId, load]);
+  // load's own deps only carry httpClient; bind the current window so the
+  // gated effect re-runs when the reader switches windows.
+  const loadCurrent = useCallback(() => load(windowId), [load, windowId]);
+  useGatedLoad(waitSettled, ready && !!user, loadCurrent);
 
   const changeWindow = (next: WindowId) => {
     setWindowId(next);

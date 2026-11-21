@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { ChevronRight, CloudOff, FileText, Folder } from 'lucide-react-native';
 
 import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
@@ -9,6 +9,11 @@ import { EmptyState, SkeletonList } from '@/components/ListStates';
 import type { KnowledgeDocument } from '@/core/api/types';
 import { KnowledgeApi } from '@/core/api/knowledge';
 import { useAuth } from '@/features/auth';
+import {
+  useGatedLoad,
+  useTransitionGate,
+  type TransitionAwareNavigation,
+} from '@/features/use-transition-gate';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
 import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
@@ -32,7 +37,11 @@ export function KnowledgeDocsScreen() {
   const { t: strings } = useI18n();
   const { httpClient, user, ready } = useAuth();
   const router = useRouter();
+  const navigation = useNavigation<TransitionAwareNavigation>();
   const insets = useSafeAreaInsets();
+  // The first docs fetch waits out the push so a fast LAN reply can never
+  // land its render mid-transition.
+  const { waitSettled } = useTransitionGate(navigation);
   const params = useLocalSearchParams<{ kbId?: string | string[]; prefix?: string | string[] }>();
   const kbId = firstRouteParam(params.kbId);
   const prefix = firstRouteParam(params.prefix);
@@ -81,12 +90,7 @@ export function KnowledgeDocsScreen() {
     })();
   }, [httpClient, kbId, prefix]);
 
-  useEffect(() => {
-    if (!ready || !user) {
-      return;
-    }
-    void load();
-  }, [ready, user, kbId, prefix, load]);
+  useGatedLoad(waitSettled, ready && !!user, load);
 
   const current = page?.key === pageKey ? page : null;
 

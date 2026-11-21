@@ -9,6 +9,8 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
+import { View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { enableFreeze } from 'react-native-screens';
 
@@ -25,10 +27,23 @@ import { I18nProvider, useI18n } from '@/i18n/I18nProvider';
 import { NATIVE_HEADERS } from '@/platform/screen-header';
 import { expoSecureStorage } from '@/platform/secure-store';
 import { KeyboardProvider } from '@/platform/keyboard';
-import { darkTokens, lightTokens, ThemeProvider, useTheme, useStackAnimation } from '@/theme';
+import {
+  darkTokens,
+  lightTokens,
+  ThemeProvider,
+  useTheme,
+  useBranchFade,
+  useStackAnimation,
+} from '@/theme';
 
 /** How long the launch screen stays up at minimum. */
 const LAUNCH_HOLD_MS = 800;
+
+/**
+ * Branch wrapper: fills the themed background view so the swap fades below
+ * animate over that background, never over the raw window.
+ */
+const APP_ROOT_STYLE = { flex: 1 } as const;
 
 void SplashScreen.preventAutoHideAsync().catch(() => {
   // The splash screen may already be hidden during fast refresh or headless rendering.
@@ -77,6 +92,9 @@ function RootNavigator() {
   } = useAppShell();
   const { ready, user } = useAuth();
   const pathname = usePathname();
+  // Top-level swaps (splash → login, splash → app, login → app) share one
+  // fade pair with the splash exit so the handover reads as one surface.
+  const { entering: branchEntering, exiting: branchExiting } = useBranchFade();
 
   // The theme provider already resolves `system` against the OS scheme; an
   // explicit Light/Dark choice must win over the OS setting here too.
@@ -97,6 +115,9 @@ function RootNavigator() {
       },
     };
   }, [effectiveDark]);
+
+  // Stable across the pathname/drawer re-renders RootNavigator sees.
+  const rootStyle = useMemo(() => [APP_ROOT_STYLE, { backgroundColor: tokens.bg }], [tokens.bg]);
 
   const [fontsLoaded, fontError] = useFonts({ SpaceMono_400Regular });
   // The launch screen is a brand beat, not just a spinner: hold it briefly so
@@ -126,39 +147,55 @@ function RootNavigator() {
   return (
     <NavThemeProvider value={navTheme}>
       <StatusBar style={effectiveDark ? 'light' : 'dark'} />
-      {!ready || !launchSeen ? (
-        <LaunchSplash />
-      ) : !user ? (
-        <LoginScreen storage={expoSecureStorage} />
-      ) : (
-        <>
-          <Stack
-            screenOptions={{
-              headerShown: NATIVE_HEADERS,
-              ...stackAnimation,
-              contentStyle: { backgroundColor: tokens.bg },
-            }}
+      <View style={rootStyle}>
+        {!ready || !launchSeen ? (
+          <LaunchSplash />
+        ) : !user ? (
+          // Distinct keys force a real unmount/mount on branch swaps — the
+          // same Animated.View type at one position would be updated in
+          // place, and layout animations only fire on mount/unmount.
+          <Animated.View
+            key="login"
+            entering={branchEntering}
+            exiting={branchExiting}
+            style={APP_ROOT_STYLE}
           >
-            {/* The tab group carries its own stacks; a header here would
-                stack a second bar above theirs. */}
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          </Stack>
-          {drawerPresented ? (
-            <AppDrawer
-              visible={drawerOpen}
-              onClose={closeDrawer}
-              onDismissed={finishDrawerClose}
-              activeRoute={drawerRouteFor(pathname)}
-              onNavigate={navigate}
-              groups={drawerGroups}
-              onGroupPress={loadGroupThreads}
-              onThreadPress={openThread}
-              onThreadPin={pinThread}
-              onThreadDelete={deleteThread}
-            />
-          ) : null}
-        </>
-      )}
+            <LoginScreen storage={expoSecureStorage} />
+          </Animated.View>
+        ) : (
+          // No exiting here on purpose: this wrapper owns the native stack
+          // and the drawer, and fading a navigator subtree out while auth
+          // tears down invites native-view teardown artifacts. Logout is
+          // rare; the incoming login fade carries the swap.
+          <Animated.View key="app" entering={branchEntering} style={APP_ROOT_STYLE}>
+            <Stack
+              screenOptions={{
+                headerShown: NATIVE_HEADERS,
+                ...stackAnimation,
+                contentStyle: { backgroundColor: tokens.bg },
+              }}
+            >
+              {/* The tab group carries its own stacks; a header here would
+                  stack a second bar above theirs. */}
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            </Stack>
+            {drawerPresented ? (
+              <AppDrawer
+                visible={drawerOpen}
+                onClose={closeDrawer}
+                onDismissed={finishDrawerClose}
+                activeRoute={drawerRouteFor(pathname)}
+                onNavigate={navigate}
+                groups={drawerGroups}
+                onGroupPress={loadGroupThreads}
+                onThreadPress={openThread}
+                onThreadPin={pinThread}
+                onThreadDelete={deleteThread}
+              />
+            ) : null}
+          </Animated.View>
+        )}
+      </View>
     </NavThemeProvider>
   );
 }

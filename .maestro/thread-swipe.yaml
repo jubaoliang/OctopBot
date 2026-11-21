@@ -14,13 +14,8 @@ appId: com.tencent.octopbot
     visible:
       id: 'drawer-tasks'
     timeout: 15000
-# Expand the first expert group under Tasks (agent id varies by server).
-- extendedWaitUntil:
-    visible:
-      id: 'drawer-group-.*'
-    timeout: 15000
-- tapOn:
-    id: 'drawer-group-.*'
+# Groups start expanded (the drawer is a task switcher), so the first
+# group's thread rows are already on screen — no expand tap needed.
 - scrollUntilVisible:
     element:
       id: 'drawer-thread-.*'

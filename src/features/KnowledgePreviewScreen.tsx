@@ -1,13 +1,18 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { CloudOff, FileText } from 'lucide-react-native';
 
 import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
 import { EmptyState, SkeletonList } from '@/components/ListStates';
 import { KnowledgeApi } from '@/core/api/knowledge';
 import { useAuth } from '@/features/auth';
+import {
+  useGatedLoad,
+  useTransitionGate,
+  type TransitionAwareNavigation,
+} from '@/features/use-transition-gate';
 import { useI18n } from '@/i18n/I18nProvider';
 import { layout, typeScale, useTokens } from '@/theme';
 import { firstRouteParam } from '@/utils/route-params';
@@ -18,7 +23,11 @@ export function KnowledgePreviewScreen() {
   const { t: strings } = useI18n();
   const { httpClient, user, ready } = useAuth();
   const router = useRouter();
+  const navigation = useNavigation<TransitionAwareNavigation>();
   const insets = useSafeAreaInsets();
+  // The document fetch waits out the push so its render (markdown-scale
+  // text) can never land mid-transition.
+  const { waitSettled } = useTransitionGate(navigation);
   const params = useLocalSearchParams<{
     kbId?: string | string[];
     docId?: string | string[];
@@ -67,12 +76,7 @@ export function KnowledgePreviewScreen() {
     })();
   }, [httpClient, kbId, docId]);
 
-  useEffect(() => {
-    if (!ready || !user) {
-      return;
-    }
-    void load();
-  }, [ready, user, kbId, docId, load]);
+  useGatedLoad(waitSettled, ready && !!user, load);
 
   const onRefresh = () => {
     setRefreshing(true);

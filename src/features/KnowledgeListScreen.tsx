@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import { BookOpen, CloudOff } from 'lucide-react-native';
 
 import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
@@ -9,6 +9,11 @@ import { EmptyState, SkeletonList } from '@/components/ListStates';
 import type { KnowledgeBase } from '@/core/api/types';
 import { KnowledgeApi } from '@/core/api/knowledge';
 import { useAuth } from '@/features/auth';
+import {
+  useGatedLoad,
+  useTransitionGate,
+  type TransitionAwareNavigation,
+} from '@/features/use-transition-gate';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
 import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
@@ -19,7 +24,11 @@ export function KnowledgeListScreen() {
   const { t: strings } = useI18n();
   const { httpClient, user, ready } = useAuth();
   const router = useRouter();
+  const navigation = useNavigation<TransitionAwareNavigation>();
   const insets = useSafeAreaInsets();
+  // The first bases fetch waits out the push so a fast LAN reply can never
+  // land its render mid-transition.
+  const { waitSettled } = useTransitionGate(navigation);
 
   const [bases, setBases] = useState<KnowledgeBase[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -53,12 +62,7 @@ export function KnowledgeListScreen() {
     })();
   }, [httpClient]);
 
-  useEffect(() => {
-    if (!ready || !user) {
-      return;
-    }
-    void load();
-  }, [ready, user, load]);
+  useGatedLoad(waitSettled, ready && !!user, load);
 
   const onRefresh = () => {
     setRefreshing(true);

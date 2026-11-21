@@ -57,8 +57,8 @@ appId: com.tencent.octopbot
     visible:
       id: 'drawer-group-.*'
     timeout: 15000
-- tapOn:
-    id: 'drawer-group-.*'
+# Groups start expanded, so the thread rows are already on screen — tapping
+# the group here would collapse them and hide the rows.
 - scrollUntilVisible:
     element:
       id: '.*drawer-thread-.*'

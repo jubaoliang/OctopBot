@@ -1,8 +1,8 @@
-import { ActivityIndicator, Image, StyleSheet, useWindowDimensions, View } from 'react-native';
-import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
+import { ActivityIndicator, Image, StyleSheet, useWindowDimensions } from 'react-native';
+import Animated from 'react-native-reanimated';
 import Svg, { Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 
-import { motion, useTheme } from '@/theme';
+import { useBranchFade, useTheme } from '@/theme';
 
 const MASCOT = require('@/assets/images/splash-mascot.png');
 const WORDMARK = {
@@ -88,7 +88,7 @@ const PATCHES: Patch[] = [
 export function LaunchSplash() {
   const { tokens: t, resolvedMode } = useTheme();
   const { width, height } = useWindowDimensions();
-  const reduceMotion = useReducedMotion();
+  const { entering, exiting } = useBranchFade();
 
   // The mascot is a square tile with its own padding, so the tile's centre is
   // the character's centre. Cap it against the height too, for tablets.
@@ -129,11 +129,16 @@ export function LaunchSplash() {
       })),
     };
   });
-  const entering = reduceMotion ? undefined : FadeIn.duration(motion.sheet);
+  // The exit sits on the splash root — the highest view removed in the swap.
+  // A child's `exiting` cannot run when its parent unmounts in the same
+  // commit (Reanimated reattaches the removed view to a surviving ancestor),
+  // so the whole surface fades out against the incoming branch's background.
+  // The fade pair is shared with the root layout (useBranchFade).
 
   return (
-    <View
+    <Animated.View
       testID="launch-splash"
+      exiting={exiting}
       style={[styles.root, { backgroundColor: t.bg }]}
       accessibilityRole="progressbar"
     >
@@ -223,7 +228,7 @@ export function LaunchSplash() {
       >
         <ActivityIndicator size="small" color={t.brand} style={styles.spinner} />
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 

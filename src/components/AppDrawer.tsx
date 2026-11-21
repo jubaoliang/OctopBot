@@ -12,6 +12,7 @@ import Animated, {
   Easing,
   cubicBezier,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
@@ -97,14 +98,6 @@ export interface DrawerTaskGroup {
 
 export type DrawerRoute = 'knowledge' | 'usage' | 'settings' | 'connect';
 
-/** Conversations with server-reported unread across all groups. */
-export function countUnreadThreads(groups: DrawerTaskGroup[]): number {
-  return groups.reduce(
-    (sum, group) => sum + group.items.filter(item => item.unreadCount > 0).length,
-    0,
-  );
-}
-
 interface AppDrawerProps {
   /** Requested state; the drawer animates toward it. */
   visible: boolean;
@@ -162,6 +155,7 @@ export function AppDrawer({
   const t = useTokens();
   const { t: strings } = useI18n();
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
   const progress = useSharedValue(0);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   // Groups whose full thread list the reader asked for.
@@ -197,11 +191,13 @@ export function AppDrawer({
   // transform) off the one shared value, so they land in the same frame.
   // Never animate a layout prop here: it is committed on a different path
   // and trails the transform, which opens a seam between the two.
+  // Reduce Motion keeps the fade and drops the slide (HIG: fewer/gentler).
   const scrimStyle = useAnimatedStyle(() => ({
     opacity: progress.get(),
   }));
   const panelStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: -PANEL_WIDTH * (1 - progress.get()) }],
+    opacity: reduceMotion ? progress.get() : 1,
+    transform: [{ translateX: reduceMotion ? 0 : -PANEL_WIDTH * (1 - progress.get()) }],
   }));
 
   return (
@@ -217,6 +213,10 @@ export function AppDrawer({
       </Animated.View>
       <Animated.View
         accessibilityViewIsModal
+        // Under Reduce Motion the panel fades in place instead of sliding
+        // off screen — an opacity-0 view still hit-tests, so disable hits
+        // once closed or the invisible panel swallows taps over its area.
+        pointerEvents={visible ? 'auto' : 'none'}
         style={[
           styles.panel,
           {

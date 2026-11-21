@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Clock, MessageSquare, UserRound, Users } from 'lucide-react-native';
 
 import { useI18n } from '@/i18n/I18nProvider';
-import { countUnreadThreads } from '@/components/AppDrawer';
+import { countUnreadThreads } from '@/utils/count-unread';
 import { UnreadDot } from '@/components/UnreadBadge';
 import { useAppShell } from '@/features/app-shell';
 import { useNotifications } from '@/features/notifications-context';

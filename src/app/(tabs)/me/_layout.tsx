@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 
 import { NATIVE_HEADERS } from '@/platform/screen-header';
+import { useStackAnimation } from '@/theme';
 
 /**
  * Root of the me tab. It is its own stack so the screen can wear the
@@ -8,10 +9,12 @@ import { NATIVE_HEADERS } from '@/platform/screen-header';
  * Android keeps drawing the bar inside the screen.
  */
 export default function MeLayout() {
+  const stackAnimation = useStackAnimation();
   return (
     <Stack
       screenOptions={{
         headerShown: NATIVE_HEADERS,
+        ...stackAnimation,
         contentStyle: { backgroundColor: 'transparent' },
       }}
     />
