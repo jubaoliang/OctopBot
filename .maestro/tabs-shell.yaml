@@ -6,23 +6,8 @@
 appId: com.tencent.octopbot
 ---
 - launchApp
-# The tab bar exists on every tab — wait for the app to render, then reach
-# the home if a relaunch restored another tab or a thread.
-- extendedWaitUntil:
-    visible:
-      id: 'tab-chat'
-    timeout: 180000
 - runFlow:
-    when:
-      notVisible:
-        id: 'select-expert'
-    commands:
-      - tapOn:
-          id: 'tab-chat'
-- extendedWaitUntil:
-    visible:
-      id: 'select-expert'
-    timeout: 30000
+    file: subflows/home-resume.yaml
 - assertVisible:
     id: 'tab-chat'
 - assertVisible:

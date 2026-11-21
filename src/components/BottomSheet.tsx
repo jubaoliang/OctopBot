@@ -140,14 +140,30 @@ export function BottomSheet({
       return;
     }
     closing.set(1);
+    // Exit past the keyboard lift too, so a dismissal with the IME up
+    // stays continuous instead of snapping down by the keyboard height.
     translate.set(
-      withTiming(windowHeight, { duration: reduceMotion ? 0 : 220, easing: EASE_SHEET }, done => {
-        if (done) {
-          scheduleOnRN(finishDismiss);
-        }
-      }),
+      withTiming(
+        windowHeight + keyboardHeight.get(),
+        { duration: reduceMotion ? 0 : 220, easing: EASE_SHEET },
+        done => {
+          if (done) {
+            scheduleOnRN(finishDismiss);
+          }
+        },
+      ),
     );
-  }, [visible, mounted, duration, reduceMotion, windowHeight, translate, closing, finishDismiss]);
+  }, [
+    visible,
+    mounted,
+    duration,
+    reduceMotion,
+    windowHeight,
+    keyboardHeight,
+    translate,
+    closing,
+    finishDismiss,
+  ]);
 
   const closeFromGesture = useCallback(() => {
     gestureClosing.current = true;
@@ -185,13 +201,18 @@ export function BottomSheet({
       if (released > DISMISS_DISTANCE || event.velocityY > DISMISS_VELOCITY) {
         closing.set(1);
         // The sheet finishes its own exit here: the parent flips `visible`
-        // in the same beat and must not start a second animation.
+        // in the same beat and must not start a second animation. Exit past
+        // the keyboard lift so an IME-up swipe stays continuous.
         translate.set(
-          withTiming(windowHeight, { duration, easing: EASE_SHEET }, done => {
-            if (done) {
-              scheduleOnRN(finishDismiss);
-            }
-          }),
+          withTiming(
+            windowHeight + keyboardHeight.get(),
+            { duration, easing: EASE_SHEET },
+            done => {
+              if (done) {
+                scheduleOnRN(finishDismiss);
+              }
+            },
+          ),
         );
         scheduleOnRN(closeFromGesture);
         return;
@@ -207,11 +228,9 @@ export function BottomSheet({
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [
       {
-        // Lift only while open/opening — an exiting sheet must travel the
-        // full window height or it would unmount short of the edge.
-        translateY:
-          translate.get() -
-          (closing.get() === 0 && translate.get() < windowHeight ? keyboardHeight.get() : 0),
+        // Lift while the sheet is on screen — including during its exit,
+        // so the animation absorbs the keyboard offset instead of snapping.
+        translateY: translate.get() - (translate.get() < windowHeight ? keyboardHeight.get() : 0),
       },
     ],
   }));
@@ -221,7 +240,9 @@ export function BottomSheet({
   }
 
   const bottomInset = Math.max(insets.bottom, 12) + 8;
-  const sheetMaxHeight = Math.max(240, windowHeight * 0.9 - keyboardJs);
+  // Never taller than the space left above the IME, or the lifted sheet's
+  // header would be pushed off the top of the window.
+  const sheetMaxHeight = Math.max(160, Math.min(windowHeight * 0.9, windowHeight - keyboardJs));
   // Until the header is measured, reserve the grabber plus a title line.
   const measuredHeader = headerHeight > 0 ? headerHeight : 60;
   const bodyMaxHeight = Math.max(160, sheetMaxHeight - measuredHeader - bottomInset);
@@ -233,6 +254,7 @@ export function BottomSheet({
       onContentSizeChange={(_width, height) => setContentHeight(height)}
       showsVerticalScrollIndicator={false}
       showsHorizontalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
       bounces={false}
     >
       {content}

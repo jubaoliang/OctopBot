@@ -141,10 +141,13 @@ export default function ChatHomeScreen() {
   // One navigation path for the composer and the pills. `draft` seeds the
   // thread's composer with the prompt body (templates need the user's
   // content) instead of auto-sending; staged chips ride along either way.
+  // Only the chips actually handed off are cleared — an upload still in
+  // flight stays on the home composer instead of being silently wiped.
   const startChat = (
     promptText: string | null,
     attachments?: TurnAttachment[],
     mode: 'send' | 'draft' = 'send',
+    handedOffIds?: string[],
   ) => {
     if (!selected) {
       return;
@@ -155,9 +158,7 @@ export default function ChatHomeScreen() {
       hasAttachments || mode === 'draft'
         ? putChatHandoff(promptText ?? '', attachments ?? [], mode)
         : null;
-    if (hasAttachments) {
-      attachmentFlow.clear();
-    }
+    handedOffIds?.forEach(id => attachmentFlow.remove(id));
     router.push({
       pathname: '/chat/[threadId]',
       params: {
@@ -264,15 +265,17 @@ export default function ChatHomeScreen() {
                   key={`${choice.label}-${index}`}
                   label={choice.label}
                   iconName={choice.iconName}
-                  onPress={() =>
+                  onPress={() => {
+                    const ready = attachmentFlow.pending.filter(
+                      p => p.status === 'ready' && p.attachment,
+                    );
                     startChat(
                       choice.text,
-                      attachmentFlow.pending.flatMap(p =>
-                        p.status === 'ready' && p.attachment ? [p.attachment] : [],
-                      ),
+                      ready.flatMap(p => (p.attachment ? [p.attachment] : [])),
                       'draft',
-                    )
-                  }
+                      ready.map(p => p.id),
+                    );
+                  }}
                 />
               ))}
             </View>
@@ -281,7 +284,14 @@ export default function ChatHomeScreen() {
           </ScrollView>
           <View style={styles.inputWrap}>
             <ChatInput
-              onSend={(text, attachments) => startChat(text, attachments)}
+              onSend={(text, attachments) =>
+                startChat(
+                  text,
+                  attachments,
+                  'send',
+                  attachmentFlow.pending.filter(p => p.status === 'ready').map(p => p.id),
+                )
+              }
               onPickImages={selected ? attachmentFlow.pick : undefined}
               pendingAttachments={attachmentFlow.pending}
               onRemovePending={attachmentFlow.remove}

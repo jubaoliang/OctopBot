@@ -1,0 +1,41 @@
+# Best-effort teardown for routine-builder: delete any briefing rows left
+# behind by a mid-flow failure, so automation-starters (which requires the
+# E2E expert to have no jobs) is not poisoned. Every step is optional —
+# this hook must never fail, whatever screen the flow died on.
+appId: dev.octop.octopbot
+---
+- tapOn:
+    id: 'tab-automation'
+    optional: true
+- runFlow:
+    when:
+      visible: 'Morning briefing|早间简报'
+    commands:
+      - longPressOn:
+          text: 'Morning briefing|早间简报'
+          optional: true
+      - tapOn:
+          id: 'routine-actions-1'
+          optional: true
+      - assertNotVisible:
+          id: 'routine-actions'
+          optional: true
+      - tapOn:
+          text: 'Delete|删除'
+          optional: true
+- runFlow:
+    when:
+      visible: 'Evening briefing|晚间简报'
+    commands:
+      - longPressOn:
+          text: 'Evening briefing|晚间简报'
+          optional: true
+      - tapOn:
+          id: 'routine-actions-1'
+          optional: true
+      - assertNotVisible:
+          id: 'routine-actions'
+          optional: true
+      - tapOn:
+          text: 'Delete|删除'
+          optional: true

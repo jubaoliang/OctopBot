@@ -102,14 +102,14 @@ export function useTransitionGate(navigation: TransitionAwareNavigation) {
  * left (or the query changed) before the gate released. `load` is expected
  * to be a useCallback whose own deps carry the screen's query keys — its
  * identity change is what re-runs the effect, so no deps pass-through (and
- * no lint suppression) is needed here. `load` must own its error handling
- * (the fetchers catch internally and set their failed state); a rejection
- * escaping it would be unhandled.
+ * no lint suppression) is needed here. `load` receives an isCancelled
+ * checker for mid-flight work and must own its error state; the catch below
+ * only keeps a future caller's slip from becoming an unhandled rejection.
  */
 export function useGatedLoad(
   waitSettled: () => Promise<void>,
   enabled: boolean,
-  load: () => void | Promise<void>,
+  load: (isCancelled: () => boolean) => void | Promise<void>,
 ): void {
   useEffect(() => {
     if (!enabled) {
@@ -119,7 +119,7 @@ export function useGatedLoad(
     void (async () => {
       await waitSettled();
       if (!cancelled) {
-        void load();
+        await Promise.resolve(load(() => cancelled)).catch(() => undefined);
       }
     })();
     return () => {

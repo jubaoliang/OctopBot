@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { BottomSheet } from '@/components/BottomSheet';
@@ -56,16 +56,23 @@ export function RoutineBuilderSheet({
   const [customExpr, setCustomExpr] = useState('');
   const [creating, setCreating] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [partial, setPartial] = useState(false);
+  // Bumped on dismiss so an in-flight create cannot fire success side
+  // effects (haptics, reload, second dismiss) into a closed/reopened sheet.
+  const requestToken = useRef(0);
 
   const picked = agents.find(a => a.agent_id === agentId) ?? agents[0] ?? null;
 
   // The draft clears on dismiss (an event, not an effect), so the next open
   // starts fresh while the expert pick persists across openings.
   const dismiss = () => {
+    requestToken.current += 1;
     setPrompt('');
     setCustomExpr('');
     setSchedule('daily');
     setFailed(false);
+    setPartial(false);
+    setCreating(false);
     onClose();
   };
 
@@ -97,8 +104,11 @@ export function RoutineBuilderSheet({
     if (!picked || !canCreate) {
       return;
     }
+    const token = (requestToken.current += 1);
+    const stale = () => requestToken.current !== token;
     setCreating(true);
     setFailed(false);
+    setPartial(false);
     const api = new CronApi(httpClient);
     try {
       if (schedule === 'briefings') {
@@ -116,23 +126,38 @@ export function RoutineBuilderSheet({
             enabled: true,
           });
         } catch (eveningError) {
-          // The pair is one product: never leave a lone morning briefing
-          // behind (a retry would duplicate it). Roll back, then surface.
-          await api.remove(picked.agent_id, morning.id).catch(() => undefined);
+          // The pair is one product: roll the morning job back so a retry
+          // cannot duplicate it. If the rollback also fails, surface the
+          // orphan in the roster instead of hiding it.
+          const rolledBack = await api
+            .remove(picked.agent_id, morning.id)
+            .then(() => true)
+            .catch(() => false);
+          if (!rolledBack && !stale()) {
+            setPartial(true);
+            onCreated();
+          }
           throw eveningError;
         }
       } else {
         const trigger = schedule === 'custom' ? cronTrigger(customExpr) : CRON_PRESETS[schedule];
         await api.create(picked.agent_id, { trigger, prompt: prompt.trim(), enabled: true });
       }
+      if (stale()) {
+        return;
+      }
       haptics.notify('success');
       onCreated();
       dismiss();
     } catch {
-      setFailed(true);
-      haptics.notify('error');
+      if (!stale()) {
+        setFailed(true);
+        haptics.notify('error');
+      }
     } finally {
-      setCreating(false);
+      if (!stale()) {
+        setCreating(false);
+      }
     }
   };
 
@@ -168,6 +193,9 @@ export function RoutineBuilderSheet({
                 }
                 selected={picked?.agent_id === agent.agent_id}
                 onPress={() => {
+                  if (creating) {
+                    return;
+                  }
                   haptics.selection();
                   setAgentId(agent.agent_id);
                 }}
@@ -214,7 +242,8 @@ export function RoutineBuilderSheet({
               <PressableScale
                 key={choice}
                 accessibilityRole="button"
-                accessibilityState={{ selected: active }}
+                accessibilityState={{ selected: active, disabled: creating }}
+                disabled={creating}
                 style={[
                   styles.chip,
                   {
@@ -261,7 +290,9 @@ export function RoutineBuilderSheet({
         ) : null}
 
         {failed ? (
-          <Text style={[styles.error, { color: t.danger }]}>{strings.automation.createFailed}</Text>
+          <Text style={[styles.error, { color: t.danger }]}>
+            {partial ? strings.automation.briefingsPartialFailed : strings.automation.createFailed}
+          </Text>
         ) : null}
 
         <PressableScale

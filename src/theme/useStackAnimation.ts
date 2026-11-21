@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react';
-import { Stack } from 'expo-router';
+import type { Stack } from 'expo-router';
 import { FadeIn, FadeOut, useReducedMotion } from 'react-native-reanimated';
 
 import { STACK_PUSH_ANIMATION } from '@/platform/stack-transition';

@@ -24,9 +24,10 @@ export function resolveLocalized(
   if (!value) {
     return null;
   }
+  // Empty copy counts as missing at every step of the fallback chain.
+  const nonEmpty = (s: string | undefined) => (s && s.length > 0 ? s : null);
   const preferred = locale.startsWith('zh') ? value.zh : value.en;
-  const picked = preferred ?? value.zh ?? value.en;
-  return picked && picked.length > 0 ? picked : null;
+  return nonEmpty(preferred) ?? nonEmpty(value.zh) ?? nonEmpty(value.en);
 }
 
 /** Locale-picked string list with cross-locale fallback, junk filtered. */
@@ -34,8 +35,9 @@ function localizedList(payload: LocalizedList | null | undefined, locale: string
   if (!payload) {
     return [];
   }
-  const list =
-    (locale.startsWith('zh') ? payload.zh : payload.en) ?? payload.zh ?? payload.en ?? [];
+  const nonEmpty = (l: string[] | undefined) => (l && l.length > 0 ? l : null);
+  const preferred = locale.startsWith('zh') ? payload.zh : payload.en;
+  const list = nonEmpty(preferred) ?? nonEmpty(payload.zh) ?? nonEmpty(payload.en) ?? [];
   return list.filter((s): s is string => typeof s === 'string' && s.length > 0);
 }
 

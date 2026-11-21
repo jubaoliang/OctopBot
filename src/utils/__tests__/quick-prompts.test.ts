@@ -34,6 +34,11 @@ describe('resolveLocalized', () => {
     expect(resolveLocalized({}, 'en')).toBeNull();
     expect(resolveLocalized({ zh: '', en: '' }, 'en')).toBeNull();
   });
+
+  it('falls back when the preferred branch exists but is empty', () => {
+    expect(resolveLocalized({ zh: '', en: 'English' }, 'zh')).toBe('English');
+    expect(resolveLocalized({ en: '', zh: '中文' }, 'en')).toBe('中文');
+  });
 });
 
 describe('resolveQuickPrompts', () => {
@@ -93,5 +98,10 @@ describe('resolveTaskExamples', () => {
     expect(resolveTaskExamples(payload, 'zh-CN')).toEqual(['每天九点简报']);
     expect(resolveTaskExamples({ en: ['x'] }, 'zh')).toEqual(['x']);
     expect(resolveTaskExamples(null, 'en')).toEqual([]);
+  });
+
+  it('falls back when the preferred branch is an empty list', () => {
+    expect(resolveTaskExamples({ zh: [], en: ['A'] }, 'zh')).toEqual(['A']);
+    expect(resolveTaskExamples({ en: [], zh: ['甲'] }, 'en')).toEqual(['甲']);
   });
 });

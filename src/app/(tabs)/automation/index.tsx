@@ -8,10 +8,10 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { CalendarClock } from 'lucide-react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { CalendarClock, CalendarPlus } from 'lucide-react-native';
 
 import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
 import { useTabBarFootprint } from '@/platform/tab-bar';
@@ -51,9 +51,7 @@ export default function AutomationScreen() {
   const { httpClient, user, ready } = useAuth();
   const router = useRouter();
   const tabBarFootprint = useTabBarFootprint();
-  const [agents, setAgents] = useState<AgentSummary[]>([]);
-  const [sections, setSections] = useState<AgentCrons[]>([]);
-  const [suggestions, setSuggestions] = useState<AgentCrons[]>([]);
+  const [roster, setRoster] = useState<AgentCrons[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [builderOpen, setBuilderOpen] = useState(false);
@@ -61,6 +59,12 @@ export default function AutomationScreen() {
   // Last run-now outcome, sticky until fresh data supersedes it — a timed
   // flash would be invisible to slow assistive tech (and slow automation).
   const [runNowFlash, setRunNowFlash] = useState<{ id: string; ok: boolean } | null>(null);
+
+  // One source of truth; the roster and the suggestions are views of it, so
+  // an optimistic delete can never clobber fresher state or strand an
+  // expert that just lost its last job.
+  const sections = roster.filter(s => s.jobs.length > 0);
+  const suggestions = roster.filter(s => s.jobs.length === 0 && s.examples.length > 0);
 
   const load = useCallback(() => {
     if (!ready || !user) {
@@ -70,30 +74,23 @@ export default function AutomationScreen() {
       try {
         const agentsApi = new AgentsApi(httpClient);
         const cronApi = new CronApi(httpClient);
-        const roster = await agentsApi.list();
+        const agents = await agentsApi.list();
         const withJobs = await Promise.all(
-          roster.map(async agent => {
-            const jobs = await cronApi.list(agent.agent_id).catch(() => [] as CronJob[]);
-            // Suggestions only matter for experts without jobs — skip the
-            // welcome round-trip for everyone else.
-            const examples =
-              jobs.length === 0
-                ? resolveTaskExamples(
-                    (await agentsApi.welcome(agent.agent_id).catch(() => null))?.task_examples ??
-                      null,
-                    locale,
-                  )
-                : [];
-            return { agent, jobs, examples };
+          agents.map(async agent => {
+            const [jobs, welcome] = await Promise.all([
+              cronApi.list(agent.agent_id).catch(() => [] as CronJob[]),
+              agentsApi.welcome(agent.agent_id).catch(() => null),
+            ]);
+            return {
+              agent,
+              jobs,
+              examples: resolveTaskExamples(welcome?.task_examples ?? null, locale),
+            };
           }),
         );
-        setAgents(roster);
         // Fresh server data supersedes any sticky run-now status.
         setRunNowFlash(null);
-        // Experts without jobs stay out of the roster — no empty dash
-        // placeholders; their suggestions get their own section below.
-        setSections(withJobs.filter(s => s.jobs.length > 0));
-        setSuggestions(withJobs.filter(s => s.jobs.length === 0 && s.examples.length > 0));
+        setRoster(withJobs);
       } catch {
         // Keep the previous list on refresh failures.
       } finally {
@@ -102,30 +99,26 @@ export default function AutomationScreen() {
     })();
   }, [ready, user, httpClient, locale]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Focus, not just mount: a routine created conversationally in the chat
+  // tab must be visible when the user comes back here.
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   const toggle = (agentId: string, job: CronJob, next: boolean) => {
-    // Optimistic flip; revert on failure.
-    setSections(prev =>
+    // Optimistic flip; revert on failure. Functional updates so a concurrent
+    // load/create cannot be clobbered by a stale snapshot.
+    const flip = (enabled: boolean) => (prev: AgentCrons[]) =>
       prev.map(s =>
         s.agent.agent_id === agentId
-          ? { ...s, jobs: s.jobs.map(j => (j.id === job.id ? { ...j, enabled: next } : j)) }
+          ? { ...s, jobs: s.jobs.map(j => (j.id === job.id ? { ...j, enabled } : j)) }
           : s,
-      ),
-    );
-    void new CronApi(httpClient).update(agentId, job.id, { enabled: next }).catch(() => {
-      setSections(prev =>
-        prev.map(s =>
-          s.agent.agent_id === agentId
-            ? {
-                ...s,
-                jobs: s.jobs.map(j => (j.id === job.id ? { ...j, enabled: !next } : j)),
-              }
-            : s,
-        ),
       );
+    setRoster(flip(next));
+    void new CronApi(httpClient).update(agentId, job.id, { enabled: next }).catch(() => {
+      setRoster(flip(!next));
     });
   };
 
@@ -145,19 +138,15 @@ export default function AutomationScreen() {
   };
 
   const removeJob = (agentId: string, job: CronJob) => {
-    const updated = sections.map(s =>
-      s.agent.agent_id === agentId ? { ...s, jobs: s.jobs.filter(j => j.id !== job.id) } : s,
+    // Functional update: the confirmation dialog can outlive a refresh, so
+    // apply the delete to the latest roster, not a render-time snapshot.
+    // An expert whose last job is deleted drops out of the roster view and
+    // resurfaces under "Suggested routines" automatically (derived above).
+    setRoster(prev =>
+      prev.map(s =>
+        s.agent.agent_id === agentId ? { ...s, jobs: s.jobs.filter(j => j.id !== job.id) } : s,
+      ),
     );
-    // An expert whose last job is deleted leaves the roster; if it still
-    // has server suggestions, it resurfaces under "Suggested routines".
-    const emptied = updated.filter(s => s.jobs.length === 0 && s.examples.length > 0);
-    setSections(updated.filter(s => s.jobs.length > 0));
-    if (emptied.length > 0) {
-      setSuggestions(prev => [
-        ...prev,
-        ...emptied.filter(s => !prev.some(p => p.agent.agent_id === s.agent.agent_id)),
-      ]);
-    }
     void new CronApi(httpClient)
       .remove(agentId, job.id)
       .then(() => haptics.impact())
@@ -216,6 +205,7 @@ export default function AutomationScreen() {
           onMenu={openDrawer}
           onCompose={() => setBuilderOpen(true)}
           composeLabel={strings.automation.newRoutine}
+          composeIcon={<CalendarPlus size={21} color={tokens.textBody} />}
         />
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
@@ -367,7 +357,7 @@ export default function AutomationScreen() {
       <RoutineBuilderSheet
         visible={builderOpen}
         onClose={() => setBuilderOpen(false)}
-        agents={agents}
+        agents={roster.map(s => s.agent)}
         onCreated={() => {
           void load();
         }}

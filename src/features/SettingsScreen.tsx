@@ -11,7 +11,11 @@ import { VoiceApi } from '@/core/api/voice';
 import type { ActiveVoice, VoiceProvider } from '@/core/api/types';
 import { useAuth } from '@/features/auth';
 import { useNotifications } from '@/features/notifications-context';
-import { useTransitionGate, type TransitionAwareNavigation } from '@/features/use-transition-gate';
+import {
+  useGatedLoad,
+  useTransitionGate,
+  type TransitionAwareNavigation,
+} from '@/features/use-transition-gate';
 import { useI18n, localeNames, type Locale, type UserLocaleMode } from '@/i18n/I18nProvider';
 import { formatAppVersion } from '@/platform/app-version';
 import { haptics } from '@/platform/haptics';
@@ -85,21 +89,7 @@ export function SettingsScreen() {
     [httpClient],
   );
 
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
-      await waitSettled();
-      if (!cancelled) {
-        await refreshVoice(() => cancelled);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user, refreshVoice, waitSettled]);
+  useGatedLoad(waitSettled, !!user, refreshVoice);
 
   const cloudStt = useMemo(
     () =>

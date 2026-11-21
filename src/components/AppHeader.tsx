@@ -29,6 +29,8 @@ interface AppHeaderProps {
   /** Screen-reader label for the trailing action when it is not "new
    * conversation" (e.g. the routine builder). */
   composeLabel?: string;
+  /** Glyph for the trailing action; keep it consistent with composeLabel. */
+  composeIcon?: ReactNode;
 }
 
 /**
@@ -47,6 +49,7 @@ export function AppHeader({
   moreItems,
   onCompose,
   composeLabel,
+  composeIcon,
 }: AppHeaderProps) {
   const t = useTokens();
   const { t: strings } = useI18n();
@@ -108,7 +111,7 @@ export function AppHeader({
           testID="header-compose"
           onPress={onCompose}
         >
-          <MessageSquarePlus size={21} color={t.textBody} />
+          {composeIcon ?? <MessageSquarePlus size={21} color={t.textBody} />}
         </IconButton>
       ) : showMore ? (
         <IconButton label={strings.a11y.more} testID="header-more" onPress={openMore}>

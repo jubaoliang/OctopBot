@@ -214,9 +214,11 @@ export function AppDrawer({
       <Animated.View
         accessibilityViewIsModal
         // Under Reduce Motion the panel fades in place instead of sliding
-        // off screen — an opacity-0 view still hit-tests, so disable hits
-        // once closed or the invisible panel swallows taps over its area.
+        // off screen — an opacity-0 view still hit-tests and stays in the
+        // accessibility tree, so hide it from both once closed.
         pointerEvents={visible ? 'auto' : 'none'}
+        accessibilityElementsHidden={!visible}
+        importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
         style={[
           styles.panel,
           {

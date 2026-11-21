@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { Edge } from 'react-native-safe-area-context';
 
 import { AppHeader, LargeTitle } from '@/components/AppHeader';
@@ -26,6 +27,8 @@ export interface ScreenHeaderProps {
   /** Screen-reader label for the trailing action when it is not "new
    * conversation" (e.g. the routine builder). */
   composeLabel?: string;
+  /** Glyph for the trailing action; keep it consistent with composeLabel. */
+  composeIcon?: ReactNode;
 }
 
 /**
@@ -42,6 +45,7 @@ export function ScreenHeader({
   onBack,
   onCompose,
   composeLabel,
+  composeIcon,
 }: ScreenHeaderProps) {
   return (
     <>
@@ -52,6 +56,7 @@ export function ScreenHeader({
         onBack={onBack}
         onCompose={onCompose}
         composeLabel={composeLabel}
+        composeIcon={composeIcon}
       />
       {largeTitle ? <LargeTitle title={largeTitle} subtitle={largeSubtitle} /> : null}
     </>

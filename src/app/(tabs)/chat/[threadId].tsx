@@ -901,11 +901,11 @@ export default function ThreadScreen() {
   // Once an answer exists the process row belongs above it; until then the
   // footer is the only place to show that the turn is thinking.
   const processInFooter = processVisible && lastTurn?.kind !== 'assistant';
-  // Honest labeling once the assistant has answered (matches the product's
-  // AI-generated content convention); hidden while a reply is streaming.
-  const hasAssistantTurn = chat.turns.some(turn => turn.kind === 'assistant');
+  // Honest labeling of the answer that is currently the last row — not of
+  // an error notice that happens to follow an earlier answer.
+  const showAiCaption = lastTurn?.kind === 'assistant' && !chat.streaming;
   const footer =
-    processInFooter || showTyping || hasAssistantTurn ? (
+    processInFooter || showTyping || showAiCaption ? (
       <View style={styles.footer}>
         {processInFooter ? (
           <ProcessCard
@@ -916,7 +916,7 @@ export default function ThreadScreen() {
           />
         ) : null}
         {showTyping ? <TypingDots label={strings.chat.replying} /> : null}
-        {hasAssistantTurn && !chat.streaming ? (
+        {showAiCaption ? (
           <Text style={[styles.aiCaption, { color: tokens.textTertiary }]}>
             {strings.chat.aiGenerated}
           </Text>

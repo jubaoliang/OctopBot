@@ -232,7 +232,7 @@ const zh = {
   automation: {
     title: '自动化',
     emptyTitle: '暂无自动化任务',
-    emptyHint: '点右上角新建，或从下面的建议开始',
+    emptyHint: '点右上角 + 新建定时任务',
     retry: '重试',
     suggestedTitle: '建议的定时任务',
     suggestedHint: '点一下，在对话里让专家创建',
@@ -260,6 +260,8 @@ const zh = {
     create: '创建',
     creating: '创建中…',
     createFailed: '创建失败，请重试',
+    briefingsPartialFailed:
+      '早间简报已创建，晚间简报创建失败且无法回滚；请在列表中删除早间简报后重试',
     runNow: '立即运行',
     delete: '删除',
     deleteTitle: '删除这个定时任务？',
@@ -370,7 +372,7 @@ const en: Dict = {
   chatHome: {
     greeting: 'Start a chat',
     suggestions: [
-      'Summarize a text for me',
+      'Summarize some text for me',
       'Draft a message',
       'Plan my day',
       'Remind me of something',
@@ -575,7 +577,7 @@ const en: Dict = {
   automation: {
     title: 'Automation',
     emptyTitle: 'No automated tasks yet',
-    emptyHint: 'Tap + above, or start from a suggestion below',
+    emptyHint: 'Tap + above to create a routine',
     retry: 'Try again',
     suggestedTitle: 'Suggested routines',
     suggestedHint: 'Tap to create it in a chat with the expert',
@@ -592,7 +594,7 @@ const en: Dict = {
     presetHourly: 'Hourly',
     presetBriefings: 'Daily briefings (09:00 + 21:00)',
     briefingsHint:
-      'A 09:00 look at what is due today and what is coming up, and a 21:00 recap with tomorrow ahead.',
+      'At 09:00, a look at what is due today and what is coming up; at 21:00, a recap with tomorrow ahead.',
     briefingMorningName: 'Morning briefing',
     briefingEveningName: 'Evening briefing',
     briefingMorningPrompt:
@@ -604,6 +606,8 @@ const en: Dict = {
     create: 'Create',
     creating: 'Creating…',
     createFailed: 'Could not create — try again',
+    briefingsPartialFailed:
+      'The morning briefing was created but the evening one failed and could not be rolled back — delete the morning briefing in the list, then retry',
     runNow: 'Run now',
     delete: 'Delete',
     deleteTitle: 'Delete this routine?',
