@@ -1,0 +1,56 @@
+# Per-expert welcome prompts: the E2E expert's own pills replace the generic
+# fallback, and a tap drafts the prompt body into the composer without
+# sending. Requires the E2E expert (KMC325) on the server.
+appId: dev.octop.octopbot
+---
+- launchApp
+# The tab bar exists on every tab — wait for the app to render, then reach
+# the home if a relaunch restored another tab or a thread.
+- extendedWaitUntil:
+    visible:
+      id: 'tab-chat'
+    timeout: 180000
+- runFlow:
+    when:
+      notVisible:
+        id: 'select-expert'
+    commands:
+      - tapOn:
+          id: 'tab-chat'
+- extendedWaitUntil:
+    visible:
+      id: 'select-expert'
+    timeout: 30000
+
+# Pick the E2E expert deterministically.
+- tapOn:
+    id: 'select-expert'
+- extendedWaitUntil:
+    visible:
+      id: 'expert-sheet'
+    timeout: 15000
+- tapOn:
+    id: 'expert-option-KMC325'
+- assertNotVisible:
+    id: 'expert-sheet'
+
+# The expert's own localized prompts — not the old ops fallback.
+- extendedWaitUntil:
+    visible: 'Summarize|总结内容'
+    timeout: 15000
+- assertVisible: 'Ask anything|随便问问'
+- assertNotVisible: 'Check container status|检查容器状态'
+
+# A tap drafts the template; it must NOT auto-send. The prompt body ends in
+# newlines, so match dotall through the end of the field text.
+- tapOn: 'Summarize|总结内容'
+- extendedWaitUntil:
+    visible:
+      id: 'composer-input'
+    timeout: 30000
+- assertVisible: '(?s)(Please summarize the following|请帮我总结以下内容).*'
+# Still composing (send glyph, not stop) proves nothing was sent.
+- assertVisible:
+    id: 'composer-send'
+- assertNotVisible:
+    id: 'composer-stop'

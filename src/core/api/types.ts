@@ -36,14 +36,45 @@ export interface MfaChallenge {
 
 // ---------------------------------------------------------------------------
 // Agents, teams, experts
-
-/** Quick prompt payload from the welcome endpoint: plain strings per locale,
- * or a {zh,en} pair depending on server shape. */
-export type QuickPrompts = string[] | { zh?: string[]; en?: string[] } | null;
-
 // ---------------------------------------------------------------------------
-// Agents, teams, experts
-// ---------------------------------------------------------------------------
+
+/** Server copy that may arrive as a plain string or a zh/en pair. */
+export type LocalizedText = string | { zh?: string; en?: string };
+
+/** Locale-keyed string lists (quick prompts legacy shape, task examples). */
+export type LocalizedList = { zh?: string[]; en?: string[] };
+
+/**
+ * One quick prompt from the welcome endpoint. `title` labels the pill;
+ * `prompt` is the message body a tap should draft (often a template ending
+ * in "…:\n\n" for the user to complete). `color` is a light-mode pastel the
+ * app deliberately ignores — surfaces stay on theme tokens.
+ */
+export interface QuickPromptItem {
+  title: LocalizedText;
+  description?: LocalizedText;
+  prompt: LocalizedText;
+  color?: string;
+  icon_name?: string;
+}
+
+/**
+ * Quick prompt payload from the welcome endpoint. Current servers send rich
+ * `QuickPromptItem[]` (mixed with plain strings on older rows); the legacy
+ * `{zh,en}` string-list pair is still accepted. `main` has no welcome
+ * endpoint (404) — callers fall back to their own suggestions.
+ */
+export type QuickPrompts = (QuickPromptItem | string)[] | LocalizedList | null;
+
+/** Locale-keyed routine examples from the welcome endpoint. */
+export type TaskExamples = LocalizedList | null;
+
+/** Payload of `GET /api/agents/{id}/chat/welcome`. */
+export interface AgentWelcome {
+  welcome_message?: LocalizedText | null;
+  quick_prompts?: QuickPrompts;
+  task_examples?: TaskExamples;
+}
 
 export type AgentKind = 'expert' | 'team';
 

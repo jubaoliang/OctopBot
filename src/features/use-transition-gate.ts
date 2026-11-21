@@ -93,10 +93,7 @@ export function useTransitionGate(navigation: TransitionAwareNavigation) {
     });
   }, []);
 
-  // inFlightRef stays exposed for the thread screen's legacy guard; the
-  // assistant pass drops both together (waitSettled already resolves
-  // immediately when no transition is armed).
-  return { inFlightRef, waitSettled };
+  return { waitSettled };
 }
 
 /**

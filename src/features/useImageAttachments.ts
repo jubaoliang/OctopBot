@@ -10,6 +10,7 @@ import {
 } from '@/core/api/attachments';
 import { OctopApiError } from '@/core/api/errors';
 import type { HttpClient } from '@/core/api/http';
+import type { TurnAttachment } from '@/core/api/types';
 import { SettingsApi } from '@/core/api/settings';
 import { useAuth } from '@/features/auth';
 import { useI18n } from '@/i18n/I18nProvider';
@@ -208,5 +209,25 @@ export function useImageAttachments(agentId: string) {
     setState(prev => ({ ...prev, items: [] }));
   }, []);
 
-  return { pending, pick, remove, clear };
+  /** Rehydrate already-uploaded attachments (draft handoff from the home
+   * composer) as ready chips — no re-upload, they live in the workspace. */
+  const seed = useCallback(
+    (attachments: TurnAttachment[]) => {
+      setState({
+        agentId,
+        generation: sessionGeneration,
+        items: attachments.map(attachment => ({
+          id: `seed-${(nextId += 1)}`,
+          uri: attachment.local_uri ?? '',
+          filename: attachment.filename ?? 'attachment',
+          kind: attachment.type === 'image' ? ('image' as const) : ('file' as const),
+          status: 'ready' as const,
+          attachment,
+        })),
+      });
+    },
+    [agentId, sessionGeneration],
+  );
+
+  return { pending, pick, remove, clear, seed };
 }

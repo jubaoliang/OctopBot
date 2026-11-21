@@ -11,6 +11,7 @@ import Animated, {
 import { Terminal } from 'lucide-react-native';
 
 import { PressableScale } from '@/components/PressableScale';
+import { EXPERT_ICONS } from '@/components/expert-icons';
 import { IconArrowRight, IconChevronSmall, IconGlobe } from '@/components/icons';
 import { useI18n } from '@/i18n/I18nProvider';
 import { RemoteImage } from '@/platform/remote-image';
@@ -25,15 +26,26 @@ export interface BubbleImage {
   label: string;
 }
 
-/** Suggestion pill per design: white surface, radius 8, trailing arrow — 44pt tall. */
-export function SuggestionPill({ label, onPress }: { label: string; onPress?: () => void }) {
+/** Suggestion pill per design: white surface, radius 8, trailing arrow — 44pt tall.
+ * An optional leading glyph carries the server's per-prompt lucide icon. */
+export function SuggestionPill({
+  label,
+  iconName,
+  onPress,
+}: {
+  label: string;
+  iconName?: string;
+  onPress?: () => void;
+}) {
   const t = useTokens();
+  const Icon = iconName ? EXPERT_ICONS[iconName] : undefined;
   return (
     <PressableScale
       accessibilityRole="button"
       style={[styles.pill, { backgroundColor: t.surface, shadowColor: t.shadowSoft }]}
       onPress={onPress}
     >
+      {Icon ? <Icon size={16} color={t.textSecondary} /> : null}
       <Text style={[styles.label, { color: t.textBody }]}>{label}</Text>
       <IconArrowRight width={16} height={16} color={t.textBody} />
     </PressableScale>

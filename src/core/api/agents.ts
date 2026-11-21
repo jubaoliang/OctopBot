@@ -1,5 +1,5 @@
 import type { HttpClient } from './http';
-import type { AgentStatus, AgentSummary, UploadResult } from './types';
+import type { AgentStatus, AgentSummary, AgentWelcome, UploadResult } from './types';
 
 export type AgentScope = 'mine' | 'all';
 
@@ -30,11 +30,8 @@ export class AgentsApi {
     return this.http.post(`/api/agents/${agentId}/read`);
   }
 
-  /** Per-expert welcome payload: greeting + locale-aware quick prompts. */
-  welcome(agentId: string): Promise<{
-    welcome_message?: { zh?: string; en?: string } | null;
-    quick_prompts?: unknown;
-  }> {
+  /** Per-expert welcome payload: greeting, quick prompts, routine examples. */
+  welcome(agentId: string): Promise<AgentWelcome> {
     return this.http.get(`/api/agents/${agentId}/chat/welcome`);
   }
 

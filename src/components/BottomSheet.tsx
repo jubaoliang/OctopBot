@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { haptics } from '@/platform/haptics';
+import { useKeyboardHeight, useKeyboardState } from '@/platform/keyboard';
 import { continuousCorners, motion, radius, typeScale, useTokens } from '@/theme';
 
 /** iOS sheet curve — the same easing the drawer and the chrome use. */
@@ -93,6 +94,10 @@ export function BottomSheet({
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
+  // Sheets can host text inputs (the routine builder): rise above the IME
+  // and give back the covered height so the body stays reachable.
+  const keyboardHeight = useKeyboardHeight();
+  const keyboardJs = useKeyboardState(state => state.height);
   const [mounted, setMounted] = useState(visible);
   // Measured header height, so the body can be capped exactly.
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -200,7 +205,15 @@ export function BottomSheet({
     opacity: Math.min(1, Math.max(0, 1 - translate.get() / Math.max(1, windowHeight * 0.4))),
   }));
   const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translate.get() }],
+    transform: [
+      {
+        // Lift only while open/opening — an exiting sheet must travel the
+        // full window height or it would unmount short of the edge.
+        translateY:
+          translate.get() -
+          (closing.get() === 0 && translate.get() < windowHeight ? keyboardHeight.get() : 0),
+      },
+    ],
   }));
 
   if (!mounted) {
@@ -208,7 +221,7 @@ export function BottomSheet({
   }
 
   const bottomInset = Math.max(insets.bottom, 12) + 8;
-  const sheetMaxHeight = windowHeight * 0.9;
+  const sheetMaxHeight = Math.max(240, windowHeight * 0.9 - keyboardJs);
   // Until the header is measured, reserve the grabber plus a title line.
   const measuredHeader = headerHeight > 0 ? headerHeight : 60;
   const bodyMaxHeight = Math.max(160, sheetMaxHeight - measuredHeader - bottomInset);

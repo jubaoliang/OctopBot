@@ -23,6 +23,9 @@ export interface ScreenHeaderProps {
   onBack?: () => void;
   /** Trailing action: start a conversation in the expert this screen shows. */
   onCompose?: () => void;
+  /** Screen-reader label for the trailing action when it is not "new
+   * conversation" (e.g. the routine builder). */
+  composeLabel?: string;
 }
 
 /**
@@ -38,6 +41,7 @@ export function ScreenHeader({
   onMenu,
   onBack,
   onCompose,
+  composeLabel,
 }: ScreenHeaderProps) {
   return (
     <>
@@ -47,6 +51,7 @@ export function ScreenHeader({
         onMenu={onMenu}
         onBack={onBack}
         onCompose={onCompose}
+        composeLabel={composeLabel}
       />
       {largeTitle ? <LargeTitle title={largeTitle} subtitle={largeSubtitle} /> : null}
     </>

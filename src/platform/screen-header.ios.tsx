@@ -36,6 +36,7 @@ export function ScreenHeader({
   onMenu,
   onBack,
   onCompose,
+  composeLabel,
 }: ScreenHeaderProps) {
   const navigation = useNavigation();
   const { t: strings } = useI18n();
@@ -112,7 +113,7 @@ export function ScreenHeader({
         ? () => (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={strings.a11y.compose}
+              accessibilityLabel={composeLabel ?? strings.a11y.compose}
               testID="header-compose"
               hitSlop={HIT_SLOP}
               onPress={() => handlers.current.onCompose?.()}
@@ -131,6 +132,7 @@ export function ScreenHeader({
     hasMenu,
     onBack,
     onCompose,
+    composeLabel,
     strings.appName,
     strings.a11y.compose,
     strings.a11y.back,

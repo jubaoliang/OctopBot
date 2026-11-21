@@ -41,6 +41,9 @@ interface ChatInputProps {
   streaming?: boolean;
   /** When false the send glyph is dimmed; the field still accepts text. */
   canSend?: boolean;
+  /** Seeds the field as an editable draft (suggestion-pill templates) and
+   * focuses it so the user can complete the prompt before sending. */
+  initialText?: string;
 }
 
 // Module scope: layout-animation builders are not rebuilt per render. Only
@@ -76,10 +79,11 @@ export function ChatInput({
   onPickImages,
   pendingAttachments,
   onRemovePending,
+  initialText,
 }: ChatInputProps) {
   const t = useTokens();
   const { t: strings } = useI18n();
-  const [text, setText] = useState('');
+  const [text, setText] = useState(initialText ?? '');
   const baseBeforeVoice = useRef('');
   const pending = pendingAttachments ?? [];
   const hasPending = pending.length > 0;
@@ -267,6 +271,7 @@ export function ChatInput({
             value={text}
             onChangeText={setText}
             multiline
+            autoFocus={!!initialText}
             editable={!streaming && !voice.busy}
             onSubmitEditing={submit}
             testID="composer-input"

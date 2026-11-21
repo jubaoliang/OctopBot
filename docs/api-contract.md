@@ -95,7 +95,7 @@ Server → client (broadcast frames carry `thread_id`):
 
 - `POST /api/agents/{agent_id}/upload` (multipart `file`) → `{workspace_path, url, access_url?, filename, media_type, path?}` — files land in the agent workspace `inbound/`; the WS turn references them by `workspace_path`. `url` / `access_url` is a JWT-protected relative preview path (`/api/agents/{id}/media/preview?source=…&mime_type=…`).
 - `POST /api/text/assist` `{kind, text?, context?, locale?}` → `{text}`.
-- `GET /api/agents/{agent_id}/chat/welcome` → `{welcome_message:{zh,en}, quick_prompts, task_examples}`.
+- `GET /api/agents/{agent_id}/chat/welcome` → `{welcome_message:{zh,en}, quick_prompts, task_examples}`. `quick_prompts` is a list of rich items `{title:{zh,en}, description?:{zh,en}, prompt:{zh,en}, color?, icon_name?}` — `title` labels the suggestion, `prompt` is the message body (often a template ending in `…:\n\n`); legacy plain-string / `{zh:[],en:[]}` shapes are still accepted by the client. `task_examples` is `{zh:[],en:[]}` of natural-language routine suggestions. `color` is a light-mode pastel the app ignores (token-only surfaces). The implicit `main` agent has **no** welcome endpoint (404) — clients fall back to their own suggestions.
 
 ## Notifications WebSocket (`src/octop/api/routers/chat/notify_ws.py`)
 

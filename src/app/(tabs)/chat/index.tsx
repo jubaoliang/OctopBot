@@ -1,7 +1,7 @@
 import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronDown } from 'lucide-react-native';
 
 import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
@@ -12,35 +12,29 @@ import { SuggestionPill } from '@/components/ChatPieces';
 import { AgentAvatar } from '@/components/AgentAvatar';
 import { ListGroup, ListRow } from '@/components/List';
 import { PressableScale } from '@/components/PressableScale';
-import type { AgentSummary, QuickPrompts, TurnAttachment } from '@/core/api/types';
+import type { AgentSummary, TurnAttachment } from '@/core/api/types';
 import { AgentsApi } from '@/core/api/agents';
 import { useAuth } from '@/features/auth';
 import { useAppShell } from '@/features/app-shell';
 import { putChatHandoff } from '@/features/chat-handoff';
 import { readLastAgentId, writeLastAgentId } from '@/features/last-agent-store';
+import { TodayCard } from '@/features/TodayCard';
 import { useImageAttachments } from '@/features/useImageAttachments';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
 import { KeyboardInsetView } from '@/platform/keyboard';
 import { continuousCorners, layout, typeScale, useTokens } from '@/theme';
-
-/** Normalize the server's quick_prompts payload to a flat string list. */
-export function quickPromptList(payload: QuickPrompts, locale: string): string[] {
-  if (!payload) {
-    return [];
-  }
-  if (Array.isArray(payload)) {
-    return payload.filter(s => typeof s === 'string');
-  }
-  const localized = locale.startsWith('zh') ? payload.zh : payload.en;
-  const list = localized ?? payload.zh ?? payload.en ?? [];
-  return Array.isArray(list) ? list.filter(s => typeof s === 'string') : [];
-}
+import {
+  resolveLocalized,
+  resolveQuickPrompts,
+  type QuickPromptChoice,
+} from '@/utils/quick-prompts';
 
 /**
  * 聊天首屏 (design 2:365) — mascot, greeting, suggestion pills, composer.
- * Pills come from the selected expert's server quick_prompts; the expert
- * picker persists the last choice in secure storage.
+ * Pills come from the selected expert's server quick_prompts (a tap drafts
+ * the prompt body, never auto-sends); the expert picker persists the last
+ * choice in secure storage.
  */
 export default function ChatHomeScreen() {
   const tokens = useTokens();
@@ -53,7 +47,9 @@ export default function ChatHomeScreen() {
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [selected, setSelected] = useState<AgentSummary | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [prompts, setPrompts] = useState<string[]>([]);
+  const [prompts, setPrompts] = useState<QuickPromptChoice[]>([]);
+  // The expert's own greeting line (server welcome_message), when present.
+  const [welcome, setWelcome] = useState<string | null>(null);
   // Uploads target the selected expert's workspace; switching experts drops chips.
   const attachmentFlow = useImageAttachments(selected?.agent_id ?? 'main');
 
@@ -97,20 +93,28 @@ export default function ChatHomeScreen() {
     if (!selected) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- reset on the null branch only
       setPrompts([]);
+      setWelcome(null);
       return;
     }
     let cancelled = false;
+    // Clear the previous expert's copy at once: a pill tap while the new
+    // welcome is in flight must never draft A's template for B.
+    setPrompts([]);
+    setWelcome(null);
     void new AgentsApi(httpClient)
       .welcome(selected.agent_id)
       .then(w => {
         if (cancelled) {
           return;
         }
-        setPrompts(quickPromptList((w.quick_prompts as QuickPrompts) ?? null, locale));
+        setPrompts(resolveQuickPrompts(w.quick_prompts ?? null, locale));
+        setWelcome(resolveLocalized(w.welcome_message ?? null, locale));
       })
       .catch(() => {
+        // `main` has no welcome endpoint (404); the generic fallback covers it.
         if (!cancelled) {
           setPrompts([]);
+          setWelcome(null);
         }
       });
     return () => {
@@ -126,13 +130,31 @@ export default function ChatHomeScreen() {
     void writeLastAgentId(agent.agent_id);
   }, []);
 
-  const startChat = (promptText: string | null, attachments?: TurnAttachment[]) => {
+  // Experts without their own prompts (and `main`, which has no welcome
+  // endpoint) fall back to a generic personal-assistant set.
+  const fallbackChoices = useMemo<QuickPromptChoice[]>(
+    () => strings.chatHome.suggestions.map(s => ({ label: s, text: s })),
+    [strings.chatHome.suggestions],
+  );
+  const choices = prompts.length > 0 ? prompts : fallbackChoices;
+
+  // One navigation path for the composer and the pills. `draft` seeds the
+  // thread's composer with the prompt body (templates need the user's
+  // content) instead of auto-sending; staged chips ride along either way.
+  const startChat = (
+    promptText: string | null,
+    attachments?: TurnAttachment[],
+    mode: 'send' | 'draft' = 'send',
+  ) => {
     if (!selected) {
       return;
     }
     // Attachments hand off in memory — never through route params.
     const hasAttachments = attachments !== undefined && attachments.length > 0;
-    const handoff = hasAttachments ? putChatHandoff(promptText ?? '', attachments) : null;
+    const handoff =
+      hasAttachments || mode === 'draft'
+        ? putChatHandoff(promptText ?? '', attachments ?? [], mode)
+        : null;
     if (hasAttachments) {
       attachmentFlow.clear();
     }
@@ -186,6 +208,11 @@ export default function ChatHomeScreen() {
             >
               {strings.chatHome.greeting}
             </Text>
+            {welcome ? (
+              <Text testID="home-welcome" style={[styles.welcome, { color: tokens.textSecondary }]}>
+                {welcome}
+              </Text>
+            ) : null}
 
             {/* Expert selector — opens a sheet, so the pick never reflows the
                 home screen behind it. */}
@@ -232,10 +259,24 @@ export default function ChatHomeScreen() {
             </PressableScale>
 
             <View style={styles.pills}>
-              {(prompts.length > 0 ? prompts : strings.chatHome.suggestions).map(label => (
-                <SuggestionPill key={label} label={label} onPress={() => startChat(label)} />
+              {choices.map((choice, index) => (
+                <SuggestionPill
+                  key={`${choice.label}-${index}`}
+                  label={choice.label}
+                  iconName={choice.iconName}
+                  onPress={() =>
+                    startChat(
+                      choice.text,
+                      attachmentFlow.pending.flatMap(p =>
+                        p.status === 'ready' && p.attachment ? [p.attachment] : [],
+                      ),
+                      'draft',
+                    )
+                  }
+                />
               ))}
             </View>
+            <TodayCard />
             <View style={styles.spacerBottom} />
           </ScrollView>
           <View style={styles.inputWrap}>
@@ -325,6 +366,11 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginHorizontal: 8,
     ...typeScale.title2,
+  },
+  welcome: {
+    marginTop: 4,
+    marginHorizontal: 8,
+    ...typeScale.callout,
   },
   selector: {
     marginTop: 20,

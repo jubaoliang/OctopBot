@@ -14,7 +14,6 @@ import {
   FlatList,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  Platform,
   StyleSheet,
   Text,
   View,
@@ -58,6 +57,7 @@ import { useCalendarSync } from '@/features/calendar-sync-context';
 import { useNotifications } from '@/features/notifications-context';
 import { takeChatHandoff } from '@/features/chat-handoff';
 import { useImageAttachments } from '@/features/useImageAttachments';
+import { useTransitionGate, type TransitionAwareNavigation } from '@/features/use-transition-gate';
 import { useI18n } from '@/i18n/I18nProvider';
 import { copyText } from '@/platform/clipboard';
 import { haptics } from '@/platform/haptics';
@@ -84,23 +84,11 @@ type MdRule = (
 
 type MdRules = Record<string, MdRule>;
 
-/**
- * expo-router's untyped useNavigation() does not expose the native stack's
- * transition events; this is the minimal shape loadThread depends on. The
- * runtime object is the real native stack navigation for this screen.
- */
-type TransitionAwareNavigation = {
-  addListener: (event: 'transitionStart' | 'transitionEnd', callback: () => void) => () => void;
-  isFocused: () => boolean;
-};
-
 /** Stop waits this long for a terminal frame before surfacing an error. */
 const STOP_TIMEOUT_MS = 45_000;
 /** A HITL resume request is abandoned after this long. */
 const HITL_TIMEOUT_MS = 120_000;
 const TOKEN_FLUSH_MS = 120;
-/** Upper bound for waiting out a push transition before replaying history. */
-const TRANSITION_WAIT_TIMEOUT_MS = 1_200;
 
 /**
  * 主聊天 — a real chat turn over the WebSocket contract: create thread,
@@ -149,8 +137,11 @@ export default function ThreadScreen() {
     typeof params.prompt === 'string' && params.prompt.trim().length > 0 ? params.prompt : null;
   // Consume once so remount / StrictMode cannot re-send the home handoff.
   const [handoff] = useState(() => takeChatHandoff(params.handoff));
-  const autoText = internalPrompt ?? handoff?.text ?? null;
-  const autoAttachments = handoff?.attachments;
+  // Draft handoffs (suggestion-pill templates) seed the composer instead of
+  // auto-sending — the user completes the prompt before it goes out.
+  const draftText = handoff?.mode === 'draft' ? handoff.text : null;
+  const autoText = internalPrompt ?? (handoff?.mode === 'send' ? handoff.text : null);
+  const autoAttachments = handoff?.mode === 'send' ? handoff.attachments : undefined;
   const externalDraft =
     !internalPrompt && !params.thread && params.threadId !== 'new' && params.threadId !== 'open'
       ? params.threadId
@@ -160,6 +151,13 @@ export default function ThreadScreen() {
   // Defaults to the default expert on a fresh server install.
   const agentId = params.agent ?? 'main';
   const attachmentFlow = useImageAttachments(agentId);
+  // Draft handoffs carry already-uploaded chips staged on the home composer.
+  useEffect(() => {
+    if (handoff?.mode === 'draft' && handoff.attachments.length > 0) {
+      attachmentFlow.seed(handoff.attachments);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handoff]);
 
   const [chat, dispatch] = useReducer(reduceChatTurn, undefined, initialChatTurnState);
   const [connection, setConnection] = useState<ChatConnectionStatus>('idle');
@@ -172,9 +170,9 @@ export default function ThreadScreen() {
   const ensureThreadRef = useRef<(() => Promise<string | null>) | null>(null);
   const nearBottomRef = useRef(true);
   // Stack transition tracking — the history replay defers until the opening
-  // push finishes (see loadThread); waiters are resolved by the listener effect.
-  const transitionInFlightRef = useRef(false);
-  const transitionWaitersRef = useRef<(() => void)[]>([]);
+  // push finishes (see loadThread). The gate is shared with the other pushed
+  // screens so every screen defers mount work the same way.
+  const { waitSettled: waitTransitionSettled } = useTransitionGate(navigation);
   // Latest reducer state for timers / async callbacks that must not close
   // over a stale snapshot.
   const chatRef = useRef(chat);
@@ -520,37 +518,16 @@ export default function ThreadScreen() {
         // Opening an existing conversation: replay history, then attach.
         const threadId = params.thread;
         dispatch({ type: 'threadReady', threadId });
-        if (transitionInFlightRef.current) {
-          // The snapshot must be taken at (or after) settle: subscribing
-          // happens right after the fetch below, so history then covers
-          // everything streamed during the push. The gate is bounded — a
-          // missed or interrupted transitionEnd must never strand the
-          // replay, and a timed-out wait must not tax later loadThread
-          // calls with the same stall (the waiter itself releases).
-          await new Promise<void>(resolve => {
-            let timer: ReturnType<typeof setTimeout> | null = null;
-            const waiter = () => {
-              if (timer !== null) {
-                clearTimeout(timer);
-              }
-              transitionWaitersRef.current = transitionWaitersRef.current.filter(w => w !== waiter);
-              resolve();
-            };
-            // The timeout is a one-shot gate release: after it fires the
-            // transition can no longer be relied on, so the flag clears
-            // too — otherwise a mount whose transitionEnd never arrives
-            // (deep link, interrupted push) would tax every later
-            // loadThread on this instance with the same stall.
-            timer = setTimeout(() => {
-              transitionInFlightRef.current = false;
-              waiter();
-            }, TRANSITION_WAIT_TIMEOUT_MS);
-            transitionWaitersRef.current.push(waiter);
-          });
-          if (disposed) {
-            // Quick back during the gate: skip the now-pointless request.
-            return null;
-          }
+        // The snapshot must be taken at (or after) settle: subscribing
+        // happens right after the fetch below, so history then covers
+        // everything streamed during the push. waitSettled resolves
+        // immediately when no transition is armed, and is bounded so a
+        // missed or interrupted transitionEnd can never strand the
+        // replay (see useTransitionGate).
+        await waitTransitionSettled();
+        if (disposed) {
+          // Quick back during the gate: skip the now-pointless request.
+          return null;
         }
         const page = await threads.history(agentId, threadId, { limit: 50 });
         if (disposed) {
@@ -753,40 +730,6 @@ export default function ThreadScreen() {
     return () => subscription.remove();
   }, [ackThreadRead, navigation]);
 
-  // Release the history replay (and any future heavy mount work) once the
-  // stack transition finishes. Events are targeted at this route; the wait
-  // in loadThread is additionally bounded so a missed event can never
-  // strand it.
-  useEffect(() => {
-    const releaseAll = () => {
-      transitionInFlightRef.current = false;
-      const waiters = transitionWaitersRef.current;
-      transitionWaitersRef.current = [];
-      waiters.forEach(waiter => {
-        waiter();
-      });
-    };
-    // Armed before any listener: the push's transitionStart can beat this
-    // passive effect on a fast mount, and a missed start would make the
-    // gate silently skip (mid-push fetch). A mount with no transition at
-    // all (deep link) simply rides the bounded timeout instead. Web emits
-    // no transition events, so arming there would stall every open.
-    if (Platform.OS !== 'web') {
-      transitionInFlightRef.current = true;
-    }
-    const startSub = navigation.addListener('transitionStart', () => {
-      transitionInFlightRef.current = true;
-    });
-    const endSub = navigation.addListener('transitionEnd', releaseAll);
-    return () => {
-      startSub();
-      endSub();
-      // Release any pending wait so it cannot outlive this screen, and
-      // clear the flag so a re-subscription never inherits a stale true.
-      releaseAll();
-    };
-  }, [navigation]);
-
   const send = (text: string, attachments?: TurnAttachment[]) => {
     dispatch({ type: 'userSend', text, attachments });
     void (async () => {
@@ -958,8 +901,11 @@ export default function ThreadScreen() {
   // Once an answer exists the process row belongs above it; until then the
   // footer is the only place to show that the turn is thinking.
   const processInFooter = processVisible && lastTurn?.kind !== 'assistant';
+  // Honest labeling once the assistant has answered (matches the product's
+  // AI-generated content convention); hidden while a reply is streaming.
+  const hasAssistantTurn = chat.turns.some(turn => turn.kind === 'assistant');
   const footer =
-    processInFooter || showTyping ? (
+    processInFooter || showTyping || hasAssistantTurn ? (
       <View style={styles.footer}>
         {processInFooter ? (
           <ProcessCard
@@ -970,6 +916,11 @@ export default function ThreadScreen() {
           />
         ) : null}
         {showTyping ? <TypingDots label={strings.chat.replying} /> : null}
+        {hasAssistantTurn && !chat.streaming ? (
+          <Text style={[styles.aiCaption, { color: tokens.textTertiary }]}>
+            {strings.chat.aiGenerated}
+          </Text>
+        ) : null}
       </View>
     ) : null;
 
@@ -1127,6 +1078,7 @@ export default function ThreadScreen() {
               onRemovePending={attachmentFlow.remove}
               onStop={stop}
               streaming={chat.streaming || chat.stopRequested}
+              initialText={draftText ?? undefined}
               canSend={
                 !chat.busy &&
                 (connection === 'open' || connection === 'connecting' || connection === 'idle')
@@ -1416,6 +1368,7 @@ const styles = StyleSheet.create({
   },
   turnSeparator: { height: 20 },
   footer: { gap: 20, marginTop: 20 },
+  aiCaption: { ...typeScale.caption1, textAlign: 'center', paddingTop: 4 },
   assistantBlock: {
     alignSelf: 'stretch',
   },

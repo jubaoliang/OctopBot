@@ -26,6 +26,9 @@ interface AppHeaderProps {
   moreItems?: OverflowMenuItem[];
   /** Trailing primary action, e.g. a new conversation in this expert. */
   onCompose?: () => void;
+  /** Screen-reader label for the trailing action when it is not "new
+   * conversation" (e.g. the routine builder). */
+  composeLabel?: string;
 }
 
 /**
@@ -43,6 +46,7 @@ export function AppHeader({
   onMore,
   moreItems,
   onCompose,
+  composeLabel,
 }: AppHeaderProps) {
   const t = useTokens();
   const { t: strings } = useI18n();
@@ -99,7 +103,11 @@ export function AppHeader({
       )}
 
       {onCompose ? (
-        <IconButton label={strings.a11y.compose} testID="header-compose" onPress={onCompose}>
+        <IconButton
+          label={composeLabel ?? strings.a11y.compose}
+          testID="header-compose"
+          onPress={onCompose}
+        >
           <MessageSquarePlus size={21} color={t.textBody} />
         </IconButton>
       ) : showMore ? (

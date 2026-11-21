@@ -1,0 +1,92 @@
+# Routine builder: create the daily briefings pair on the E2E expert,
+# trigger one run now (the proactive turn lands server-side), then delete
+# both jobs. Self-cleaning. Requires the E2E expert (KMC325).
+appId: dev.octop.octopbot
+---
+- launchApp
+# The tab bar exists on every tab — wait for the app to render, then reach
+# the home if a relaunch restored another tab or a thread.
+- extendedWaitUntil:
+    visible:
+      id: 'tab-chat'
+    timeout: 180000
+- runFlow:
+    when:
+      notVisible:
+        id: 'select-expert'
+    commands:
+      - tapOn:
+          id: 'tab-chat'
+- extendedWaitUntil:
+    visible:
+      id: 'select-expert'
+    timeout: 30000
+- tapOn:
+    id: 'tab-automation'
+- extendedWaitUntil:
+    visible:
+      id: 'header-compose'
+    timeout: 30000
+- tapOn:
+    id: 'header-compose'
+- extendedWaitUntil:
+    visible:
+      id: 'routine-builder'
+    timeout: 15000
+- tapOn:
+    id: 'routine-expert-KMC325'
+- tapOn:
+    id: 'routine-schedule-briefings'
+- tapOn:
+    id: 'routine-create'
+# Sheet closes and the roster reloads with the two briefing jobs.
+- assertNotVisible:
+    id: 'routine-builder'
+- extendedWaitUntil:
+    visible:
+      id: 'automation-job-.*'
+    timeout: 30000
+
+# Long-press a job → run now.
+- longPressOn:
+    id: 'automation-job-.*'
+- extendedWaitUntil:
+    visible:
+      id: 'routine-actions'
+    timeout: 15000
+- assertVisible: 'Run now|立即运行'
+- tapOn: 'Run now|立即运行'
+- assertNotVisible:
+    id: 'routine-actions'
+- extendedWaitUntil:
+    visible: 'Run started|已触发运行'
+    timeout: 15000
+
+# Delete both jobs (long-press → destructive row → confirmation alert),
+# leaving the expert clean.
+- longPressOn:
+    id: 'automation-job-.*'
+- extendedWaitUntil:
+    visible:
+      id: 'routine-actions'
+    timeout: 15000
+- tapOn: 'Delete|删除'
+- tapOn: 'Delete|删除'
+- assertNotVisible:
+    id: 'routine-actions'
+- extendedWaitUntil:
+    visible:
+      id: 'automation-job-.*'
+    timeout: 15000
+- longPressOn:
+    id: 'automation-job-.*'
+- extendedWaitUntil:
+    visible:
+      id: 'routine-actions'
+    timeout: 15000
+- tapOn: 'Delete|删除'
+- tapOn: 'Delete|删除'
+- assertNotVisible:
+    id: 'routine-actions'
+- assertNotVisible:
+    id: 'automation-job-.*'

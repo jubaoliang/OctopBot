@@ -1,10 +1,16 @@
 import type { TurnAttachment } from '@/core/api/types';
 
-/** First message composed on the chat home, auto-sent by the thread screen. */
+/** First message composed on the chat home, carried into the thread screen. */
 export interface ChatHandoff {
   id: string;
   text: string;
   attachments: TurnAttachment[];
+  /**
+   * `send` auto-sends on arrival (composer submit, attachment turns).
+   * `draft` seeds the composer without sending — suggestion pills carry
+   * prompt templates the user completes before sending.
+   */
+  mode: 'send' | 'draft';
 }
 
 // Single in-memory slot. Attachments never travel through route params, so a
@@ -13,10 +19,14 @@ let slot: ChatHandoff | null = null;
 let counter = 0;
 
 /** Stores the handoff and returns the id to pass as the `handoff` route param. */
-export function putChatHandoff(text: string, attachments: TurnAttachment[]): string {
+export function putChatHandoff(
+  text: string,
+  attachments: TurnAttachment[],
+  mode: 'send' | 'draft' = 'send',
+): string {
   counter += 1;
   const id = `h${counter}`;
-  slot = { id, text, attachments };
+  slot = { id, text, attachments, mode };
   return id;
 }
 
