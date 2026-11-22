@@ -33,7 +33,10 @@ export function SearchField({
   const t = useTokens();
   return (
     <View style={[styles.field, continuousCorners, { backgroundColor: t.fill }]}>
-      <Search size={16} color={t.textTertiary} strokeWidth={2.4} />
+      {/* CJK fonts carry large descent slack, so the glyphs ride high in
+          their line box while the icon stays at box centre — nudge the
+          magnifier up to meet the ink's optical centre. */}
+      <Search size={16} color={t.textTertiary} strokeWidth={2.4} style={styles.icon} />
       <TextInput
         style={[styles.input, { color: t.textBody }]}
         value={value}
@@ -78,6 +81,9 @@ const styles = StyleSheet.create({
     minHeight: 36,
     borderRadius: radius.field,
     paddingHorizontal: 8,
+  },
+  icon: {
+    transform: [{ translateY: -2 }],
   },
   input: {
     flex: 1,
