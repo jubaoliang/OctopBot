@@ -18,7 +18,6 @@ import { useAuth } from '@/features/auth';
 import { useAppShell } from '@/features/app-shell';
 import { putChatHandoff } from '@/features/chat-handoff';
 import { readLastAgentId, writeLastAgentId } from '@/features/last-agent-store';
-import { TodayCard } from '@/features/TodayCard';
 import { useImageAttachments } from '@/features/useImageAttachments';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
@@ -280,7 +279,6 @@ export default function ChatHomeScreen() {
                 />
               ))}
             </View>
-            <TodayCard />
             <View style={styles.spacerBottom} />
           </ScrollView>
           <View style={styles.inputWrap}>
