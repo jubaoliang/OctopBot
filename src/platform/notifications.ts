@@ -92,9 +92,14 @@ const expoNotifications: LocalNotifications = {
       }),
     });
     if (Platform.OS === 'android') {
-      void ExpoNotifications.setNotificationChannelAsync('default', {
-        name: 'General',
-        importance: AndroidImportance.DEFAULT,
+      // HIGH importance so a proactive nudge heads-up banners even while
+      // the app is foregrounded — a silent shade-only post is invisible to
+      // a user looking at the screen. A fresh channel id ('alerts') is used
+      // because Android locks a channel's importance after first creation;
+      // the legacy 'default' channel (DEFAULT importance) stays orphaned.
+      void ExpoNotifications.setNotificationChannelAsync('alerts', {
+        name: 'Assistant',
+        importance: AndroidImportance.HIGH,
       }).catch(() => undefined);
     }
   },
@@ -132,7 +137,7 @@ const expoNotifications: LocalNotifications = {
         // Android: the channel only travels on the trigger — `{ channelId }`
         // is the SDK's immediate-delivery trigger; `null` would drop the
         // notification into the SDK's fallback channel. iOS: null = now.
-        trigger: Platform.OS === 'android' ? { channelId: 'default' } : null,
+        trigger: Platform.OS === 'android' ? { channelId: 'alerts' } : null,
       });
     } catch {
       // Presentation is best-effort; the in-app signal already fired.

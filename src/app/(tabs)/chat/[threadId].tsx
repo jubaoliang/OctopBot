@@ -502,12 +502,17 @@ export default function ThreadScreen() {
     let inflight: { scope: string; promise: Promise<string | null> } | null = null;
 
     const loadThread = async (): Promise<string | null> => {
-      await socket.connect();
-      if (disposed) {
-        return null;
-      }
+      // Start the handshake but do not block the history replay on it: a
+      // slow WebSocket connect (proxy latency, backoff) must not leave the
+      // thread blank while the HTTP history snapshot is already available.
+      // Connection state still surfaces through onStatus.
+      const connecting = socket.connect().catch(() => undefined);
       if (threadRef.current) {
         // Socket was rebuilt for the same thread — re-attach.
+        await connecting;
+        if (disposed) {
+          return null;
+        }
         dispatch({ type: 'threadReady', threadId: threadRef.current });
         socket.subscribe(threadRef.current);
         setActiveChat({ agentId, threadId: threadRef.current });
@@ -563,8 +568,13 @@ export default function ThreadScreen() {
           process: { ...emptyProcessCounts(), tools: counts.tools, thinking: counts.thinking },
           trace: stepsFromHistory(page.messages),
         });
-        // Attach immediately after the replay lands: the snapshot covers
-        // the stream up to the fetch, and frames from here on append.
+        // Attach once the socket is open: the snapshot covers the stream
+        // up to the fetch, and frames from here on append. The history
+        // above already rendered, so a slow connect no longer blanks it.
+        await connecting;
+        if (disposed) {
+          return null;
+        }
         socket.subscribe(threadId);
         threadRef.current = threadId;
         setActiveChat({ agentId, threadId });
@@ -577,6 +587,10 @@ export default function ThreadScreen() {
           .then(() => markThreadRead(agentId, threadId))
           .catch(() => undefined);
         return threadId;
+      }
+      await connecting;
+      if (disposed) {
+        return null;
       }
       const created = await threads.create(agentId);
       if (disposed) {

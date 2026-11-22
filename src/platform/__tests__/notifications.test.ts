@@ -71,14 +71,28 @@ describe('localNotifications (native)', () => {
     });
   });
 
-  it('rides the default Android channel when presenting', async () => {
+  it('rides the high-importance Android channel when presenting', async () => {
     const originalOs = Platform.OS;
     Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
     try {
       (expo.scheduleNotificationAsync as jest.Mock).mockResolvedValue('id');
       await localNotifications.presentLocal({ title: 'x' });
       expect(expo.scheduleNotificationAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ trigger: { channelId: 'default' } }),
+        expect.objectContaining({ trigger: { channelId: 'alerts' } }),
+      );
+    } finally {
+      Object.defineProperty(Platform, 'OS', { value: originalOs, configurable: true });
+    }
+  });
+
+  it('creates a HIGH-importance channel so nudges heads-up banner', () => {
+    const originalOs = Platform.OS;
+    Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
+    try {
+      localNotifications.configure();
+      expect(expo.setNotificationChannelAsync).toHaveBeenCalledWith(
+        'alerts',
+        expect.objectContaining({ importance: 4 }),
       );
     } finally {
       Object.defineProperty(Platform, 'OS', { value: originalOs, configurable: true });
