@@ -124,10 +124,12 @@ const expoReader: CalendarReader = {
     }
     const start = new Date(input.start);
     const end = input.end ? new Date(input.end) : new Date(start.getTime() + 3_600_000);
+    // SDK 58 Android collapses Date objects to epoch 0 in createEvent; ISO
+    // strings are the only reliable wire form for the write path.
     const created = await target.createEvent({
       title: input.title,
-      startDate: start,
-      endDate: end,
+      startDate: start.toISOString(),
+      endDate: end.toISOString(),
       allDay: input.allDay ?? false,
       location: input.location ?? '',
       notes: input.notes ?? '',

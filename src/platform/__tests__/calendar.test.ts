@@ -113,8 +113,20 @@ describe('calendarReader', () => {
       calendarReader.createEvent({ title: 'Standup', start: '2026-11-23T09:00:00' }),
     ).resolves.toEqual({ id: 'e9' });
     expect(createEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ title: 'Standup', allDay: false }),
+      expect.objectContaining({
+        title: 'Standup',
+        allDay: false,
+        startDate: new Date('2026-11-23T09:00:00').toISOString(),
+      }),
     );
+  });
+
+  it('passes the Date window to the module-level read API', async () => {
+    (expo.listEvents as jest.Mock).mockResolvedValue([]);
+    const start = new Date('2026-11-23T00:00:00Z');
+    const end = new Date('2026-11-30T00:00:00Z');
+    await calendarReader.listEvents(['c1'], start, end);
+    expect(expo.listEvents).toHaveBeenCalledWith(['c1'], start, end);
   });
 
   it('rejects when the device has no writable calendar', async () => {
