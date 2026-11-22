@@ -123,8 +123,14 @@ export default function ThreadScreen() {
   const draftText = handoff?.mode === 'draft' ? handoff.text : null;
   const autoText = internalPrompt ?? (handoff?.mode === 'send' ? handoff.text : null);
   const autoAttachments = handoff?.mode === 'send' ? handoff.attachments : undefined;
+  // `octop://chat/thr_…` opens a thread; only non-id segments are treated as
+  // an external draft prompt (the confirm-before-send guard).
   const externalDraft =
-    !internalPrompt && !params.thread && params.threadId !== 'new' && params.threadId !== 'open'
+    !internalPrompt &&
+    !params.thread &&
+    params.threadId !== 'new' &&
+    params.threadId !== 'open' &&
+    !params.threadId.startsWith('thr_')
       ? params.threadId
       : null;
   const tabBarFootprint = useTabBarFootprint();
