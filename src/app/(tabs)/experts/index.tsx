@@ -110,6 +110,7 @@ export default function ExpertsScreen() {
                       <AgentAvatar
                         name={agent.name}
                         iconName={agent.icon_name}
+                        iconUrl={agent.icon_url}
                         color={agent.color}
                         size={40}
                         fallbackTextSecondary={tokens.textSecondary}

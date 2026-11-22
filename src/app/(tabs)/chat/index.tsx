@@ -236,6 +236,7 @@ export default function ChatHomeScreen() {
                   <AgentAvatar
                     name={selected.name}
                     iconName={selected.icon_name}
+                    iconUrl={selected.icon_url}
                     color={selected.color}
                     size={24}
                     fallbackTextSecondary={tokens.textSecondary}
@@ -320,6 +321,7 @@ export default function ChatHomeScreen() {
                       <AgentAvatar
                         name={agent.name}
                         iconName={agent.icon_name}
+                        iconUrl={agent.icon_url}
                         color={agent.color}
                         size={32}
                         fallbackTextSecondary={tokens.textSecondary}

@@ -464,6 +464,7 @@ function BreakdownRow({
         <AgentAvatar
           name={row.label}
           iconName={agent?.icon_name}
+          iconUrl={agent?.icon_url}
           color={agent?.color}
           size={AVATAR}
           fallbackTextSecondary={tokens.textSecondary}

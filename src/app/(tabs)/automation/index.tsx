@@ -231,6 +231,7 @@ export default function AutomationScreen() {
                 <AgentAvatar
                   name={agent.name}
                   iconName={agent.icon_name}
+                  iconUrl={agent.icon_url}
                   color={agent.color}
                   size={20}
                   fallbackTextSecondary={tokens.textSecondary}
@@ -325,6 +326,7 @@ export default function AutomationScreen() {
                         <AgentAvatar
                           name={agent.name}
                           iconName={agent.icon_name}
+                          iconUrl={agent.icon_url}
                           color={agent.color}
                           size={20}
                           fallbackTextSecondary={tokens.textSecondary}

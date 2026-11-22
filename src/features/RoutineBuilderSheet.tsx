@@ -193,6 +193,7 @@ export function RoutineBuilderSheet({
                   <AgentAvatar
                     name={agent.name}
                     iconName={agent.icon_name}
+                    iconUrl={agent.icon_url}
                     color={agent.color}
                     size={24}
                     fallbackTextSecondary={t.textSecondary}

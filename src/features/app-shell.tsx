@@ -95,6 +95,7 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
                 expanded: existing?.expanded ?? true,
                 threadsLoaded: true,
                 iconName: agent.icon_name,
+                iconUrl: agent.icon_url,
                 color: agent.color,
               };
             });
@@ -146,14 +147,24 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
             return;
           }
           const known = groupsRef.current.some(g => g.agentId === agentId);
-          let meta: { name: string; iconName?: string | null; color?: string | null } | null = null;
+          let meta: {
+            name: string;
+            iconName?: string | null;
+            iconUrl?: string | null;
+            color?: string | null;
+          } | null = null;
           if (!known) {
             const agents = await fetchAgents(httpClient).catch(() => []);
             const agent = agents.find(a => a.agent_id === agentId);
             if (!agent) {
               return;
             }
-            meta = { name: agent.name, iconName: agent.icon_name, color: agent.color };
+            meta = {
+              name: agent.name,
+              iconName: agent.icon_name,
+              iconUrl: agent.icon_url,
+              color: agent.color,
+            };
           }
           setGroups(prev => {
             if (activeUserIdRef.current !== forUserId) {
@@ -179,6 +190,7 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
                 expanded: true,
                 threadsLoaded: true,
                 iconName: meta.iconName,
+                iconUrl: meta.iconUrl,
                 color: meta.color,
               },
             ];

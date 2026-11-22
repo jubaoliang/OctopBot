@@ -93,6 +93,7 @@ export interface DrawerTaskGroup {
   threadsLoaded?: boolean;
   /** Server-side expert identity (lucide icon name + brand color). */
   iconName?: string | null;
+  iconUrl?: string | null;
   color?: string | null;
 }
 
@@ -412,6 +413,7 @@ function GroupRow({
       <AgentAvatar
         name={group.name}
         iconName={group.iconName}
+        iconUrl={group.iconUrl}
         color={group.color}
         size={20}
         fallbackTextSecondary={t.textBody}
