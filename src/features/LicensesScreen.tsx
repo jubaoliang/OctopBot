@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ChevronDown, ChevronRight } from 'lucide-react-native';
@@ -18,15 +18,82 @@ interface LicenseEntry {
 
 const ENTRIES = licenses as LicenseEntry[];
 
-/** Open-source acknowledgements — generated production dependency licenses. */
+/**
+ * Stack highlights named in the article, grouped by role. Membership is
+ * filtered against the generated data at render time, so a removed
+ * dependency simply drops out of the prose instead of naming a ghost.
+ */
+const GROUPS: {
+  key: 'runtime' | 'navigation' | 'motion' | 'device' | 'language';
+  names: string[];
+}[] = [
+  { key: 'runtime', names: ['react', 'react-native', 'expo'] },
+  {
+    key: 'navigation',
+    names: [
+      'expo-router',
+      'react-native-screens',
+      'react-native-gesture-handler',
+      'lucide-react-native',
+    ],
+  },
+  { key: 'motion', names: ['react-native-reanimated', 'react-native-svg'] },
+  {
+    key: 'device',
+    names: [
+      'expo-calendar',
+      'expo-contacts',
+      'expo-secure-store',
+      'expo-speech-recognition',
+      'expo-audio',
+      'expo-notifications',
+    ],
+  },
+  { key: 'language', names: ['typescript'] },
+];
+
+function fill(template: string, values: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ''));
+}
+
+/**
+ * Open-source acknowledgements as a readable article: the stack described
+ * by role, license-family distribution, and one expandable full text per
+ * license family — not a row per package. Data still comes from the
+ * generated `src/legal/licenses.json` (regenerate with `npm run licenses`).
+ */
 export function LicensesScreen() {
   const tokens = useTokens();
-  const { t: strings } = useI18n();
+  const { t: strings, locale } = useI18n();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const rows = useMemo(() => [...ENTRIES].sort((a, b) => a.name.localeCompare(b.name)), []);
+  const separator = locale.startsWith('zh') ? '、' : ', ';
+  const present = useMemo(() => new Set(ENTRIES.map(entry => entry.name)), []);
+
+  const families = useMemo(() => {
+    const map = new Map<string, { count: number; text: string | null }>();
+    for (const entry of ENTRIES) {
+      const family = map.get(entry.license) ?? { count: 0, text: null };
+      family.count += 1;
+      if (!family.text && entry.licenseText) {
+        family.text = entry.licenseText;
+      }
+      map.set(entry.license, family);
+    }
+    return [...map.entries()]
+      .map(([license, value]) => ({ license, ...value }))
+      .sort((a, b) => b.count - a.count);
+  }, []);
+
+  const article = strings.licensesArticle;
+  const paragraphs = GROUPS.map(group => ({
+    key: group.key,
+    text: fill(article[group.key], {
+      names: group.names.filter(name => present.has(name)).join(separator),
+    }),
+  })).filter(paragraph => paragraph.text.trim().length > 0);
 
   const goBack = () => {
     if (router.canGoBack()) {
@@ -36,95 +103,100 @@ export function LicensesScreen() {
     }
   };
 
-  const renderItem = useCallback(
-    ({ item, index }: { item: LicenseEntry; index: number }) => {
-      const key = `${item.name}@${item.version}`;
-      const open = expanded === key;
-      const canExpand = Boolean(item.licenseText);
-      let chevron = null;
-      if (canExpand) {
-        chevron = open ? (
-          <ChevronDown size={18} color={tokens.textTertiary} />
-        ) : (
-          <ChevronRight size={18} color={tokens.textTertiary} />
-        );
-      }
-      return (
-        <View
-          style={[
-            index < rows.length - 1
-              ? {
-                  borderBottomWidth: StyleSheet.hairlineWidth,
-                  borderBottomColor: tokens.separator,
-                }
-              : null,
-            index === 0
-              ? {
-                  borderTopLeftRadius: radius.card,
-                  borderTopRightRadius: radius.card,
-                  ...continuousCorners,
-                }
-              : null,
-            index === rows.length - 1
-              ? {
-                  borderBottomLeftRadius: radius.card,
-                  borderBottomRightRadius: radius.card,
-                  ...continuousCorners,
-                }
-              : null,
-            { backgroundColor: tokens.surface },
-          ]}
-        >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: open }}
-            accessibilityLabel={`${item.name} ${item.license}`}
-            testID={`license-${item.name}`}
-            disabled={!canExpand}
-            style={({ pressed }) => [
-              styles.row,
-              pressed && canExpand ? { backgroundColor: tokens.overlayPressed } : null,
-            ]}
-            onPress={() => setExpanded(open ? null : key)}
-          >
-            <View style={styles.rowText}>
-              <Text style={[styles.name, { color: tokens.textPrimary }]} numberOfLines={1}>
-                {item.name}
-              </Text>
-              <Text style={[styles.meta, { color: tokens.textTertiary }]} numberOfLines={1}>
-                {item.version} · {item.license}
-              </Text>
-            </View>
-            {chevron}
-          </Pressable>
-          {open && item.licenseText ? (
-            <Text selectable style={[styles.licenseText, { color: tokens.textSecondary }]}>
-              {item.licenseText}
-            </Text>
-          ) : null}
-        </View>
-      );
-    },
-    [expanded, rows.length, tokens],
-  );
-
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]} testID="licenses">
       <SafeAreaView edges={TOP_EDGES} style={styles.safe}>
         <ScreenHeader title={strings.settings.licenses} onBack={goBack} />
-        <FlatList
-          data={rows}
-          keyExtractor={item => `${item.name}@${item.version}`}
-          renderItem={renderItem}
+        <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
           showsVerticalScrollIndicator={false}
           showsHorizontalScrollIndicator={false}
-          ListHeaderComponent={
-            <Text style={[styles.footer, { color: tokens.textTertiary }]}>
-              {strings.settings.licensesFooter}
+        >
+          <View style={styles.article} testID="licenses-article">
+            <Text style={[styles.lead, { color: tokens.textBody }]}>
+              {fill(article.lead, { count: ENTRIES.length })}
             </Text>
-          }
-        />
+            {paragraphs.map(paragraph => (
+              <Text key={paragraph.key} style={[styles.paragraph, { color: tokens.textBody }]}>
+                {paragraph.text}
+              </Text>
+            ))}
+            <Text style={[styles.paragraph, { color: tokens.textBody }]}>
+              {fill(article.families, {
+                summary: families
+                  .map(family => `${family.license} ×${family.count}`)
+                  .join(separator),
+              })}
+            </Text>
+          </View>
+
+          <Text style={[styles.sectionTitle, { color: tokens.textPrimary }]}>
+            {article.appendix}
+          </Text>
+          <View
+            style={[
+              styles.appendix,
+              continuousCorners,
+              { backgroundColor: tokens.surface, borderColor: tokens.borderSubtle },
+            ]}
+          >
+            {families.map((family, index) => {
+              const open = expanded === family.license;
+              const canExpand = Boolean(family.text);
+              return (
+                <View
+                  key={family.license}
+                  style={
+                    index < families.length - 1
+                      ? {
+                          borderBottomWidth: StyleSheet.hairlineWidth,
+                          borderBottomColor: tokens.separator,
+                        }
+                      : null
+                  }
+                >
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: open }}
+                    accessibilityLabel={`${family.license} ${family.count}`}
+                    testID={`license-family-${family.license}`}
+                    disabled={!canExpand}
+                    style={({ pressed }) => [
+                      styles.row,
+                      pressed && canExpand ? { backgroundColor: tokens.overlayPressed } : null,
+                    ]}
+                    onPress={() => setExpanded(open ? null : family.license)}
+                  >
+                    <View style={styles.rowText}>
+                      <Text style={[styles.name, { color: tokens.textPrimary }]} numberOfLines={1}>
+                        {family.license}
+                      </Text>
+                      <Text style={[styles.meta, { color: tokens.textTertiary }]} numberOfLines={1}>
+                        {fill(article.familyCount, { count: family.count })}
+                      </Text>
+                    </View>
+                    {canExpand ? (
+                      open ? (
+                        <ChevronDown size={18} color={tokens.textTertiary} />
+                      ) : (
+                        <ChevronRight size={18} color={tokens.textTertiary} />
+                      )
+                    ) : null}
+                  </Pressable>
+                  {open && family.text ? (
+                    <Text selectable style={[styles.licenseText, { color: tokens.textSecondary }]}>
+                      {family.text}
+                    </Text>
+                  ) : null}
+                </View>
+              );
+            })}
+          </View>
+
+          <Text style={[styles.footer, { color: tokens.textTertiary }]}>
+            {strings.settings.licensesFooter}
+          </Text>
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -136,11 +208,16 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: layout.screenMargin,
     paddingTop: 8,
-    gap: 12,
+    gap: 16,
   },
-  footer: {
-    ...typeScale.footnote,
-    marginBottom: 12,
+  article: { gap: 12 },
+  lead: { ...typeScale.body },
+  paragraph: { ...typeScale.body },
+  sectionTitle: { ...typeScale.headline },
+  appendix: {
+    borderRadius: radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
   },
   row: {
     minHeight: layout.hitTarget,
@@ -158,4 +235,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
   },
+  footer: { ...typeScale.footnote },
 });

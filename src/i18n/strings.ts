@@ -183,6 +183,20 @@ const zh = {
     online: '设备已连接，助手可使用本机能力',
     offline: '设备未连接',
   },
+  licensesArticle: {
+    lead: 'OctopBot 站在开源社区的肩膀上：本页以文章形式致谢构成应用的 {count} 个生产依赖，并按许可证家族附上全文。',
+    runtime:
+      '运行时与框架——应用由 {names} 驱动，同一套 TypeScript 代码运行于 Android 与 iOS，并为 HarmonyOS 预留了封装层。',
+    navigation:
+      '导航与界面——{names} 提供文件路由、原生导航容器、手势与图标，让各平台共享同一套交互。',
+    motion: '动效与图形——{names} 负责工作流动画与矢量图形，并尊重系统的减少动态效果设置。',
+    device:
+      '设备能力——{names} 经统一封装提供日历、通讯录、安全存储、语音识别与通知；数据只留在本机。',
+    language: '工程语言——{names} 让全仓保持严格类型，纯 TypeScript 核心不依赖任何平台 API。',
+    families: '许可证分布：{summary}。下方按家族展开可读全文。',
+    appendix: '许可证全文（按家族）',
+    familyCount: '{count} 个组件',
+  },
   password: {
     title: '修改密码',
     oldPassword: '当前密码',
@@ -554,6 +568,22 @@ const en: Dict = {
     toolMail: 'Send email',
     online: 'Device connected — the assistant can use its capabilities',
     offline: 'Device not connected',
+  },
+  licensesArticle: {
+    lead: 'OctopBot stands on the shoulders of the open-source community: this page thanks the {count} production dependencies that make up the app, as an article, with full license texts grouped by family below.',
+    runtime:
+      'Runtime and framework — the app is powered by {names}, one TypeScript codebase running on Android and iOS with a wrapper layer reserved for HarmonyOS.',
+    navigation:
+      'Navigation and interface — {names} provide file-based routing, native navigation containers, gestures and icons so every target shares one interaction model.',
+    motion:
+      'Motion and graphics — {names} handle worklet-driven animation and vector graphics, honouring Reduce Motion.',
+    device:
+      'Device capabilities — {names}, behind shared wrappers, provide calendar, contacts, secure storage, speech recognition and notifications; data stays on the device.',
+    language:
+      'Engineering language — {names} keeps the whole repo strictly typed, with a pure TypeScript core free of platform APIs.',
+    families: 'License distribution: {summary}. Expand a family below to read its full text.',
+    appendix: 'Full license texts (by family)',
+    familyCount: '{count} components',
   },
   password: {
     title: 'Change password',

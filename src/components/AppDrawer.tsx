@@ -97,6 +97,10 @@ export interface DrawerTaskGroup {
   color?: string | null;
 }
 
+/** The Today page stays live (deep-link reachable); its drawer entry is
+ *  hidden for now. Flip to re-surface it without touching the page. */
+const SHOW_TODAY_IN_DRAWER = false;
+
 export type DrawerRoute = 'today' | 'knowledge' | 'usage' | 'settings' | 'connect';
 
 interface AppDrawerProps {
@@ -238,13 +242,17 @@ export function AppDrawer({
         </View>
 
         <View style={styles.menuList}>
-          <NavRow
-            icon={<CalendarDays size={20} color={t.textBody} />}
-            label={strings.drawer.today}
-            active={activeRoute === 'today'}
-            testID="drawer-today"
-            onPress={() => onNavigate('today')}
-          />
+          {/* Hidden for now, not removed: the Today page and its route stay
+              live (deep-link reachable); only the drawer entry is gated. */}
+          {SHOW_TODAY_IN_DRAWER ? (
+            <NavRow
+              icon={<CalendarDays size={20} color={t.textBody} />}
+              label={strings.drawer.today}
+              active={activeRoute === 'today'}
+              testID="drawer-today"
+              onPress={() => onNavigate('today')}
+            />
+          ) : null}
           <NavRow
             icon={<Blocks size={20} color={t.textBody} />}
             label={strings.drawer.connectApps}

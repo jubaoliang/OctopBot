@@ -62,7 +62,7 @@ Do not add `runtimeVersion` / OTA channels until `expo-updates` is intentionally
 
 ## Acknowledgements / open-source licenses
 
-Every **production** npm dependency must appear on the in-app Acknowledgements screen (`Me → Settings → Acknowledgements`, backed by `src/legal/licenses.json`).
+Every **production** npm dependency must be covered by the in-app Acknowledgements screen (`Me → Settings → Acknowledgements`, backed by `src/legal/licenses.json`). The screen is a **prose article** — the stack described by role plus license-family counts — with one expandable full text per license **family**, not a row per package. Article copy lives in `strings.licensesArticle` (zh + en); role membership (`GROUPS` in `src/features/LicensesScreen.tsx`) is filtered against the generated data so removed dependencies drop out of the prose.
 
 - Adding, removing, or upgrading a package in `dependencies` (or anything that ships in the app binary) requires regenerating the license inventory:
 
@@ -71,7 +71,7 @@ Every **production** npm dependency must appear on the in-app Acknowledgements s
   ```
 
 - Commit the updated `src/legal/licenses.json` in the same PR as the dependency change.
-- Dev-only tools (`devDependencies`) do **not** need an Acknowledgements row unless they are somehow bundled into the release artifact.
+- Dev-only tools (`devDependencies`) do **not** need an Acknowledgements entry unless they are somehow bundled into the release artifact.
 - Do not hand-edit `licenses.json` to invent entries; always regenerate. The generator strips author / email / URL metadata so personal data never lands in the artifact.
 
 ## Security & privacy
