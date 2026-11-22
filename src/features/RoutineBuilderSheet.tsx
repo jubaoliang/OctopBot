@@ -117,6 +117,7 @@ export function RoutineBuilderSheet({
           trigger: CRON_PRESETS.briefingMorning,
           prompt: strings.automation.briefingMorningPrompt,
           enabled: true,
+          task_type: 'agent',
         });
         try {
           await api.create(picked.agent_id, {
@@ -124,6 +125,7 @@ export function RoutineBuilderSheet({
             trigger: CRON_PRESETS.briefingEvening,
             prompt: strings.automation.briefingEveningPrompt,
             enabled: true,
+            task_type: 'agent',
           });
         } catch (eveningError) {
           // The pair is one product: roll the morning job back so a retry
@@ -141,7 +143,12 @@ export function RoutineBuilderSheet({
         }
       } else {
         const trigger = schedule === 'custom' ? cronTrigger(customExpr) : CRON_PRESETS[schedule];
-        await api.create(picked.agent_id, { trigger, prompt: prompt.trim(), enabled: true });
+        await api.create(picked.agent_id, {
+          trigger,
+          prompt: prompt.trim(),
+          enabled: true,
+          task_type: 'agent',
+        });
       }
       if (stale()) {
         return;

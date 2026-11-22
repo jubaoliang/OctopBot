@@ -121,4 +121,16 @@ describe('CronApi request shapes', () => {
     expect(calls[1].body).toMatchObject({ trigger: 'cron:0 9 * * *', enabled: true });
     expect(calls[2].body).toEqual({ enabled: false });
   });
+
+  it('forwards task_type so routines run as agent turns, not text reminders', async () => {
+    const { http, calls } = fakeHttp();
+    const api = new CronApi(http);
+    await api.create('a1', {
+      trigger: 'cron:0 9 * * *',
+      prompt: 'brief me',
+      enabled: true,
+      task_type: 'agent',
+    });
+    expect(calls[0].body).toMatchObject({ task_type: 'agent' });
+  });
 });

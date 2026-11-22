@@ -110,7 +110,7 @@ Server → client (broadcast frames carry `thread_id`):
 
 ## Cron & proactive care (`cron.py`, `proactive_care.py`)
 
-- `GET/POST /api/agents/{agent_id}/cron` (POST 201: `{name?, trigger:"cron:0 9 * * *"|"interval:3600"|"date:…"|"agently:…", prompt, enabled, ...}`); `GET/PATCH/DELETE …/cron/{cron_id}` (toggle via PATCH `enabled`), `POST …/run-now` (204); `GET /api/cron/settings` → `{timezone}`; `GET …/cron/examples`.
+- `GET/POST /api/agents/{agent_id}/cron` (POST 201: `{name?, trigger:"cron:0 9 * * *"|"interval:3600"|"date:…"|"agently:…", prompt, enabled, task_type?:"text"|"agent", ...}`); `task_type` defaults to `text` (the prompt is posted verbatim as a reminder, no model call) — instruction-style routines must send `agent` to run a real assistant turn. `GET/PATCH/DELETE …/cron/{cron_id}` (toggle via PATCH `enabled`; `task_type` patchable), `POST …/run-now` (204); `GET /api/cron/settings` → `{timezone}`; `GET …/cron/examples`.
 - `GET/PUT /api/agents/{agent_id}/proactive-care` → `{enabled, active_hours_start, active_hours_end, min_interval_hours, max_interval_hours}`.
 
 ## Token usage (`src/octop/api/routers/usage.py`)

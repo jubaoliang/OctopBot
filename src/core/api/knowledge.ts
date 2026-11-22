@@ -1,5 +1,5 @@
 import type { HttpClient } from './http';
-import type { CronJob, CronTrigger, KnowledgeBase, KnowledgeDocument } from './types';
+import type { CronJob, CronTaskType, CronTrigger, KnowledgeBase, KnowledgeDocument } from './types';
 
 export class KnowledgeApi {
   constructor(private readonly http: HttpClient) {}
@@ -64,6 +64,9 @@ export interface CronJobDraft {
   trigger: CronTrigger;
   prompt: string;
   enabled: boolean;
+  /** Defaults to `text` server-side; the builder sends `agent` so routines
+   * run as real assistant turns instead of posting the prompt verbatim. */
+  task_type?: CronTaskType;
 }
 
 export class CronApi {

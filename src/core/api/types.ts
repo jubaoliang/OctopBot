@@ -311,6 +311,14 @@ export interface KnowledgeDocument {
 
 export type CronTrigger = string; // "cron:0 9 * * *" | "interval:3600" | "date:…" | "agently:…"
 
+/**
+ * How a cron job delivers: `text` posts the prompt as a plain reminder
+ * (no model call); `agent` runs it as a real assistant turn. The server
+ * defaults to `text`, so anything the app creates as an instruction must
+ * say `agent` explicitly.
+ */
+export type CronTaskType = 'text' | 'agent';
+
 export interface CronJob {
   id: string;
   name: string | null;
@@ -318,6 +326,7 @@ export interface CronJob {
   prompt: string;
   enabled: boolean;
   next_run?: string | null;
+  task_type?: CronTaskType;
 }
 
 export interface ProactiveCareConfig {
