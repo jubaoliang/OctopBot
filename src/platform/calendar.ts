@@ -103,7 +103,16 @@ const expoReader: CalendarReader = {
     if (calendarIds.length === 0) {
       return [];
     }
-    const events = await ExpoCalendar.listEvents(calendarIds, start, end);
+    // SDK 58 on Android collapses Date objects to epoch 0 across the bridge
+    // (both read window and write dates); ISO strings are the only reliable
+    // wire form even though the SDK typings still say Date.
+    const iso = (value: Date) => value.toISOString() as unknown as Date;
+    const calendars = await ExpoCalendar.getCalendars(ExpoCalendar.EntityTypes.EVENT);
+    const wanted = calendars.filter(calendar => calendarIds.includes(calendar.id));
+    const pages = await Promise.all(
+      wanted.map(calendar => calendar.listEvents(iso(start), iso(end))),
+    );
+    const events = pages.flat();
     return events
       .map(event => ({
         id: event.id,

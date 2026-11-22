@@ -1,11 +1,13 @@
 import { createContext, useContext } from 'react';
 
-/** A device-tool call awaiting the user's in-conversation confirmation. */
+/** A device-tool call awaiting the user's inline in-conversation approval. */
 export interface DeviceConfirmRequest {
   callId: string;
   name: string;
   input: unknown;
   summary: string;
+  /** Thread the call belongs to; the inline approval card renders there. */
+  threadId: string | null;
 }
 
 export interface DeviceToolsValue {

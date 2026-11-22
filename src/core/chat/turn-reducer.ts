@@ -28,6 +28,8 @@ export interface HitlPending {
   pendingId: string;
   summary: string;
   detail?: string;
+  /** Set when the pause is a device-tool approval, not server HITL. */
+  deviceCall?: { callId: string; name: string; input: unknown };
 }
 
 export interface ChatTurnState {
@@ -79,7 +81,15 @@ export type ChatTurnAction =
       defaults: { hitlTitle: string; sendFailed: string };
     }
   | { type: 'hitlDecide' }
-  | { type: 'hitlFailed'; message: string };
+  | { type: 'hitlFailed'; message: string }
+  | {
+      type: 'deviceToolCall';
+      callId: string;
+      name: string;
+      input: unknown;
+      summary: string;
+      detail?: string;
+    };
 
 export function initialChatTurnState(): ChatTurnState {
   return {
@@ -354,6 +364,34 @@ export function reduceChatTurn(state: ChatTurnState, action: ChatTurnAction): Ch
         idSeq: appended.idSeq,
         streaming: true,
         busy: true,
+      };
+    }
+
+    case 'deviceToolCall': {
+      const { id, idSeq } = nextId(state, 'h');
+      const hitl: HitlPending = {
+        pendingId: action.callId,
+        summary: action.summary,
+        detail: action.detail,
+        deviceCall: { callId: action.callId, name: action.name, input: action.input },
+      };
+      return {
+        ...state,
+        idSeq,
+        streaming: false,
+        busy: true,
+        stopRequested: false,
+        hitl,
+        turns: [
+          ...state.turns.filter(t => t.kind !== 'hitl'),
+          {
+            kind: 'hitl',
+            id,
+            pendingId: action.callId,
+            summary: action.summary,
+            detail: action.detail,
+          },
+        ],
       };
     }
 

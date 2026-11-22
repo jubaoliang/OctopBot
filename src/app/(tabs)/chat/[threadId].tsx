@@ -54,6 +54,7 @@ import {
 import { useAppShell } from '@/features/app-shell';
 import { useAuth } from '@/features/auth';
 import { useNotifications } from '@/features/notifications-context';
+import { useDeviceTools } from '@/features/device-tools-context';
 import { takeChatHandoff } from '@/features/chat-handoff';
 import { useImageAttachments } from '@/features/useImageAttachments';
 import { useTransitionGate, type TransitionAwareNavigation } from '@/features/use-transition-gate';
@@ -99,6 +100,7 @@ export default function ThreadScreen() {
   const { t: strings } = useI18n();
   const { setActiveChat, clearActiveChatIf, markThreadRead } = useAppShell();
   const { clearLiveUnread } = useNotifications();
+  const deviceTools = useDeviceTools();
   const router = useRouter();
   const { baseUrl, token, httpClient, user, dropSession, sessionGeneration } = useAuth();
   // Route params: `threadId` is a path segment (`new` / `open` / forged deep
@@ -139,6 +141,22 @@ export default function ThreadScreen() {
   }, [handoff]);
 
   const [chat, dispatch] = useReducer(reduceChatTurn, undefined, initialChatTurnState);
+  // Inline device-tool approval: the presence node parks the call and this
+  // thread renders the approval card in its transcript (never a popup).
+  useEffect(() => {
+    const pending = deviceTools.pending;
+    if (pending && pending.threadId === chat.threadId && !chat.hitl) {
+      dispatch({
+        type: 'deviceToolCall',
+        callId: pending.callId,
+        name: pending.name,
+        input: pending.input,
+        summary: pending.summary,
+      });
+    } else if (!pending && chat.hitl?.deviceCall) {
+      dispatch({ type: 'hitlDecide' });
+    }
+  }, [deviceTools.pending, chat.threadId, chat.hitl]);
   const [connection, setConnection] = useState<ChatConnectionStatus>('idle');
   // Drives the jump-to-latest control; `nearBottomRef` carries the same
   // fact to autoscroll, which must not read state from a stale render.
@@ -780,6 +798,17 @@ export default function ThreadScreen() {
   };
 
   const decideHitl = (decision: 'approve' | 'reject') => {
+    // Device-tool approvals execute on the phone, not via server HITL resume.
+    const deviceCall = chatRef.current.hitl?.deviceCall;
+    if (deviceCall) {
+      dispatch({ type: 'hitlDecide' });
+      if (decision === 'approve') {
+        deviceTools.approve();
+      } else {
+        deviceTools.cancel();
+      }
+      return;
+    }
     const pendingId = chatRef.current.hitl?.pendingId;
     const threadId = threadRef.current;
     // No real pending id → nothing actionable (fail closed).

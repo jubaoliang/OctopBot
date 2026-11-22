@@ -47,7 +47,7 @@ describe('calendarReader', () => {
   });
 
   it('normalizes and sorts events, dropping broken dates', async () => {
-    (expo.listEvents as jest.Mock).mockResolvedValue([
+    const listEvents = jest.fn().mockResolvedValue([
       {
         id: 'e2',
         title: 'Later',
@@ -73,6 +73,7 @@ describe('calendarReader', () => {
         location: null,
       },
     ]);
+    (expo.getCalendars as jest.Mock).mockResolvedValue([{ id: 'c1', listEvents }]);
     const start = new Date('2026-03-01T00:00:00.000Z');
     const end = new Date('2026-03-08T00:00:00.000Z');
     const events = await calendarReader.listEvents(['c1'], start, end);
@@ -88,7 +89,7 @@ describe('calendarReader', () => {
 
   it('skips the query when no calendars are selected', async () => {
     await expect(calendarReader.listEvents([], new Date(), new Date())).resolves.toEqual([]);
-    expect(expo.listEvents).not.toHaveBeenCalled();
+    expect(expo.getCalendars).not.toHaveBeenCalled();
   });
 
   it('propagates calendar-list failures so callers can tell them from empty', async () => {
@@ -97,7 +98,9 @@ describe('calendarReader', () => {
   });
 
   it('propagates event-query failures instead of masking them as empty', async () => {
-    (expo.listEvents as jest.Mock).mockRejectedValue(new Error('query failed'));
+    (expo.getCalendars as jest.Mock).mockResolvedValue([
+      { id: 'c1', listEvents: jest.fn().mockRejectedValue(new Error('query failed')) },
+    ]);
     await expect(calendarReader.listEvents(['c1'], new Date(), new Date())).rejects.toThrow(
       'query failed',
     );
@@ -121,12 +124,13 @@ describe('calendarReader', () => {
     );
   });
 
-  it('passes the Date window to the module-level read API', async () => {
-    (expo.listEvents as jest.Mock).mockResolvedValue([]);
+  it('passes ISO strings to the per-calendar read API (Android collapses Dates)', async () => {
+    const listEvents = jest.fn().mockResolvedValue([]);
+    (expo.getCalendars as jest.Mock).mockResolvedValue([{ id: 'c1', listEvents }]);
     const start = new Date('2026-11-23T00:00:00Z');
     const end = new Date('2026-11-30T00:00:00Z');
     await calendarReader.listEvents(['c1'], start, end);
-    expect(expo.listEvents).toHaveBeenCalledWith(['c1'], start, end);
+    expect(listEvents).toHaveBeenCalledWith(start.toISOString(), end.toISOString());
   });
 
   it('rejects when the device has no writable calendar', async () => {

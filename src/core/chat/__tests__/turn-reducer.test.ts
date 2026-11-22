@@ -203,3 +203,35 @@ describe('endsStopWait', () => {
     }
   });
 });
+
+describe('device tool approval turns', () => {
+  it('renders an inline hitl card carrying the device call', () => {
+    const state = reduceChatTurn(initialChatTurnState(), {
+      type: 'deviceToolCall',
+      callId: 'c-1',
+      name: 'calendar.create_event',
+      input: { title: 'X' },
+      summary: 'Create event X',
+    });
+    expect(state.busy).toBe(true);
+    expect(state.hitl?.deviceCall).toEqual({
+      callId: 'c-1',
+      name: 'calendar.create_event',
+      input: { title: 'X' },
+    });
+    expect(state.turns.at(-1)).toMatchObject({ kind: 'hitl', pendingId: 'c-1' });
+  });
+
+  it('hitlDecide clears the inline card after the decision', () => {
+    let state = reduceChatTurn(initialChatTurnState(), {
+      type: 'deviceToolCall',
+      callId: 'c-1',
+      name: 'phone.dial',
+      input: { number: '123' },
+      summary: 'Dial 123',
+    });
+    state = reduceChatTurn(state, { type: 'hitlDecide' });
+    expect(state.hitl).toBeNull();
+    expect(state.turns.filter(t => t.kind === 'hitl')).toHaveLength(0);
+  });
+});

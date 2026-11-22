@@ -161,7 +161,7 @@ const zh = {
     contacts: '通讯录',
     contactsScope: '允许助手在对话中查找本机联系人',
     contactsDetail:
-      '开启后，助手可在对话中按需读取本机通讯录；创建日程、拨号等操作会先征得你的同意。数据不会上传到服务器。',
+      '开启后，助手可在对话中按需读取本机通讯录；创建日程、拨号等操作会先在对话中以卡片形式征得你的同意。数据不会上传到服务器。',
     phone: '电话与邮件',
     phoneScope: '助手可以在回复中建议拨号、短信或邮件',
     phoneDetail:
@@ -533,7 +533,7 @@ const en: Dict = {
     contacts: 'Contacts',
     contactsScope: 'Let the assistant look up contacts on this device during conversation',
     contactsDetail:
-      "When on, the assistant can read this device's address book on demand during conversation; creating events or placing calls asks for your consent first. Nothing is uploaded to the server.",
+      "When on, the assistant can read this device's address book on demand during conversation; creating events or placing calls first asks your approval via a card in the conversation. Nothing is uploaded to the server.",
     phone: 'Phone & email',
     phoneScope: 'The assistant can suggest calls, texts and emails in its replies',
     phoneDetail:

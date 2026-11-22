@@ -5,9 +5,9 @@
  * on the agent WebSocket and answers `device_tool_call` frames; nothing here
  * touches React Native or the network.
  *
- * Reads run under the Connect capability consent; writes/actions carry
- * `requiresConfirmation` so the chat layer asks the user in conversation
- * before executing.
+ * Reads run under the Connect capability consent; writes and outbound
+ * actions carry `requiresConfirmation` so the thread shows an INLINE
+ * approval card in the conversation (never a popup) before executing.
  */
 
 export type DeviceToolName =
@@ -112,7 +112,7 @@ export const DEVICE_TOOL_SPECS: DeviceToolSpec[] = [
   {
     name: 'calendar.create_event',
     description:
-      "Create an event on the user's device calendar. Requires the user's in-chat confirmation before it runs.",
+      "Create an event on the user's device calendar. The thread shows an inline approval card before it runs.",
     inputSchema: schema(
       {
         title: STRING,
@@ -139,21 +139,21 @@ export const DEVICE_TOOL_SPECS: DeviceToolSpec[] = [
   {
     name: 'phone.dial',
     description:
-      'Open the OS dialer pre-filled with a number; the user places the call. Never dials silently. Requires in-chat confirmation.',
+      'Open the OS dialer pre-filled with a number; the user places the call. Never dials silently. Inline approval card first.',
     inputSchema: schema({ number: STRING }, ['number']),
     requiresConfirmation: true,
   },
   {
     name: 'sms.compose',
     description:
-      'Open the OS messaging composer pre-filled with a number and optional body; the user sends it. Requires in-chat confirmation.',
+      'Open the OS messaging composer pre-filled with a number and optional body; the user sends it. Inline approval card first.',
     inputSchema: schema({ number: STRING, body: STRING }, ['number']),
     requiresConfirmation: true,
   },
   {
     name: 'mail.compose',
     description:
-      'Open the OS mail composer pre-filled with recipient, subject and body; the user sends it. Requires in-chat confirmation.',
+      'Open the OS mail composer pre-filled with recipient, subject and body; the user sends it. Inline approval card first.',
     inputSchema: schema({ to: STRING, subject: STRING, body: STRING }, ['to']),
     requiresConfirmation: true,
   },

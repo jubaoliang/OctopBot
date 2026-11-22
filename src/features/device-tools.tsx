@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Modal, StyleSheet, Text, View } from 'react-native';
 
-import { PressableScale } from '@/components/PressableScale';
 import { ChatSocket, type ChatConnectionStatus } from '@/core/chat/chat-socket';
 import { deviceToolRegisterPayload, dispatchDeviceTool } from '@/core/device-tools';
 import { useAuth } from '@/features/auth';
@@ -14,17 +12,16 @@ import {
 import { useI18n } from '@/i18n/I18nProvider';
 import { buildDeviceTools } from '@/platform/device-tools';
 import { haptics } from '@/platform/haptics';
-import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
 
 /**
  * The device presence node: one persistent authenticated socket per user on
  * which this phone advertises its consented device tools. ANY of the user's
  * sessions (web, desktop, mobile) can then delegate a tool call here; reads
- * execute immediately, writes/actions pause for an in-app confirmation that
- * is global (the request may originate from another client entirely).
+ * execute immediately, writes/actions park for an INLINE approval card in
+ * the owning thread's transcript (the thread screen renders it via the HITL
+ * card mechanism — never a popup).
  */
 export function DeviceToolsProvider({ children }: { children: ReactNode }) {
-  const t = useTokens();
   const { t: strings } = useI18n();
   const { baseUrl, token, user, ready } = useAuth();
   const { consent } = useCalendarSync();
@@ -120,7 +117,13 @@ export function DeviceToolsProvider({ children }: { children: ReactNode }) {
       }
       if (tool.requiresConfirmation) {
         haptics.notify('warning');
-        setPending({ callId, name, input: frame.input, summary: summarize(name, frame.input) });
+        setPending({
+          callId,
+          name,
+          input: frame.input,
+          summary: summarize(name, frame.input),
+          threadId: typeof frame.thread_id === 'string' ? frame.thread_id : null,
+        });
       } else {
         void execute(callId, name, frame.input);
       }
@@ -184,86 +187,5 @@ export function DeviceToolsProvider({ children }: { children: ReactNode }) {
     [pending, approve, cancel, status],
   );
 
-  return (
-    <DeviceToolsContext.Provider value={value}>
-      {children}
-      <Modal visible={pending !== null} transparent animationType="fade" onRequestClose={cancel}>
-        <View style={[styles.scrim, { backgroundColor: t.overlaySubtle }]}>
-          <View
-            style={[
-              styles.card,
-              continuousCorners,
-              { backgroundColor: t.surface, borderColor: t.borderSubtle },
-            ]}
-          >
-            <Text style={[styles.title, { color: t.textPrimary }]}>
-              {strings.deviceTools.confirmTitle}
-            </Text>
-            <Text style={[styles.summary, { color: t.textSecondary }]}>{pending?.summary}</Text>
-            <View style={styles.row}>
-              <PressableScale
-                accessibilityRole="button"
-                style={[styles.button, continuousCorners, { backgroundColor: t.fill }]}
-                onPress={cancel}
-                testID="device-confirm-cancel"
-              >
-                <Text style={[styles.buttonLabel, { color: t.textBody }]}>
-                  {strings.deviceTools.cancel}
-                </Text>
-              </PressableScale>
-              <PressableScale
-                accessibilityRole="button"
-                style={[styles.button, continuousCorners, { backgroundColor: t.accent }]}
-                onPress={approve}
-                testID="device-confirm-approve"
-              >
-                <Text style={[styles.buttonLabel, { color: t.textInverse }]}>
-                  {strings.deviceTools.approve}
-                </Text>
-              </PressableScale>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </DeviceToolsContext.Provider>
-  );
+  return <DeviceToolsContext.Provider value={value}>{children}</DeviceToolsContext.Provider>;
 }
-
-const styles = StyleSheet.create({
-  scrim: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: layout.screenMargin,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 420,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.card,
-    padding: 20,
-    gap: 12,
-  },
-  title: {
-    ...typeScale.headline,
-  },
-  summary: {
-    ...typeScale.callout,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 4,
-  },
-  button: {
-    flex: 1,
-    minHeight: layout.hitTarget,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.card,
-  },
-  buttonLabel: {
-    ...typeScale.body,
-    fontWeight: '600',
-  },
-});

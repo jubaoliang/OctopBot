@@ -20,7 +20,7 @@ function handlers(overrides: Partial<DeviceToolHandlers> = {}): DeviceToolHandle
 }
 
 describe('device tool specs', () => {
-  it('covers the batch-1 tool set with confirmation only on writes/actions', () => {
+  it('covers the batch-1 tool set with inline confirmation on writes/actions', () => {
     expect(DEVICE_TOOL_SPECS.map(spec => spec.name)).toEqual([
       'calendar.list_events',
       'calendar.create_event',
