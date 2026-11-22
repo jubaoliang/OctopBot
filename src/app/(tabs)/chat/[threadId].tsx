@@ -676,7 +676,7 @@ export default function ThreadScreen() {
           },
         },
       ]);
-    } else if (params.thread) {
+    } else if (existingThreadId) {
       // Existing conversation: attach + replay without sending.
       void ensureThread();
     } else {
