@@ -45,7 +45,7 @@ req = urllib.request.Request(
 with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:
     token = json.load(resp)["access_token"]
 print(
-    "octopbot://dev-session?url="
+    "octop://dev-session?url="
     + urllib.parse.quote(base, safe="")
     + "&token="
     + urllib.parse.quote(token, safe="")
@@ -56,9 +56,9 @@ PY
 case "$PLATFORM" in
   android)
     adb reverse tcp:8081 tcp:8081 >/dev/null 2>&1 || true
-    adb shell am force-stop dev.octop.octopbot || true
+    adb shell am force-stop com.tencent.octopbot || true
     # Quote the deep link for the device shell (& separates background jobs otherwise).
-    adb shell "am start -a android.intent.action.VIEW -d '$DEEPLINK' -p dev.octop.octopbot" >/dev/null
+    adb shell "am start -a android.intent.action.VIEW -d '$DEEPLINK' -p com.tencent.octopbot" >/dev/null
     ;;
   ios)
     export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"

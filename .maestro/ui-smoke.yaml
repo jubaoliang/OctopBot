@@ -1,7 +1,7 @@
 # UI smoke for the interaction pass: sheets, search, tabs, large-title screens.
 # Language-agnostic on purpose — every step keys off testIDs, so it runs with
 # either locale. Requires a seeded session and Metro on :8081.
-appId: dev.octop.octopbot
+appId: com.tencent.octopbot
 ---
 - launchApp
 - extendedWaitUntil:

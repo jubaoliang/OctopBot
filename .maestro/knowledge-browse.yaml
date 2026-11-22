@@ -1,5 +1,5 @@
 # Knowledge browse: drawer → knowledge list → back.
-appId: dev.octop.octopbot
+appId: com.tencent.octopbot
 ---
 - launchApp
 - extendedWaitUntil:

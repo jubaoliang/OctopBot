@@ -1,7 +1,7 @@
 # Camera capture → upload chip → send → image rendered in the user bubble.
 # Android baseline (emulator Camera2). Seed a session first when needed.
 # iOS simulator camera is unreliable; prefer Android for this flow.
-appId: dev.octop.octopbot
+appId: com.tencent.octopbot
 ---
 # Keep the pre-seeded session (scripts/e2e-seed-session.sh). A cold
 # launchApp would drop secure-storage before AuthProvider restores it.

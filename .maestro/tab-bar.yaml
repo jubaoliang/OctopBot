@@ -1,7 +1,7 @@
 # Tab bar behaviour: pressing a focused tab keeps you on that tab, and pops
 # its stack back to the root. Used to walk global history and land on the
 # first tab instead.
-appId: dev.octop.octopbot
+appId: com.tencent.octopbot
 ---
 - launchApp
 - extendedWaitUntil:

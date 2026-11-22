@@ -1,6 +1,6 @@
 # iOS fallback smoke — RN testIDs are often missing from the XCUITest tree on
 # iOS 27 (upstream AX bug). Drive by visible labels instead.
-appId: dev.octop.octopbot
+appId: com.tencent.octopbot
 ---
 - launchApp
 - runFlow:

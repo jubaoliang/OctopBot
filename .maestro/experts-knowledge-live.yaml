@@ -1,7 +1,7 @@
 # Live experts roster + knowledge browse against a seeded Octop instance.
 # Requires a logged-in session (octop://dev-session when needed) and
 # Case* experts / knowledge bases on the server.
-appId: dev.octop.octopbot
+appId: com.tencent.octopbot
 ---
 - launchApp
 - extendedWaitUntil:

@@ -1,7 +1,7 @@
 # Thread pin/delete through the long-press action sheet (no swipe buttons).
 # Requires at least one task-tree thread in the drawer.
 # Locale-agnostic: actions are matched by id, not by zh/en labels.
-appId: dev.octop.octopbot
+appId: com.tencent.octopbot
 ---
 - launchApp
 - extendedWaitUntil:

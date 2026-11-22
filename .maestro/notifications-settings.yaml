@@ -1,9 +1,9 @@
 # Notifications settings: the master toggle round-trip in Settings.
 # Starts enabled (default); asserts the denied-permission recovery row stays
 # hidden for an OS-granted device across both toggle directions.
-# Android baseline (dev.octop.octopbot). Seed a session first when needed:
+# Android baseline (com.tencent.octopbot). Seed a session first when needed:
 # octopbot://dev-session?url=…&token=…
-appId: dev.octop.octopbot
+appId: com.tencent.octopbot
 ---
 - launchApp
 - extendedWaitUntil:

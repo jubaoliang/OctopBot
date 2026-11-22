@@ -1,5 +1,5 @@
 # Composer attach + voice controls (attach needs a selected expert).
-appId: dev.octop.octopbot
+appId: com.tencent.octopbot
 ---
 - launchApp
 - extendedWaitUntil:

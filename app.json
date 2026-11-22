@@ -9,10 +9,10 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "dev.octop.octopbot"
+      "bundleIdentifier": "com.tencent.octopbot"
     },
     "android": {
-      "package": "dev.octop.octopbot",
+      "package": "com.tencent.octopbot",
       "adaptiveIcon": {
         "backgroundColor": "#FF0004",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

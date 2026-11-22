@@ -1,6 +1,6 @@
 # Tab shell coverage: Chat / Experts / Automation / Me (+ Settings entry).
 # Dev client with a seeded session (octop://dev-session when needed).
-appId: dev.octop.octopbot
+appId: com.tencent.octopbot
 ---
 - launchApp
 - extendedWaitUntil:

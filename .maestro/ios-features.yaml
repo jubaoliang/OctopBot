@@ -1,5 +1,5 @@
 # Broader iOS feature coverage using visible labels (iOS 27 AX workaround).
-appId: dev.octop.octopbot
+appId: com.tencent.octopbot
 ---
 - launchApp
 - runFlow:

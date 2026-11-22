@@ -1,6 +1,6 @@
 # Token usage: drawer → Token 统计 → switch range → back.
 # Dev client against a signed-in Octop instance with the usage ledger.
-appId: dev.octop.octopbot
+appId: com.tencent.octopbot
 ---
 - launchApp
 - extendedWaitUntil:
