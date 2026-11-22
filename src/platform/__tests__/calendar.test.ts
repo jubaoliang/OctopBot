@@ -102,4 +102,25 @@ describe('calendarReader', () => {
       'query failed',
     );
   });
+
+  it('creates an event on the first writable calendar', async () => {
+    const createEvent = jest.fn().mockResolvedValue({ id: 'e9' });
+    (expo.getCalendars as jest.Mock).mockResolvedValue([
+      { id: 'ro', allowsModifications: false },
+      { id: 'rw', allowsModifications: true, createEvent },
+    ]);
+    await expect(
+      calendarReader.createEvent({ title: 'Standup', start: '2026-11-23T09:00:00' }),
+    ).resolves.toEqual({ id: 'e9' });
+    expect(createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Standup', allDay: false }),
+    );
+  });
+
+  it('rejects when the device has no writable calendar', async () => {
+    (expo.getCalendars as jest.Mock).mockResolvedValue([{ id: 'ro', allowsModifications: false }]);
+    await expect(
+      calendarReader.createEvent({ title: 'Standup', start: '2026-11-23T09:00:00' }),
+    ).rejects.toThrow('no writable calendar');
+  });
 });

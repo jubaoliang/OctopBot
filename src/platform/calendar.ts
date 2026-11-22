@@ -42,6 +42,15 @@ export interface CalendarReader {
   /** Calendars that hold schedulable events (EntityTypes.EVENT). */
   getReadableCalendars: () => Promise<DeviceCalendar[]>;
   listEvents: (calendarIds: string[], start: Date, end: Date) => Promise<CalendarEvent[]>;
+  /** Creates an event on the first writable calendar; throws when none. */
+  createEvent: (input: {
+    title: string;
+    start: string;
+    end?: string;
+    allDay?: boolean;
+    location?: string;
+    notes?: string;
+  }) => Promise<{ id: string }>;
 }
 
 const supported = Platform.OS === 'ios' || Platform.OS === 'android';
@@ -61,6 +70,9 @@ const noopReader: CalendarReader = {
   requestPermissions: async () => 'denied',
   getReadableCalendars: async () => [],
   listEvents: async () => [],
+  createEvent: async () => {
+    throw new Error('calendar unsupported on this platform');
+  },
 };
 
 const expoReader: CalendarReader = {
@@ -103,6 +115,24 @@ const expoReader: CalendarReader = {
       }))
       .filter(event => Number.isFinite(event.start) && Number.isFinite(event.end))
       .sort((a, b) => a.start - b.start);
+  },
+  createEvent: async input => {
+    const calendars = await ExpoCalendar.getCalendars(ExpoCalendar.EntityTypes.EVENT);
+    const target = calendars.find(calendar => calendar.allowsModifications);
+    if (!target) {
+      throw new Error('no writable calendar on this device');
+    }
+    const start = new Date(input.start);
+    const end = input.end ? new Date(input.end) : new Date(start.getTime() + 3_600_000);
+    const created = await target.createEvent({
+      title: input.title,
+      startDate: start,
+      endDate: end,
+      allDay: input.allDay ?? false,
+      location: input.location ?? '',
+      notes: input.notes ?? '',
+    });
+    return { id: created.id };
   },
 };
 

@@ -50,6 +50,38 @@ export function confirmOpenHttpUrl(url: string, copy: LinkConfirmCopy): boolean 
 const ACTION_SCHEME = /^(tel|sms|mailto):/i;
 
 /**
+ * Promise-based variant for device-tool execution: resolves with the user's
+ * decision so the tool result can report opened/cancelled/unsupported.
+ */
+export function requestAppAction(
+  url: string,
+  copy: LinkConfirmCopy,
+): Promise<'opened' | 'cancelled' | 'unsupported'> {
+  const target = url.trim();
+  if (!ACTION_SCHEME.test(target)) {
+    return Promise.resolve('unsupported');
+  }
+  return new Promise(resolve => {
+    Alert.alert(
+      copy.title,
+      copy.message(target),
+      [
+        { text: copy.cancel, style: 'cancel', onPress: () => resolve('cancelled') },
+        {
+          text: copy.open,
+          onPress: () => {
+            void Linking.openURL(target)
+              .then(() => resolve('opened'))
+              .catch(() => resolve('unsupported'));
+          },
+        },
+      ],
+      { cancelable: true, onDismiss: () => resolve('cancelled') },
+    );
+  });
+}
+
+/**
  * Assistant-proposed device actions — dial, SMS compose, email compose.
  * Always confirmed with a dialog (the URL is model-generated), then handed
  * to the OS handler. Returns whether the link was accepted.

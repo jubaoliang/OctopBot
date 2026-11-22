@@ -53,7 +53,6 @@ import {
 } from '@/core/chat/turn-reducer';
 import { useAppShell } from '@/features/app-shell';
 import { useAuth } from '@/features/auth';
-import { useCalendarSync } from '@/features/calendar-sync-context';
 import { useNotifications } from '@/features/notifications-context';
 import { takeChatHandoff } from '@/features/chat-handoff';
 import { useImageAttachments } from '@/features/useImageAttachments';
@@ -101,26 +100,6 @@ export default function ThreadScreen() {
   const { setActiveChat, clearActiveChatIf, markThreadRead } = useAppShell();
   const { clearLiveUnread } = useNotifications();
   const router = useRouter();
-  // Device-context turns: the synced digest KBs (schedule, contacts) ride
-  // every user turn. A ref mirror keeps the auto-send closure fresh without
-  // rebuilding the socket.
-  const {
-    enabled: calendarSyncEnabled,
-    kbId: calendarKbId,
-    contactsEnabled,
-    contactsKbId,
-  } = useCalendarSync();
-  const knowledgeBaseIds = useMemo(() => {
-    const ids = [
-      calendarSyncEnabled && calendarKbId ? calendarKbId : null,
-      contactsEnabled && contactsKbId ? contactsKbId : null,
-    ].filter((id): id is string => id !== null);
-    return ids.length > 0 ? ids : undefined;
-  }, [calendarSyncEnabled, calendarKbId, contactsEnabled, contactsKbId]);
-  const knowledgeBaseIdsRef = useRef(knowledgeBaseIds);
-  useEffect(() => {
-    knowledgeBaseIdsRef.current = knowledgeBaseIds;
-  }, [knowledgeBaseIds]);
   const { baseUrl, token, httpClient, user, dropSession, sessionGeneration } = useAuth();
   // Route params: `threadId` is a path segment (`new` / `open` / forged deep
   // link). Internal suggestion pills pass `prompt` — never put user text in
@@ -640,7 +619,6 @@ export default function ThreadScreen() {
           text,
           thread_id: threadId,
           attachments,
-          knowledge_base_ids: knowledgeBaseIdsRef.current,
         })
       ) {
         return;
@@ -754,7 +732,6 @@ export default function ThreadScreen() {
           text,
           thread_id: threadId,
           attachments,
-          knowledge_base_ids: knowledgeBaseIdsRef.current,
         })
       ) {
         return;

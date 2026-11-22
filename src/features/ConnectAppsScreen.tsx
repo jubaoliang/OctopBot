@@ -7,58 +7,33 @@ import { CalendarDays, ChevronRight, Phone, Users } from 'lucide-react-native';
 import { AppHeader } from '@/components/AppHeader';
 import { useTabBarFootprint } from '@/platform/tab-bar';
 import { useCalendarSync } from '@/features/calendar-sync-context';
+import { useDeviceTools } from '@/features/device-tools-context';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
 import { openAppSettings } from '@/platform/linking';
 import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
 
-/** `MM-dd HH:mm` last-sync stamp — locale-neutral and compact. */
-function formatClock(epochMs: number): string {
-  const date = new Date(epochMs);
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
 /**
- * Connect apps — the device capabilities the assistant can use, one card
- * per local app surface. Connect = the user turns the
- * capability on; everything is opt-in and the data scope is stated on the
- * card. Contacts and Phone are behavior cards (how sharing works); only
- * Calendar carries live state.
+ * Connect apps — per-capability consent for the device tools this phone
+ * advertises to the user's experts (from any client). Nothing is synced or
+ * uploaded: reads happen on demand, writes/actions confirm in conversation,
+ * and dial/compose hand off to the OS. The switch is the consent gate; the
+ * OS permission is recovered in Settings when denied.
  */
 export function ConnectAppsScreen() {
   const tokens = useTokens();
   const { t: strings } = useI18n();
   const router = useRouter();
   const tabBarFootprint = useTabBarFootprint();
-  const {
-    enabled,
-    setEnabled,
-    permission,
-    calendars,
-    lastSyncAt,
-    syncing,
-    syncNow,
-    contactsEnabled,
-    setContactsEnabled,
-    contactsPermission,
-  } = useCalendarSync();
+  const { consent, setConsent, permission, contactsPermission, calendars } = useCalendarSync();
+  const { online } = useDeviceTools();
 
-  const onConnectToggle = useCallback(
-    (next: boolean) => {
+  const toggle = useCallback(
+    (patch: Parameters<typeof setConsent>[0]) => {
       haptics.selection();
-      // The provider requests the OS permission itself when enabling.
-      setEnabled(next);
+      setConsent(patch);
     },
-    [setEnabled],
-  );
-
-  const onContactsToggle = useCallback(
-    (next: boolean) => {
-      haptics.selection();
-      setContactsEnabled(next);
-    },
-    [setContactsEnabled],
+    [setConsent],
   );
 
   return (
@@ -79,7 +54,11 @@ export function ConnectAppsScreen() {
           showsVerticalScrollIndicator={false}
           showsHorizontalScrollIndicator={false}
         >
-          {/* Calendar — the live capability */}
+          <Text style={[styles.hint, { color: online ? tokens.textTertiary : tokens.danger }]}>
+            {online ? strings.deviceTools.online : strings.deviceTools.offline}
+          </Text>
+
+          {/* Calendar — read + create, on demand */}
           <View
             style={[
               styles.card,
@@ -102,15 +81,15 @@ export function ConnectAppsScreen() {
               <Switch
                 accessibilityRole="switch"
                 accessibilityLabel={strings.connectApps.calendar}
-                value={enabled}
-                onValueChange={onConnectToggle}
+                value={consent.calendar}
+                onValueChange={next => toggle({ calendar: next })}
                 trackColor={{ true: tokens.accent, false: tokens.overlayPressed }}
                 thumbColor={tokens.surfaceRaised}
                 ios_backgroundColor={tokens.overlayPressed}
                 testID="connect-calendar-switch"
               />
             </View>
-            {enabled && permission === 'denied' ? (
+            {consent.calendar && permission === 'denied' ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={strings.connectApps.denied}
@@ -127,42 +106,17 @@ export function ConnectAppsScreen() {
                 <ChevronRight size={16} color={tokens.textPlaceholder} />
               </Pressable>
             ) : null}
-            {enabled && permission === 'granted' ? (
-              <View style={styles.cardBody}>
-                {calendars.length === 0 ? (
-                  <Text
-                    style={[styles.hint, { color: tokens.textTertiary }]}
-                    testID="connect-calendar-none"
-                  >
-                    {strings.settings.calendarSyncNone}
-                  </Text>
-                ) : null}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={strings.settings.calendarSyncNow}
-                  testID="connect-calendar-sync-now"
-                  disabled={syncing}
-                  style={({ pressed }) => [
-                    styles.syncRow,
-                    pressed ? { backgroundColor: tokens.overlayPressed } : null,
-                  ]}
-                  onPress={() => void syncNow()}
-                >
-                  <Text style={[styles.syncLabel, { color: tokens.accent }]}>
-                    {strings.settings.calendarSyncNow}
-                  </Text>
-                  <Text style={[styles.syncMeta, { color: tokens.textTertiary }]}>
-                    {lastSyncAt
-                      ? strings.settings.calendarSyncLast(formatClock(lastSyncAt))
-                      : strings.connectApps.neverSynced}
-                  </Text>
-                  {syncing ? null : <ChevronRight size={16} color={tokens.textPlaceholder} />}
-                </Pressable>
-              </View>
+            {consent.calendar && permission === 'granted' && calendars.length === 0 ? (
+              <Text
+                style={[styles.hint, { color: tokens.textTertiary }]}
+                testID="connect-calendar-none"
+              >
+                {strings.settings.calendarSyncNone}
+              </Text>
             ) : null}
           </View>
 
-          {/* Contacts — context capability: opt-in digest into the KB */}
+          {/* Contacts — read on demand */}
           <View
             style={[
               styles.card,
@@ -185,41 +139,37 @@ export function ConnectAppsScreen() {
               <Switch
                 accessibilityRole="switch"
                 accessibilityLabel={strings.connectApps.contacts}
-                value={contactsEnabled}
-                onValueChange={onContactsToggle}
+                value={consent.contacts}
+                onValueChange={next => toggle({ contacts: next })}
                 trackColor={{ true: tokens.accent, false: tokens.overlayPressed }}
                 thumbColor={tokens.surfaceRaised}
                 ios_backgroundColor={tokens.overlayPressed}
                 testID="connect-contacts-switch"
               />
             </View>
-            {contactsEnabled ? (
-              <>
-                <Text style={[styles.cardBodyText, { color: tokens.textSecondary }]}>
-                  {strings.connectApps.contactsDetail}
+            {consent.contacts && contactsPermission === 'denied' ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={strings.connectApps.denied}
+                testID="connect-contacts-denied"
+                style={({ pressed }) => [
+                  styles.syncRow,
+                  pressed ? { backgroundColor: tokens.overlayPressed } : null,
+                ]}
+                onPress={() => openAppSettings()}
+              >
+                <Text style={[styles.syncMeta, { color: tokens.danger }]}>
+                  {strings.connectApps.denied}
                 </Text>
-                {contactsPermission === 'denied' ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={strings.connectApps.denied}
-                    testID="connect-contacts-denied"
-                    style={({ pressed }) => [
-                      styles.syncRow,
-                      pressed ? { backgroundColor: tokens.overlayPressed } : null,
-                    ]}
-                    onPress={() => openAppSettings()}
-                  >
-                    <Text style={[styles.syncMeta, { color: tokens.danger }]}>
-                      {strings.connectApps.denied}
-                    </Text>
-                    <ChevronRight size={16} color={tokens.textPlaceholder} />
-                  </Pressable>
-                ) : null}
-              </>
+                <ChevronRight size={16} color={tokens.textPlaceholder} />
+              </Pressable>
             ) : null}
+            <Text style={[styles.cardBodyText, { color: tokens.textSecondary }]}>
+              {strings.connectApps.contactsDetail}
+            </Text>
           </View>
 
-          {/* Phone — behavior card; actions ride reply links with a confirm */}
+          {/* Phone & mail — OS hand-off, always confirmed */}
           <View
             style={[
               styles.card,
@@ -239,6 +189,16 @@ export function ConnectAppsScreen() {
                   {strings.connectApps.phoneScope}
                 </Text>
               </View>
+              <Switch
+                accessibilityRole="switch"
+                accessibilityLabel={strings.connectApps.phone}
+                value={consent.actions}
+                onValueChange={next => toggle({ actions: next })}
+                trackColor={{ true: tokens.accent, false: tokens.overlayPressed }}
+                thumbColor={tokens.surfaceRaised}
+                ios_backgroundColor={tokens.overlayPressed}
+                testID="connect-actions-switch"
+              />
             </View>
             <Text style={[styles.cardBodyText, { color: tokens.textSecondary }]}>
               {strings.connectApps.phoneDetail}
@@ -293,9 +253,6 @@ const styles = StyleSheet.create({
   cardScope: {
     ...typeScale.footnote,
   },
-  cardBody: {
-    gap: 8,
-  },
   cardBodyText: {
     ...typeScale.footnote,
   },
@@ -307,10 +264,6 @@ const styles = StyleSheet.create({
     ...continuousCorners,
     paddingHorizontal: 8,
     gap: 8,
-  },
-  syncLabel: {
-    ...typeScale.subheadline,
-    fontWeight: '600',
   },
   syncMeta: {
     ...typeScale.footnote,

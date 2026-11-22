@@ -156,17 +156,32 @@ const zh = {
   connectApps: {
     title: '连接应用',
     calendar: '日历',
-    calendarScope: '同步未来 7 天日程到知识库，助手即可感知你的安排',
+    calendarScope: '允许助手在对话中读取和创建本机日程',
     denied: '在系统设置中开启权限',
     contacts: '通讯录',
-    contactsScope: '同步联系人摘要到知识库，助手即可帮你查找联系人',
+    contactsScope: '允许助手在对话中查找本机联系人',
     contactsDetail:
-      '开启后，联系人的姓名、电话与邮箱会以摘要形式同步到你自托管服务器的知识库，供助手在对话中引用。可在网页控制台随时删除该知识库。',
+      '开启后，助手可在对话中按需读取本机通讯录；创建日程、拨号等操作会先征得你的同意。数据不会上传到服务器。',
     phone: '电话与邮件',
     phoneScope: '助手可以在回复中建议拨号、短信或邮件',
     phoneDetail:
       '当助手给出拨号、发短信或写邮件的建议时，会以链接形式出现在回复中；点击后系统会先向你确认，再交给系统的电话、短信或邮件应用执行。应用不会读取你的通话或短信记录。',
     neverSynced: '尚未同步',
+    syncFailed: '同步失败',
+  },
+  deviceTools: {
+    confirmTitle: '设备操作确认',
+    approve: '允许',
+    cancel: '拒绝',
+    cancelled: '用户已拒绝该操作',
+    toolReadCalendar: '读取日程',
+    toolCreateEvent: '创建日程',
+    toolSearchContacts: '查找联系人',
+    toolDial: '拨打电话',
+    toolSms: '发送短信',
+    toolMail: '发送邮件',
+    online: '设备已连接，助手可使用本机能力',
+    offline: '设备未连接',
   },
   password: {
     title: '修改密码',
@@ -513,19 +528,32 @@ const en: Dict = {
   connectApps: {
     title: 'Connect apps',
     calendar: 'Calendar',
-    calendarScope:
-      'Sync the next 7 days into your knowledge base so the assistant knows your schedule',
+    calendarScope: 'Let the assistant read and create events on this device during conversation',
     denied: 'Enable access in system settings',
     contacts: 'Contacts',
-    contactsScope:
-      'Sync a contacts digest into your knowledge base so the assistant can look people up',
+    contactsScope: 'Let the assistant look up contacts on this device during conversation',
     contactsDetail:
-      "When on, your contacts' names, phone numbers and email addresses sync as a digest into your self-hosted server's knowledge base for the assistant to reference in conversation. Delete that knowledge base from the web console anytime.",
+      "When on, the assistant can read this device's address book on demand during conversation; creating events or placing calls asks for your consent first. Nothing is uploaded to the server.",
     phone: 'Phone & email',
     phoneScope: 'The assistant can suggest calls, texts and emails in its replies',
     phoneDetail:
       'When the assistant suggests a call, text or email, it appears as a link in the reply; tapping it confirms with you first, then hands it to the system phone, messaging or mail app. The app never reads your call or message history.',
     neverSynced: 'Not synced yet',
+    syncFailed: 'Sync failed',
+  },
+  deviceTools: {
+    confirmTitle: 'Confirm device action',
+    approve: 'Allow',
+    cancel: 'Deny',
+    cancelled: 'The user denied this action',
+    toolReadCalendar: 'Read calendar',
+    toolCreateEvent: 'Create event',
+    toolSearchContacts: 'Search contacts',
+    toolDial: 'Place call',
+    toolSms: 'Send SMS',
+    toolMail: 'Send email',
+    online: 'Device connected — the assistant can use its capabilities',
+    offline: 'Device not connected',
   },
   password: {
     title: 'Change password',

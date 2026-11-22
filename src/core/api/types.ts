@@ -216,7 +216,17 @@ export type ClientFrame =
   | UserTurnFrame
   | { type: 'ping' }
   | { type: 'subscribe'; thread_id: string }
-  | { type: 'cancel'; thread_id: string };
+  | { type: 'cancel'; thread_id: string }
+  | {
+      type: 'device_tools.register';
+      tools: {
+        name: string;
+        description: string;
+        input_schema: Record<string, unknown>;
+        requires_confirmation: boolean;
+      }[];
+    }
+  | { type: 'device_tool_result'; call_id: string; output?: unknown; error?: string };
 
 export type ServerFrame =
   | { type: 'turn.started'; turn_id: string; seq: number; phase: string; thread_id?: string }
@@ -272,6 +282,13 @@ export type ServerFrame =
   | { type: 'attachment'; kind: string; mime_type: string; data: string; filename?: string }
   | { type: 'pong' }
   | { type: 'turn_status'; thread_id: string; active: boolean }
+  | {
+      type: 'device_tool_call';
+      call_id: string;
+      name: string;
+      input: unknown;
+      thread_id?: string;
+    }
   | {
       type: 'steer.ack';
       status: string;

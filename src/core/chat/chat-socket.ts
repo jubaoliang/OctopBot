@@ -214,6 +214,23 @@ export class ChatSocket {
     return this.rawSend({ type: 'cancel', thread_id: threadId });
   }
 
+  /** Publishes this device's tool set for the connected agent session. */
+  sendDeviceToolsRegister(
+    tools: {
+      name: string;
+      description: string;
+      input_schema: Record<string, unknown>;
+      requires_confirmation: boolean;
+    }[],
+  ): boolean {
+    return this.rawSend({ type: 'device_tools.register', tools });
+  }
+
+  /** Answers a `device_tool_call` with the on-device execution result. */
+  sendDeviceToolResult(callId: string, result: { output?: unknown; error?: string }): boolean {
+    return this.rawSend({ type: 'device_tool_result', call_id: callId, ...result });
+  }
+
   ping(): boolean {
     return this.rawSend({ type: 'ping' });
   }

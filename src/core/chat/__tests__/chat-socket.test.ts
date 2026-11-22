@@ -299,4 +299,28 @@ describe('ChatSocket heartbeat', () => {
     expect(statuses.at(-1)?.status).toBe('open');
     socket.close();
   });
+
+  it('registers device tools and answers device tool calls', async () => {
+    const { socket } = await openFirstSocket();
+    const tools = [
+      {
+        name: 'calendar.list_events',
+        description: 'Read calendar',
+        input_schema: { type: 'object' },
+        requires_confirmation: false,
+      },
+    ];
+    expect(socket.sendDeviceToolsRegister(tools)).toBe(true);
+    expect(JSON.parse(FakeSocket.created[0].sent.at(-1) ?? '{}')).toEqual({
+      type: 'device_tools.register',
+      tools,
+    });
+    expect(socket.sendDeviceToolResult('c1', { output: { events: [] } })).toBe(true);
+    expect(JSON.parse(FakeSocket.created[0].sent.at(-1) ?? '{}')).toEqual({
+      type: 'device_tool_result',
+      call_id: 'c1',
+      output: { events: [] },
+    });
+    socket.close();
+  });
 });
