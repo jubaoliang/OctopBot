@@ -1,4 +1,14 @@
-import { Cloud, FileText, MessageSquare, Terminal, Zap } from 'lucide-react-native';
+import {
+  BookOpen,
+  CalendarClock,
+  Cloud,
+  FileText,
+  Mail,
+  MessageSquare,
+  Terminal,
+  Wallet,
+  Zap,
+} from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 
 /**
@@ -17,5 +27,9 @@ export const EXPERT_ICONS: Partial<Record<string, LucideIcon>> = Object.assign(
     cloud: Cloud,
     'file-text': FileText,
     'message-square': MessageSquare,
+    'calendar-clock': CalendarClock,
+    mail: Mail,
+    wallet: Wallet,
+    'book-open': BookOpen,
   },
 );
