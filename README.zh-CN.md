@@ -45,13 +45,13 @@ _预览图为设计稿帧；UI 完成最终打磨后替换为真机截图。_
 
 **1. 运行一个 Octop 服务器**（如果还没有）—— 参见 [Octop 快速开始](https://github.com/TencentCloud/Octop#-quick-start)：安装、`octop init`、`octop run`。
 
-**2. 构建并启动应用**（Node 20+，Xcode 或 Android Studio）：
+**2. 构建并启动应用**（Node 20+、[pnpm](https://pnpm.io) 10+，Xcode 或 Android Studio）：
 
 ```bash
 git clone https://github.com/jubaoliang/OctopBot.git
 cd OctopBot
-npm install
-npm run ios        # 或：npm run android —— 首次运行会编译原生工程
+pnpm install
+pnpm run ios        # 或：pnpm run android —— 首次运行会编译原生工程
 ```
 
 **3. 登录** —— 输入服务器地址（例如 `https://octop.example.com`）、用户名与密码。支持局域网 HTTP 服务器（首次有明文提示）；证书校验永不跳过。
@@ -70,7 +70,7 @@ npm run ios        # 或：npm run android —— 首次运行会编译原生工
 
 ## 🧪 测试
 
-- **单元测试**（`npm test`）—— 解析器、格式化器、API 客户端、聊天 Socket 握手契约。
+- **单元测试**（`pnpm test`）—— 解析器、格式化器、API 客户端、聊天 Socket 握手契约。
 - **集成测试**（可选）—— 面向真实服务器的多专家 × 多会话场景，用应用自身的客户端端到端跑通：
 
   ```bash
@@ -112,7 +112,7 @@ docs/           # 锁定的 API 契约 + 设计快照
 
 ## 🤝 参与贡献
 
-详见 [`CONTRIBUTING.md`](CONTRIBUTING.md)：环境搭建、提交规范、E2E 预期，以及 **Acknowledgements / `npm run licenses`** 规则（每个生产依赖都必须出现在应用内「开源许可」页）。服务端功能讨论请加入 [Octop 社区](https://github.com/TencentCloud/Octop#-community)。
+详见 [`CONTRIBUTING.md`](CONTRIBUTING.md)：环境搭建、提交规范、E2E 预期，以及 **Acknowledgements / `pnpm run licenses`** 规则（每个生产依赖都必须出现在应用内「开源许可」页）。服务端功能讨论请加入 [Octop 社区](https://github.com/TencentCloud/Octop#-community)。
 
 ## 📄 许可证
 

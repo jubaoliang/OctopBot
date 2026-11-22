@@ -81,7 +81,7 @@ Walk down; stop at the first that fits.
 
 Reach for a shared value only when the value is continuous or interruptible. A press scale is a CSS transition; a drag is a shared value. Using a worklet for a two-state toggle is the mobile equivalent of installing a motion library for a fade.
 
-**Dependencies.** Install with `npx expo install <package>` — it resolves the version that matches the project's SDK, which plain `npm install` won't:
+**Dependencies.** Install with `npx expo install <package>` — it resolves the version that matches the project's SDK, which plain `pnpm install` won't:
 
 | Need                                       | Package                                                                                             |
 | ------------------------------------------ | --------------------------------------------------------------------------------------------------- |

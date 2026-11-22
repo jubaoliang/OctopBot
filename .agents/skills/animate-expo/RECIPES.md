@@ -10,7 +10,7 @@ Ready-to-build implementations for the cases that come up most in a React Native
 npx expo install react-native-reanimated react-native-worklets react-native-gesture-handler expo-haptics
 ```
 
-(`react-native-keyboard-controller` only for the keyboard recipe.) `expo install`, not `npm install` — it resolves the versions that match the SDK. The worklets Babel plugin is configured by `babel-preset-expo` automatically.
+(`react-native-keyboard-controller` only for the keyboard recipe.) `expo install`, not `pnpm install` — it resolves the versions that match the SDK. The worklets Babel plugin is configured by `babel-preset-expo` automatically.
 
 `GestureHandlerRootView` wraps the app once — in Expo Router, the root `_layout`:
 

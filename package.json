@@ -1,6 +1,7 @@
 {
   "name": "octopbot",
   "version": "1.0.0-alpha.1",
+  "packageManager": "pnpm@10.34.9",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo-google-fonts/space-mono": "^0.4.2",

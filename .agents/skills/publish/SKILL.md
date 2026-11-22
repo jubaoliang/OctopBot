@@ -25,9 +25,9 @@ chore/release-A.B.C ──PR(squash)──▶ develop ──tag vA.B.C──▶ 
 | ------------------------ | ------------------------------- | ------------------------------------------------------------ |
 | `VERSION_FILE`           | `app.json`                      | 版本唯一真源：`expo.version`                                 |
 | `SECONDARY_VERSION_FILE` | `package.json`                  | 必须与 `expo.version` 相等                                   |
-| `LOCK_FILE`              | `package-lock.json`             | 根 `version` 需与上面一致（当前是脏的 `1.0.0`，顺手对齐）    |
-| `LICENSES_FILE`          | `src/legal/licenses.json`       | 依赖变更时用 `npm run licenses` 重建                         |
-| `VERSION_GUARD`          | `npm run check:version`         | CI 门：两个版本号必须相等                                    |
+| `LOCK_FILE`              | `pnpm-lock.yaml`                | 不记录根包版本，升号不需要动它                               |
+| `LICENSES_FILE`          | `src/legal/licenses.json`       | 依赖变更时用 `pnpm run licenses` 重建                        |
+| `VERSION_GUARD`          | `pnpm run check:version`        | CI 门：两个版本号必须相等                                    |
 | `TAG_PREFIX`             | `v`                             | 生成 `v1.0.0-alpha.2` 风格标签                               |
 | `REMOTE`                 | `origin`                        | Git 远程仓库名                                               |
 | `BRANCH`                 | `develop`                       | 唯一的集成分支，也是发版分支（PR 的目标、tag 的落点）        |
@@ -89,7 +89,7 @@ done
    grep -n '^\s*"version"' app.json        # 期望仅 1 行命中（expo.version）
    grep -n '^\s*"version"' package.json
    ```
-   两者不等 → 中止："先修 `npm run check:version`。"
+   两者不等 → 中止："先修 `pnpm run check:version`。"
 6. 上次发布 tag：`git tag --sort=-creatordate | head -1`
 7. 目标版本自检：
    - ≤ 当前版本 → 中止："新版本必须大于 `{current}`。"
@@ -115,7 +115,7 @@ done
 发版分支:                        chore/release-A.B.C → PR → develop（squash）
 本地未推提交:                     N 条（会随本次一起推，逐条列出标题）
 构建:                            push tag → Release workflow（Gradle 签名 APK → GitHub Release；iOS 不构建）
-开源许可清单:                     依赖有变更则需 npm run licenses
+开源许可清单:                     依赖有变更则需 pnpm run licenses
 
 确认发布 X.Y.Z → A.B.C？[y/N]
 ```
@@ -134,12 +134,8 @@ git checkout -b {WORK_BRANCH_PREFIX}{version} {REMOTE}/{BRANCH}
 
 1. `app.json` — `expo.version`（用户和商店看到的唯一真源）
 2. `package.json` — 顶层 `version`
-3. `package-lock.json` — 根版本（当前是 `1.0.0`，与 `1.0.0-alpha.1` 不一致，一并对齐）：
-   ```bash
-   npm install --package-lock-only --ignore-scripts
-   git diff --stat package-lock.json     # 只允许根 version 相关行
-   ```
-   diff 远超根版本行（依赖漂移）→ `git checkout -- package-lock.json`，改回手工只动 `version` 与 `packages[""].version` 两处。
+
+`pnpm-lock.yaml` **不记录根包版本**，所以升号不碰 lockfile，也没有"根版本与 package.json 不一致"这个问题（旧 npm 方案里 `package-lock.json` 根版本漂移的坑在这里不存在）。改完照常 `pnpm install --frozen-lockfile` 应该零差异。
 
 **扫尾：**
 
@@ -147,13 +143,13 @@ git checkout -b {WORK_BRANCH_PREFIX}{version} {REMOTE}/{BRANCH}
 git grep -n --fixed-strings "X.Y.Z"
 ```
 
-| 命中位置                                                 | 处理                         |
-| -------------------------------------------------------- | ---------------------------- |
-| `app.json` / `package.json` / `package-lock.json` 根版本 | 换成 `A.B.C`                 |
-| `ios/`、`android/` 下的生成产物（已 gitignore）          | 忽略，由 prebuild 重生成     |
-| `src/legal/licenses.json` 里的包版本                     | 保留（依赖版本，非应用版本） |
-| 测试夹具里的旧号比较 / 解析示例                          | 保留                         |
-| 文档里描述历史版本的句子                                 | 保留                         |
+| 命中位置                                        | 处理                         |
+| ----------------------------------------------- | ---------------------------- |
+| `app.json` / `package.json` 的版本号            | 换成 `A.B.C`                 |
+| `ios/`、`android/` 下的生成产物（已 gitignore） | 忽略，由 prebuild 重生成     |
+| `src/legal/licenses.json` 里的包版本            | 保留（依赖版本，非应用版本） |
+| 测试夹具里的旧号比较 / 解析示例                 | 保留                         |
+| 文档里描述历史版本的句子                        | 保留                         |
 
 提交前断言（任一命中都要补改）：
 
@@ -164,10 +160,10 @@ git grep -n --fixed-strings "X.Y.Z" -- app.json package.json
 **依赖变更连带的许可清单：**
 
 ```bash
-git diff --name-only {last_tag}..HEAD -- package.json package-lock.json
+git diff --name-only {last_tag}..HEAD -- package.json pnpm-lock.yaml
 ```
 
-非空 → `npm run licenses`，若 `{LICENSES_FILE}` 有变化则随本次 PR 一起提交。
+非空 → `pnpm run licenses`，若 `{LICENSES_FILE}` 有变化则随本次 PR 一起提交。
 
 **不要手改原生构建号。** `versionCode` 由 workflow 按 `VERSION_CODE_BASE + github.run_number` 注入（见 `{WORKFLOW_FILE}`），所以 `app.json` 里不要写死 `android.versionCode`；`eas.json` 的 `appVersionSource: remote` / `autoIncrement` 现在不起作用，也不用管。不要新增 `runtimeVersion` / OTA channel。
 
@@ -176,10 +172,10 @@ git diff --name-only {last_tag}..HEAD -- package.json package-lock.json
 按顺序跑，任一步失败即中止（此时还没提交，改完重跑本技能即可）：
 
 ```bash
-npm run check:version
-npm run lint
-npm run typecheck
-npm test -- --ci --coverage=false
+pnpm run check:version
+pnpm run lint
+pnpm run typecheck
+pnpm test --ci --coverage=false
 ```
 
 E2E 可选，不跑要如实记录：
@@ -221,7 +217,6 @@ Maestro 需要模拟器 + 真实 Octop 实例（Android 是基线）。
 
 - `app.json` → `expo.version`
 - `package.json` → `version`
-- `package-lock.json` → 根 version（对齐）
   （若动过依赖：`src/legal/licenses.json` 已重建）
 
 ## 合并后
@@ -348,7 +343,7 @@ Maestro 需要模拟器 + 真实 Octop 实例（Android 是基线）。
 | `app.json` 与 `package.json` 版本不一致        | 中止：先修 `check:version`                                        |
 | 目标版本 ≤ 当前版本，或 tag 已存在             | 中止：换一个更大的版本号                                          |
 | `app.json` 里 `"version"` 命中多于 1 行        | 中止并展示命中行                                                  |
-| 依赖有变更但许可清单未更新                     | 中止：`npm run licenses` 后一并提交                               |
+| 依赖有变更但许可清单未更新                     | 中止：`pnpm run licenses` 后一并提交                              |
 | `check:version` / lint / typecheck / test 失败 | 中止（尚未提交）                                                  |
 | Maestro 失败                                   | 中止（尚未提交）                                                  |
 | 推送 chore 分支失败                            | 中止并给出手动命令，禁止强推                                      |
@@ -385,7 +380,7 @@ Maestro 需要模拟器 + 真实 Octop 实例（Android 是基线）。
 **始终：**
 
 - 版本 PR 的 base 是 `{BRANCH}`、head 是 `{WORK_BRANCH_PREFIX}{version}`，标题 `chore(release): {version}`，squash 合入
-- 一次提交里同时升级 `app.json`、`package.json`、`package-lock.json` 根版本，`check:version` 必过
+- 一次提交里同时升级 `app.json` 和 `package.json` 的版本号，`check:version` 必过（`pnpm-lock.yaml` 不记录根版本，不用动）
 - 依赖有变动就重建 `src/legal/licenses.json`
 - 合入后先复核 `develop` tip 的版本号，再打 tag，再等 workflow
 - `versionCode` 交给 workflow 注入；发完删掉 chore 分支

@@ -1,0 +1,8 @@
+# pnpm settings (single-package repo — no `packages` globs on purpose).
+#
+# hoisted keeps a flat node_modules like npm. That is what create-expo-app writes
+# when you scaffold with pnpm, and it is the layout React Native's native
+# autolinking (Gradle / CocoaPods) is exercised against. Expo SDK 54+ supports
+# isolated installs too: deleting the line below opts into strict isolation, at
+# the cost of hoisting-related assumptions in the RN toolchain.
+nodeLinker: hoisted

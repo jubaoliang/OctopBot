@@ -4,7 +4,7 @@
  * Strips author/email/url fields — no personal metadata in the artifact.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,9 +32,37 @@ function licenseTextFor(pkgDir) {
   return undefined;
 }
 
+function pnpmVirtualDir(name, version) {
+  // Isolated pnpm layouts keep each instance under .pnpm/<name>@<version>_<peers>/.
+  // `nodeLinker: hoisted` (what this repo uses) usually resolves through the top
+  // level, but a differently-resolved peer set only exists here.
+  const virtualDir = join(root, 'node_modules', '.pnpm');
+  if (!version || !existsSync(virtualDir)) {
+    return null;
+  }
+  const prefix = `${name.replace('/', '+')}@${version}`;
+  let entries;
+  try {
+    entries = readdirSync(virtualDir);
+  } catch {
+    return null;
+  }
+  for (const entry of entries) {
+    if (entry !== prefix && !entry.startsWith(`${prefix}_`)) {
+      continue;
+    }
+    const dir = join(virtualDir, entry, 'node_modules', ...name.split('/'));
+    if (existsSync(join(dir, 'package.json'))) {
+      return realpathSync(dir);
+    }
+  }
+  return null;
+}
+
 function resolvePkgDir(name, version) {
-  // Prefer the install path npm reported (when present).
-  // Fall back to a hoisted node_modules layout, then require.resolve.
+  // Prefer the install path the package manager reported (when present).
+  // Fall back to a hoisted node_modules layout, then the pnpm virtual store,
+  // then require.resolve.
   const candidates = [join(root, 'node_modules', ...name.split('/'))];
   for (const dir of candidates) {
     const pkgJson = join(dir, 'package.json');
@@ -49,6 +77,10 @@ function resolvePkgDir(name, version) {
     } catch {
       // keep looking
     }
+  }
+  const virtual = pnpmVirtualDir(name, version);
+  if (virtual) {
+    return virtual;
   }
   try {
     return dirname(realpathSync(requireFromRoot.resolve(`${name}/package.json`)));
@@ -100,25 +132,50 @@ function walk(deps, seen, out) {
   }
 }
 
-let raw;
-try {
-  raw = execFileSync('npm', ['ls', '--omit=dev', '--all', '--json'], {
-    cwd: root,
-    encoding: 'utf8',
-    maxBuffer: 32 * 1024 * 1024,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-} catch (error) {
-  // npm ls exits non-zero when the tree has peer warnings; stdout is still usable.
-  raw = error && typeof error === 'object' && 'stdout' in error ? String(error.stdout) : '';
-  if (!raw) {
-    throw error;
+function parseTree(raw) {
+  try {
+    const parsed = JSON.parse(raw);
+    // `pnpm list --json` prints one entry per project.
+    const project = Array.isArray(parsed) ? parsed[0] : parsed;
+    const dependencies = project && project.dependencies;
+    return dependencies && typeof dependencies === 'object' ? dependencies : null;
+  } catch {
+    return null;
   }
 }
 
-const tree = JSON.parse(raw);
+function readDependencyTree() {
+  try {
+    const raw = execFileSync('pnpm', ['list', '--prod', '--depth=Infinity', '--json'], {
+      cwd: root,
+      encoding: 'utf8',
+      maxBuffer: 32 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return parseTree(raw);
+  } catch (error) {
+    // A non-zero exit can still leave usable JSON on stdout.
+    const raw = error && typeof error === 'object' && 'stdout' in error ? String(error.stdout) : '';
+    return raw ? parseTree(raw) : null;
+  }
+}
+
+// `pnpm list` reports every node as { version, path, dependencies }, which is
+// exactly what walk() wants. `npm ls` is not an option any more: against a
+// pnpm-installed tree it flags every hoisted package as extraneous and prints
+// no usable graph.
+const dependencies = readDependencyTree();
+
+if (!dependencies) {
+  console.error(
+    'Could not read the production dependency tree via `pnpm list`. Run `pnpm install` first — ' +
+      'refusing to write an empty or partial license inventory.',
+  );
+  process.exit(1);
+}
+
 const out = [];
-walk(tree.dependencies, new Set(), out);
+walk(dependencies, new Set(), out);
 
 // Fonts ship as assets, not packages, so `npm ls` never sees them. Their
 // licence has to travel with the binary all the same.

@@ -10,12 +10,14 @@ Thanks for helping improve the official mobile client for [Octop](https://github
 
 ## Setup
 
+Requires Node.js 22 and [pnpm](https://pnpm.io) ≥ 10 — `package.json` pins the exact version in `packageManager`, so `corepack enable` is enough to get it. `pnpm-lock.yaml` is the only lockfile; do not reintroduce a `package-lock.json`.
+
 ```bash
-npm install
-npm run ios        # or: npm run android — first run compiles the native project
-npm run lint
-npm run typecheck
-npm test
+pnpm install
+pnpm run ios        # or: pnpm run android — first run compiles the native project
+pnpm run lint
+pnpm run typecheck
+pnpm test
 ```
 
 Native modules (speech, audio, image picker, glass, …) require a **dev client rebuild** after plugin / `app.json` changes (`npx expo run:ios` / `run:android`). Expo Go is not the E2E target.
@@ -27,14 +29,14 @@ Native modules (speech, audio, image picker, glass, …) require a **dev client 
 3. Pure TypeScript in `src/core/` — no `react-native` imports.
 4. UI strings go through i18n (`zh` + `en`); no hardcoded copy.
 5. Colors and type sizes come from theme tokens — no inline hex / magic pt sizes in screens.
-6. Run `npm run lint`, `npm run typecheck`, and `npm test` before you push. Features that change user journeys also need a Maestro flow under `.maestro/` (Android is the E2E baseline; see Testing in `AGENTS.md`).
+6. Run `pnpm run lint`, `pnpm run typecheck`, and `pnpm test` before you push. Features that change user journeys also need a Maestro flow under `.maestro/` (Android is the E2E baseline; see Testing in `AGENTS.md`).
 
 ## Commits
 
 Conventional Commits only (commitlint + husky). Prefer interactive authoring:
 
 ```bash
-npm run commit
+pnpm run commit
 ```
 
 `pre-commit` runs lint-staged (eslint --fix + prettier on staged files). Do not use `--no-verify`.
@@ -53,7 +55,7 @@ Native build numbers (`versionCode`, later iOS `CFBundleVersion`) are **not** ha
 Before a store-facing release:
 
 1. Bump `app.json` → `expo.version` and matching `package.json` `version` in the same commit.
-2. Run `npm run check:version` (also a CI gate).
+2. Run `pnpm run check:version` (also a CI gate).
 3. Confirm Settings → About → Version shows the new marketing number after a rebuild.
 
 The full release path (version bump on a `chore/release-x.y.z` branch → PR squashed into `develop` → `v*` tag on the `develop` tip → [`.github/workflows/release.yml`](.github/workflows/release.yml) builds a signed Android APK with Gradle and attaches it to the GitHub Release) is scripted in [`.agents/skills/publish/SKILL.md`](.agents/skills/publish/SKILL.md) — invoke it with `/publish <version>`. `develop` is the release branch; there is no separate `main`. iOS is not built: that needs an Apple Developer account.
@@ -67,7 +69,7 @@ Every **production** npm dependency must be covered by the in-app Acknowledgemen
 - Adding, removing, or upgrading a package in `dependencies` (or anything that ships in the app binary) requires regenerating the license inventory:
 
   ```bash
-  npm run licenses
+  pnpm run licenses
   ```
 
 - Commit the updated `src/legal/licenses.json` in the same PR as the dependency change.

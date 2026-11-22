@@ -45,13 +45,13 @@ _Preview images are design frames; real-app screenshots land as the UI passes fi
 
 **1. Run an Octop server** (if you don't have one yet) — see the [Octop quick start](https://github.com/TencentCloud/Octop#-quick-start): install, `octop init`, `octop run`.
 
-**2. Build and launch the app** (Node 20+, Xcode or Android Studio):
+**2. Build and launch the app** (Node 20+, [pnpm](https://pnpm.io) 10+, Xcode or Android Studio):
 
 ```bash
 git clone https://github.com/jubaoliang/OctopBot.git
 cd OctopBot
-npm install
-npm run ios        # or: npm run android — first run compiles the native project
+pnpm install
+pnpm run ios        # or: pnpm run android — first run compiles the native project
 ```
 
 **3. Sign in** — enter your server URL (for example `https://octop.example.com`), username, and password. LAN HTTP servers are supported with a one-time warning; certificate validation is never bypassed.
@@ -70,7 +70,7 @@ npm run ios        # or: npm run android — first run compiles the native proje
 
 ## 🧪 Testing
 
-- **Unit** (`npm test`) — parsers, formatters, API clients, chat-socket handshake contract.
+- **Unit** (`pnpm test`) — parsers, formatters, API clients, chat-socket handshake contract.
 - **Integration** (opt-in) — multi-expert × multi-thread scenario against a real server, exercising the app's own clients end to end:
 
   ```bash
@@ -112,7 +112,7 @@ The app is a thin client to **your** server: no telemetry, no analytics, no thir
 
 ## 🤝 Contributing
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, commit style, E2E expectations, and the **Acknowledgements / `npm run licenses`** rule (every production dependency must appear on the in-app Acknowledgements screen). For server-side feature discussions, join the [Octop community](https://github.com/TencentCloud/Octop#-community).
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, commit style, E2E expectations, and the **Acknowledgements / `pnpm run licenses`** rule (every production dependency must appear on the in-app Acknowledgements screen). For server-side feature discussions, join the [Octop community](https://github.com/TencentCloud/Octop#-community).
 
 ## 📄 License
 
