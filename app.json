@@ -5,7 +5,7 @@
     "version": "1.0.0-alpha.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "octop",
+    "scheme": "octopbot",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",

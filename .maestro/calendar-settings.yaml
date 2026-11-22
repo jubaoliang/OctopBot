@@ -1,7 +1,7 @@
 # Connect apps: drawer entry renders the capability cards; the calendar
 # card expands on connect with the sync-now row (no per-calendar picks —
 # every readable calendar feeds the digest).
-# Seed a session first when needed: octop://dev-session?url=…&token=…
+# Seed a session first when needed: octopbot://dev-session?url=…&token=…
 appId: com.tencent.octopbot
 ---
 - launchApp

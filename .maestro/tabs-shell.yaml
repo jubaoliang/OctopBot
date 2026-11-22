@@ -1,5 +1,5 @@
 # Tab shell coverage: Chat / Experts / Automation / Me (+ Settings entry).
-# Dev client with a seeded session (octop://dev-session when needed).
+# Dev client with a seeded session (octopbot://dev-session when needed).
 appId: com.tencent.octopbot
 ---
 - launchApp

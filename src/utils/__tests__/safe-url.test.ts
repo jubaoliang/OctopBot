@@ -9,7 +9,7 @@ describe('isHttpUrl', () => {
   it('rejects non-http schemes and garbage', () => {
     expect(isHttpUrl('javascript:alert(1)')).toBe(false);
     expect(isHttpUrl('mailto:a@b.c')).toBe(false);
-    expect(isHttpUrl('octop://chat/hi')).toBe(false);
+    expect(isHttpUrl('octopbot://chat/hi')).toBe(false);
     expect(isHttpUrl('not a url')).toBe(false);
   });
 });

@@ -47,7 +47,7 @@ const BASE_URL_KEY = StorageKeys.baseUrl;
 const TOKEN_KEY = StorageKeys.accessToken;
 
 /** Dev-only deep link that seeds a session for E2E runs. */
-const DEV_SESSION_PREFIX = 'octop://dev-session';
+const DEV_SESSION_PREFIX = 'octopbot://dev-session';
 
 export class LoginFlowError extends Error {
   constructor(
@@ -158,7 +158,7 @@ export function AuthProvider({
           storage.get(TOKEN_KEY),
         ]);
         // Dev builds only: E2E can seed a session via
-        // octop://dev-session?url=<base>&token=<jwt> (cold launch).
+        // octopbot://dev-session?url=<base>&token=<jwt> (cold launch).
         if (__DEV__) {
           const initialUrl = await Linking.getInitialURL();
           if (initialUrl?.startsWith(DEV_SESSION_PREFIX)) {

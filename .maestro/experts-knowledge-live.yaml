@@ -1,5 +1,5 @@
 # Live experts roster + knowledge browse against a seeded Octop instance.
-# Requires a logged-in session (octop://dev-session when needed) and
+# Requires a logged-in session (octopbot://dev-session when needed) and
 # Case* experts / knowledge bases on the server.
 appId: com.tencent.octopbot
 ---

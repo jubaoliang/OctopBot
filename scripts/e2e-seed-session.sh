@@ -45,7 +45,7 @@ req = urllib.request.Request(
 with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:
     token = json.load(resp)["access_token"]
 print(
-    "octop://dev-session?url="
+    "octopbot://dev-session?url="
     + urllib.parse.quote(base, safe="")
     + "&token="
     + urllib.parse.quote(token, safe="")
