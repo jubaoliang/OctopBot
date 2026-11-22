@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   icon: {
-    transform: [{ translateY: -2 }],
+    transform: [{ translateY: -3.5 }],
   },
   input: {
     flex: 1,
