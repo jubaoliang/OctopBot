@@ -127,7 +127,12 @@ const expoReader: CalendarReader = {
   },
   createEvent: async input => {
     const calendars = await ExpoCalendar.getCalendars(ExpoCalendar.EntityTypes.EVENT);
-    const target = calendars.find(calendar => calendar.allowsModifications);
+    // Android reads query the Instances table, which excludes hidden
+    // calendars; writing into a hidden local account would make the event
+    // invisible to every later read. Prefer a visible writable calendar.
+    const target =
+      calendars.find(calendar => calendar.allowsModifications && calendar.isVisible !== false) ??
+      calendars.find(calendar => calendar.allowsModifications);
     if (!target) {
       throw new Error('no writable calendar on this device');
     }

@@ -125,6 +125,8 @@ export default function ThreadScreen() {
   const autoAttachments = handoff?.mode === 'send' ? handoff.attachments : undefined;
   // `octop://chat/thr_…` opens a thread; only non-id segments are treated as
   // an external draft prompt (the confirm-before-send guard).
+  const existingThreadId =
+    params.thread ?? (params.threadId.startsWith('thr_') ? params.threadId : null);
   const externalDraft =
     !internalPrompt &&
     !params.thread &&
@@ -522,9 +524,9 @@ export default function ThreadScreen() {
         return threadRef.current;
       }
       const threads = new ThreadsApi(httpClientRef.current);
-      if (params.thread) {
+      if (existingThreadId) {
         // Opening an existing conversation: replay history, then attach.
-        const threadId = params.thread;
+        const threadId = existingThreadId;
         dispatch({ type: 'threadReady', threadId });
         // The snapshot must be taken at (or after) settle: subscribing
         // happens right after the fetch below, so history then covers

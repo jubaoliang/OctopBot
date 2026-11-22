@@ -139,4 +139,17 @@ describe('calendarReader', () => {
       calendarReader.createEvent({ title: 'Standup', start: '2026-11-23T09:00:00' }),
     ).rejects.toThrow('no writable calendar');
   });
+
+  it('prefers a visible writable calendar so reads can see the event', async () => {
+    const hidden = jest.fn().mockResolvedValue({ id: 'hidden' });
+    const visible = jest.fn().mockResolvedValue({ id: 'visible' });
+    (expo.getCalendars as jest.Mock).mockResolvedValue([
+      { id: 'local', allowsModifications: true, isVisible: false, createEvent: hidden },
+      { id: 'main', allowsModifications: true, isVisible: true, createEvent: visible },
+    ]);
+    await expect(
+      calendarReader.createEvent({ title: 'Standup', start: '2026-11-23T09:00:00' }),
+    ).resolves.toEqual({ id: 'visible' });
+    expect(hidden).not.toHaveBeenCalled();
+  });
 });
