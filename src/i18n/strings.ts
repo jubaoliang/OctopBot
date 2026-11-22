@@ -49,6 +49,8 @@ const zh = {
     title: '今天',
     nextEvent: '下一个日程',
     allDay: '全天',
+    briefing: '简报',
+    nextRoutine: '下一个定时任务',
     unread: (count: number) => `${count} 条未读对话`,
     routines: '管理定时任务',
   },
@@ -252,9 +254,9 @@ const zh = {
     briefingMorningName: '早间简报',
     briefingEveningName: '晚间简报',
     briefingMorningPrompt:
-      '请给我今天的早间简报：用我的名字打招呼并说明今天的日期；先说今天有没有到点的账单、还款日或提醒，没有就直说；再结合我的日程知识库，列出接下来几天最重要的安排与截止时间；最后点出真正需要提前安排的那一件事。用一小段连贯的话，不要空泛建议。',
+      '请给我今天的早间简报：用我的名字打招呼并说明今天的日期；先说今天有没有到点的账单、还款日或提醒，没有就直说；再结合我的日程知识库，列出接下来几天最重要的安排与截止时间；最后点出真正需要提前安排的那一件事。同时回顾本对话里此前的简报与未决问题，跟进尚未落实的事项，并指出与上次简报相比的变化。用一小段连贯的话，不要空泛建议。',
     briefingEveningPrompt:
-      '请给我今天的晚间简报：用我的名字打招呼；回顾今天日程里完成了什么、还有什么没落地；再说明天和接下来几天到点的账单、还款日或重要安排；最后点出明早最需要先做的一件事。用一小段连贯的话，不要空泛建议。',
+      '请给我今天的晚间简报：用我的名字打招呼；回顾今天日程里完成了什么、还有什么没落地；再说明天和接下来几天到点的账单、还款日或重要安排；最后点出明早最需要先做的一件事。同时回顾本对话里此前的简报与未决问题，跟进尚未落实的事项，并指出与上次简报相比的变化。用一小段连贯的话，不要空泛建议。',
     customCron: '自定义 cron 表达式',
     customCronInvalid: 'cron 表达式无效',
     create: '创建',
@@ -387,6 +389,8 @@ const en: Dict = {
     title: 'Today',
     nextEvent: 'Next event',
     allDay: 'All day',
+    briefing: 'Briefing',
+    nextRoutine: 'Next routine',
     unread: (count: number) =>
       count === 1 ? '1 unread conversation' : `${count} unread conversations`,
     routines: 'Manage routines',
@@ -598,9 +602,9 @@ const en: Dict = {
     briefingMorningName: 'Morning briefing',
     briefingEveningName: 'Evening briefing',
     briefingMorningPrompt:
-      'Give me my morning briefing: greet me by name and state today’s date; first say whether any bills, repayments or reminders are due today — say so plainly if none are; then use my schedule knowledge base to list the most important upcoming events and deadlines over the next few days; end with the one thing that actually needs arranging ahead of time. One short coherent paragraph, no generic advice.',
+      'Give me my morning briefing: greet me by name and state today’s date; first say whether any bills, repayments or reminders are due today — say so plainly if none are; then use my schedule knowledge base to list the most important upcoming events and deadlines over the next few days; end with the one thing that actually needs arranging ahead of time. Also review your previous briefings and any open questions in this conversation, follow up on anything still unresolved, and note what changed since the last briefing. One short coherent paragraph, no generic advice.',
     briefingEveningPrompt:
-      'Give me my evening briefing: greet me by name; recap what today’s schedule got done and what is still open; then name the bills, repayments or important events due tomorrow and over the next few days; end with the one thing to do first tomorrow morning. One short coherent paragraph, no generic advice.',
+      'Give me my evening briefing: greet me by name; recap what today’s schedule got done and what is still open; then name the bills, repayments or important events due tomorrow and over the next few days; end with the one thing to do first tomorrow morning. Also review your previous briefings and any open questions in this conversation, follow up on anything still unresolved, and note what changed since the last briefing. One short coherent paragraph, no generic advice.',
     customCron: 'Custom cron expression',
     customCronInvalid: 'Invalid cron expression',
     create: 'Create',
