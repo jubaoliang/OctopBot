@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { CircleX, Search } from 'lucide-react-native';
 
 import { haptics } from '@/platform/haptics';
@@ -16,11 +16,23 @@ interface SearchFieldProps {
 
 /**
  * iOS search field: a 36pt rounded fill carrying a magnifier, the query and
- * a clear button, sitting inline with the content it filters
- * (search-fields.md › Phone: search "directly inline with content").
+ * a clear button, sitting inline with the content it filters.
  *
- * Filtering happens on every keystroke — the guidance is to start search as
- * soon as a person types, so results refine instead of waiting for a submit.
+ * PITFALL (Android + CJK): do NOT try to vertically centre a TextInput's
+ * native hint/caret with gravity/height/padding overrides. On Android the
+ * CJK hint's ink rides high in its line box and desyncs from the caret, and
+ * the caret spans the input's full height — so `textAlignVertical`,
+ * `minHeight` and padding tweaks produce a clipped/high hint and a
+ * full-box caret, never a centred pair. Verified on-device 2026-11-22.
+ *
+ * The layout that works instead:
+ *  - the empty-state label is an overlay <Text> centred by flexbox
+ *    (pointer-transparent so taps focus the input beneath it), not the
+ *    native hint;
+ *  - the TextInput is pinned to the text line-height (caret = text height)
+ *    and centred inside a fixed-height wrapper;
+ *  - the magnifier is centred by the row's alignItems.
+ * All three then share the field's vertical centre. Keep it this way.
  */
 export function SearchField({
   value,
@@ -33,26 +45,33 @@ export function SearchField({
   const t = useTokens();
   return (
     <View style={[styles.field, continuousCorners, { backgroundColor: t.fill }]}>
-      {/* CJK fonts carry large descent slack, so the glyphs ride high in
-          their line box while the icon stays at box centre — nudge the
-          magnifier up to meet the ink's optical centre. */}
-      <Search size={16} color={t.textTertiary} strokeWidth={2.4} style={styles.icon} />
-      <TextInput
-        style={[styles.input, { color: t.textBody }]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={t.textTertiary}
-        selectionColor={t.accent}
-        accessibilityRole="search"
-        accessibilityLabel={placeholder}
-        testID={testID}
-        autoCapitalize="none"
-        autoCorrect={false}
-        autoFocus={autoFocus}
-        returnKeyType="search"
-        clearButtonMode="never"
-      />
+      <Search size={16} color={t.textTertiary} strokeWidth={2.4} />
+      <View style={styles.inputWrap}>
+        <TextInput
+          style={[styles.input, { color: t.textBody }]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder=""
+          selectionColor={t.accent}
+          accessibilityRole="search"
+          accessibilityLabel={placeholder}
+          testID={testID}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoFocus={autoFocus}
+          returnKeyType="search"
+          clearButtonMode="never"
+        />
+        {value.length === 0 ? (
+          <Text
+            pointerEvents="none"
+            numberOfLines={1}
+            style={[styles.hint, { color: t.textTertiary }]}
+          >
+            {placeholder}
+          </Text>
+        ) : null}
+      </View>
       {value.length > 0 ? (
         <Pressable
           accessibilityRole="button"
@@ -78,22 +97,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    minHeight: 36,
+    height: 36,
     borderRadius: radius.field,
     paddingHorizontal: 8,
   },
-  icon: {
-    transform: [{ translateY: -5 }],
+  inputWrap: {
+    flex: 1,
+    height: 36,
+    justifyContent: 'center',
   },
   input: {
-    flex: 1,
     ...typeScale.body,
-    // 36pt box, 17pt text: no vertical padding or the glyph box drifts.
-    paddingVertical: 0,
-    paddingHorizontal: 0,
-    minHeight: 36,
-    // Android top-aligns text in a fixed-height field by default, which
-    // leaves the placeholder above the row-centered magnifier; center it.
+    padding: 0,
+    // The caret spans the input's height on Android; pin it to the text
+    // line-height so the cursor is text-height, and let inputWrap centre
+    // that line in the 36pt field.
+    height: typeScale.body.lineHeight,
+    textAlignVertical: 'center',
+  },
+  hint: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    ...typeScale.body,
     textAlignVertical: 'center',
   },
   clear: {
