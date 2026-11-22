@@ -402,6 +402,10 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       markThreadRead,
       navigate: route => {
         setDrawerOpen(false);
+        if (route === 'today') {
+          router.push('/today');
+          return;
+        }
         if (route === 'knowledge') {
           router.push('/knowledge');
           return;

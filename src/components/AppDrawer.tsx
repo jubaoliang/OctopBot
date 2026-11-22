@@ -16,7 +16,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { Blocks, BookOpen, Settings } from 'lucide-react-native';
+import { Blocks, BookOpen, CalendarDays, Settings } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -97,7 +97,7 @@ export interface DrawerTaskGroup {
   color?: string | null;
 }
 
-export type DrawerRoute = 'knowledge' | 'usage' | 'settings' | 'connect';
+export type DrawerRoute = 'today' | 'knowledge' | 'usage' | 'settings' | 'connect';
 
 interface AppDrawerProps {
   /** Requested state; the drawer animates toward it. */
@@ -238,6 +238,13 @@ export function AppDrawer({
         </View>
 
         <View style={styles.menuList}>
+          <NavRow
+            icon={<CalendarDays size={20} color={t.textBody} />}
+            label={strings.drawer.today}
+            active={activeRoute === 'today'}
+            testID="drawer-today"
+            onPress={() => onNavigate('today')}
+          />
           <NavRow
             icon={<Blocks size={20} color={t.textBody} />}
             label={strings.drawer.connectApps}
