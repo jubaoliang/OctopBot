@@ -90,7 +90,11 @@ export function AndroidTabBar({
         const Glyph = TAB_ICONS[name] ?? TAB_ICONS.chat;
         const label = strings.tabs[name];
         const isActive = state.index === index;
-        const fg = isActive ? t.accent : t.textSecondary;
+        // The default ink palette's accent IS ink, so tint alone cannot read
+        // as selection; inactive drops to tertiary and active gains weight
+        // and stroke so the cue survives monochrome palettes (HIG: never
+        // colour-only).
+        const fg = isActive ? t.accent : t.textTertiary;
 
         return (
           <Pressable
@@ -118,7 +122,11 @@ export function AndroidTabBar({
             }}
           >
             <View style={styles.glyphBox}>
-              <Glyph size={TAB_GLYPH} color={fg} strokeWidth={TAB_STROKE} />
+              <Glyph
+                size={TAB_GLYPH}
+                color={fg}
+                strokeWidth={isActive ? TAB_STROKE + 0.4 : TAB_STROKE}
+              />
               {name === 'chat' && chatUnread ? (
                 <View style={styles.unreadDot} pointerEvents="none">
                   <UnreadDot />
@@ -126,7 +134,7 @@ export function AndroidTabBar({
               ) : null}
             </View>
             <Text
-              style={[styles.label, { color: fg }]}
+              style={[styles.label, { color: fg, fontWeight: isActive ? '600' : '400' }]}
               numberOfLines={1}
               maxFontSizeMultiplier={1.2}
             >
