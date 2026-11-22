@@ -1,7 +1,14 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { CalendarClock, CalendarDays, Clock, MessageSquare, Newspaper } from 'lucide-react-native';
+import {
+  CalendarClock,
+  CalendarDays,
+  Clock,
+  ListTodo,
+  MessageSquare,
+  Newspaper,
+} from 'lucide-react-native';
 
 import { ListGroup, ListRow } from '@/components/List';
 import { EmptyState } from '@/components/ListStates';
@@ -24,10 +31,14 @@ export function TodayScreen() {
   const { t: strings, locale } = useI18n();
   const router = useRouter();
   const { openThread } = useAppShell();
-  const { events, routines, briefings, unread } = useTodayDigest();
+  const { events, routines, briefings, unread, affairs } = useTodayDigest();
 
   const empty =
-    events.length === 0 && routines.length === 0 && briefings.length === 0 && unread.length === 0;
+    events.length === 0 &&
+    routines.length === 0 &&
+    briefings.length === 0 &&
+    unread.length === 0 &&
+    affairs.length === 0;
 
   return (
     <View style={[styles.screen, { backgroundColor: t.bg }]}>
@@ -58,6 +69,22 @@ export function TodayScreen() {
                   onPress={() => openThread(b.group, b.item)}
                   testID={`today-page-briefing-${i}`}
                   last={i === briefings.length - 1}
+                />
+              ))}
+            </ListGroup>
+          ) : null}
+
+          {affairs.length > 0 ? (
+            <ListGroup header={strings.today.distilled}>
+              {affairs.map(({ affair, agentName, group, item }, i) => (
+                <ListRow
+                  key={`${agentName}-${affair.title}-${i}`}
+                  title={affair.title}
+                  subtitle={`${agentName}${affair.due ? ` · ${affair.due}` : ''}`}
+                  leading={<ListTodo size={20} color={t.textSecondary} />}
+                  onPress={() => openThread(group, item)}
+                  testID={`today-page-distilled-${i}`}
+                  last={i === affairs.length - 1}
                 />
               ))}
             </ListGroup>

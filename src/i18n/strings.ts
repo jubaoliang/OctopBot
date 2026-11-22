@@ -54,6 +54,7 @@ const zh = {
     nextRoutine: '下一个定时任务',
     briefings: '简报',
     affairs: '待办与未读',
+    distilled: '梳理出的待办',
     routinesSection: '定时任务',
     events: '今日日程',
     emptyTitle: '今天暂无安排',
@@ -258,6 +259,12 @@ const zh = {
     presetHourly: '每小时',
     presetBriefings: '每日简报（09:00 + 21:00）',
     briefingsHint: '早 9 点梳理今天到点的事项与接下来的安排，晚 9 点复盘今天并预告明天。',
+    presetDistill: '梳理待办（每日 08:00）',
+    distillName: '梳理待办',
+    distillHint:
+      '每天早 8 点回顾本专家的所有对话，把仍需处理的事项梳理成结构化待办，显示在「今天」。',
+    distillPrompt:
+      '请回顾本对话以来的所有交流，梳理出我仍需处理的事项（账单、还款、行程、承诺、待办）。只输出一个 JSON 数组，每项为 {"title":"事项","due":"截止日期或时间","status":"open"}，不要输出其他文字；没有事项则输出 []。',
     briefingMorningName: '早间简报',
     briefingEveningName: '晚间简报',
     briefingMorningPrompt:
@@ -401,6 +408,7 @@ const en: Dict = {
     nextRoutine: 'Next routine',
     briefings: 'Briefings',
     affairs: 'Affairs & unread',
+    distilled: 'Distilled affairs',
     routinesSection: 'Routines',
     events: "Today's schedule",
     emptyTitle: 'Nothing scheduled today',
@@ -613,6 +621,12 @@ const en: Dict = {
     presetBriefings: 'Daily briefings (09:00 + 21:00)',
     briefingsHint:
       'At 09:00, a look at what is due today and what is coming up; at 21:00, a recap with tomorrow ahead.',
+    presetDistill: 'Distill affairs (daily 08:00)',
+    distillName: 'Distill affairs',
+    distillHint:
+      'At 08:00 each day, review all of this expert’s conversations and distill the items you still need to handle into structured affairs on Today.',
+    distillPrompt:
+      'Review all our conversations so far and distill the items I still need to handle (bills, repayments, trips, commitments, todos). Output ONLY a JSON array of {"title":"item","due":"date or time","status":"open"}, no other text; if nothing, output [].',
     briefingMorningName: 'Morning briefing',
     briefingEveningName: 'Evening briefing',
     briefingMorningPrompt:

@@ -18,7 +18,7 @@ import {
   type CronPresetId,
 } from '@/utils/cron-trigger';
 
-type ScheduleChoice = CronPresetId | 'briefings' | 'custom';
+type ScheduleChoice = CronPresetId | 'briefings' | 'distill' | 'custom';
 
 const PRESET_ORDER: ScheduleChoice[] = [
   'daily',
@@ -26,6 +26,7 @@ const PRESET_ORDER: ScheduleChoice[] = [
   'weekly',
   'hourly',
   'briefings',
+  'distill',
   'custom',
 ];
 
@@ -88,6 +89,8 @@ export function RoutineBuilderSheet({
         return strings.automation.presetHourly;
       case 'briefings':
         return strings.automation.presetBriefings;
+      case 'distill':
+        return strings.automation.presetDistill;
       case 'custom':
         return strings.automation.customCron;
     }
@@ -97,7 +100,7 @@ export function RoutineBuilderSheet({
   const canCreate =
     picked !== null &&
     !creating &&
-    (schedule === 'briefings' || prompt.trim().length > 0) &&
+    (schedule === 'briefings' || schedule === 'distill' || prompt.trim().length > 0) &&
     (schedule !== 'custom' || customValid);
 
   const create = async () => {
@@ -141,6 +144,14 @@ export function RoutineBuilderSheet({
           }
           throw eveningError;
         }
+      } else if (schedule === 'distill') {
+        await api.create(picked.agent_id, {
+          name: strings.automation.distillName,
+          trigger: 'cron:0 8 * * *',
+          prompt: strings.automation.distillPrompt,
+          enabled: true,
+          task_type: 'agent',
+        });
       } else {
         const trigger = schedule === 'custom' ? cronTrigger(customExpr) : CRON_PRESETS[schedule];
         await api.create(picked.agent_id, {
@@ -214,9 +225,11 @@ export function RoutineBuilderSheet({
           </ListGroup>
         )}
 
-        {schedule === 'briefings' ? (
+        {schedule === 'briefings' || schedule === 'distill' ? (
           <Text style={[styles.hint, { color: t.textSecondary }]}>
-            {strings.automation.briefingsHint}
+            {schedule === 'distill'
+              ? strings.automation.distillHint
+              : strings.automation.briefingsHint}
           </Text>
         ) : (
           <>

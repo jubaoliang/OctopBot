@@ -9,6 +9,7 @@ import { fetchAgents, useAuth } from '@/features/auth';
 import { useCalendarSync } from '@/features/calendar-sync-context';
 import { calendarReader, type CalendarEvent } from '@/platform/calendar';
 import type { DrawerTaskGroup, DrawerThread } from '@/components/AppDrawer';
+import { parseAffairs, type Affair } from '@/utils/affairs';
 import { upcomingToday, type TodayCron } from '@/utils/today-card';
 
 export interface DigestBriefing {
@@ -27,7 +28,15 @@ export interface DigestUnread {
   item: DrawerThread;
 }
 
+export interface DigestAffair {
+  affair: Affair;
+  agentName: string;
+  group: DrawerTaskGroup;
+  item: DrawerThread;
+}
+
 const BRIEFING_NAME = /briefing|简报/i;
+const DISTILL_NAME = /distill|affairs|梳理|待办/i;
 
 /**
  * Shared cross-expert "Today" aggregation (app-side; Octop untouched).
@@ -44,6 +53,7 @@ export function useTodayDigest() {
   const [now, setNow] = useState(0);
   const [routines, setRoutines] = useState<DigestRoutine[]>([]);
   const [briefings, setBriefings] = useState<DigestBriefing[]>([]);
+  const [affairs, setAffairs] = useState<DigestAffair[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -121,10 +131,39 @@ export function useTodayDigest() {
           if (!cancelled) {
             setBriefings(found);
           }
+
+          // Distilled affairs: each expert that owns a distill-named routine
+          // emits structured items from its own conversations; parse them.
+          const distillers = perAgent.filter(({ jobs }) =>
+            jobs.some(j => DISTILL_NAME.test(j.name ?? '')),
+          );
+          const distilled: DigestAffair[] = [];
+          for (const { agent } of distillers) {
+            const group = drawerGroups.find(g => g.agentId === agent.agent_id);
+            const item = group?.items[0];
+            if (!group || !item) {
+              continue;
+            }
+            const page = await new ThreadsApi(httpClient).history(agent.agent_id, item.threadId, {
+              limit: 8,
+            });
+            if (cancelled) {
+              return;
+            }
+            const lastAssistant = [...page.messages].reverse().find(m => m.role === 'assistant');
+            const text = lastAssistant ? readableText(lastAssistant.content) : '';
+            for (const affair of parseAffairs(text)) {
+              distilled.push({ affair, agentName: agent.name, group, item });
+            }
+          }
+          if (!cancelled) {
+            setAffairs(distilled);
+          }
         } catch {
           if (!cancelled) {
             setRoutines([]);
             setBriefings([]);
+            setAffairs([]);
           }
         }
       })();
@@ -139,5 +178,5 @@ export function useTodayDigest() {
     group.items.filter(item => item.unreadCount > 0).map(item => ({ group, item })),
   );
 
-  return { events: upcomingToday(events, now, 6), now, routines, briefings, unread };
+  return { events: upcomingToday(events, now, 6), now, routines, briefings, unread, affairs };
 }
