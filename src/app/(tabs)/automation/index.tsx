@@ -201,7 +201,8 @@ export default function AutomationScreen() {
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
       <SafeAreaView edges={TOP_EDGES} style={styles.safe}>
         <ScreenHeader
-          title={strings.automation.title}
+          brand
+          largeTitle={strings.automation.title}
           onMenu={openDrawer}
           onCompose={() => setBuilderOpen(true)}
           composeLabel={strings.automation.newRoutine}
