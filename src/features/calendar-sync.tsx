@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { AppState } from 'react-native';
 
 import { KnowledgeApi } from '@/core/api/knowledge';
-import { buildScheduleDigest, DIGEST_DAYS } from '@/core/schedule/digest';
+import { buildScheduleDigest, emptyScheduleDigest, DIGEST_DAYS } from '@/core/schedule/digest';
 import { buildContactsDigest } from '@/core/contacts/digest';
 import { knowledgeDocumentId } from '@/utils/knowledge-tree';
 import { calendarReader, type DeviceCalendar } from '@/platform/calendar';
@@ -269,9 +269,8 @@ export function CalendarSyncProvider({
             now,
             new Date(now.getTime() + DIGEST_DAYS * 86_400_000),
           );
-          const digest = buildScheduleDigest(events, now);
-          if (digest !== null && consentGenRef.current === gen) {
-            // digest === null keeps the previous schedule digest on purpose.
+          const digest = buildScheduleDigest(events, now) ?? emptyScheduleDigest(now);
+          if (consentGenRef.current === gen) {
             await writeDigest(
               SCHEDULE_KB_NAME,
               SCHEDULE_KB_DESCRIPTION,
@@ -374,11 +373,18 @@ export function CalendarSyncProvider({
       };
     }
     let cancelled = false;
-    void calendarReader.getReadableCalendars().then(list => {
-      if (!cancelled) {
-        setCalendars(list);
-      }
-    });
+    void calendarReader
+      .getReadableCalendars()
+      .then(list => {
+        if (!cancelled) {
+          setCalendars(list);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCalendars([]);
+        }
+      });
     return () => {
       cancelled = true;
     };
@@ -391,7 +397,10 @@ export function CalendarSyncProvider({
       if (next) {
         void requestPermissions().then(state => {
           if (state === 'granted') {
-            void calendarReader.getReadableCalendars().then(setCalendars);
+            void calendarReader
+              .getReadableCalendars()
+              .then(setCalendars)
+              .catch(() => setCalendars([]));
           }
         });
         return;

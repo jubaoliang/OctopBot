@@ -90,4 +90,16 @@ describe('calendarReader', () => {
     await expect(calendarReader.listEvents([], new Date(), new Date())).resolves.toEqual([]);
     expect(expo.listEvents).not.toHaveBeenCalled();
   });
+
+  it('propagates calendar-list failures so callers can tell them from empty', async () => {
+    (expo.getCalendars as jest.Mock).mockRejectedValue(new Error('no provider'));
+    await expect(calendarReader.getReadableCalendars()).rejects.toThrow('no provider');
+  });
+
+  it('propagates event-query failures instead of masking them as empty', async () => {
+    (expo.listEvents as jest.Mock).mockRejectedValue(new Error('query failed'));
+    await expect(calendarReader.listEvents(['c1'], new Date(), new Date())).rejects.toThrow(
+      'query failed',
+    );
+  });
 });

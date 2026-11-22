@@ -9,9 +9,11 @@ import { Platform } from 'react-native';
  * events. SDK 58 renamed the API — legacy `getEventsAsync`-style methods
  * throw at runtime, everything here uses the new names.
  *
- * Best-effort everywhere: a denied permission or a device without a
- * calendar provider degrades to "no events" — nothing may throw into the
- * UI (haptics.ts run() pattern).
+ * Best-effort permissions: a denied permission or a device without a
+ * calendar provider degrades to "denied". Reads (getReadableCalendars /
+ * listEvents) PROPAGATE errors so callers can tell a failed read from a
+ * genuinely empty calendar — an empty calendar is a valid sync result, a
+ * failed read is not. Callers catch; nothing throws into the UI.
  */
 
 export type CalendarPermissionState = 'granted' | 'denied' | 'undetermined';
@@ -77,38 +79,30 @@ const expoReader: CalendarReader = {
     }
   },
   getReadableCalendars: async () => {
-    try {
-      const calendars = await ExpoCalendar.getCalendars(ExpoCalendar.EntityTypes.EVENT);
-      return calendars.map(calendar => ({
-        id: calendar.id,
-        title: calendar.title,
-        source: calendar.source?.name ?? null,
-        allowsWrites: calendar.allowsModifications,
-      }));
-    } catch {
-      return [];
-    }
+    const calendars = await ExpoCalendar.getCalendars(ExpoCalendar.EntityTypes.EVENT);
+    return calendars.map(calendar => ({
+      id: calendar.id,
+      title: calendar.title,
+      source: calendar.source?.name ?? null,
+      allowsWrites: calendar.allowsModifications,
+    }));
   },
   listEvents: async (calendarIds, start, end) => {
     if (calendarIds.length === 0) {
       return [];
     }
-    try {
-      const events = await ExpoCalendar.listEvents(calendarIds, start, end);
-      return events
-        .map(event => ({
-          id: event.id,
-          title: event.title,
-          start: new Date(event.startDate).getTime(),
-          end: new Date(event.endDate).getTime(),
-          allDay: event.allDay,
-          location: event.location,
-        }))
-        .filter(event => Number.isFinite(event.start) && Number.isFinite(event.end))
-        .sort((a, b) => a.start - b.start);
-    } catch {
-      return [];
-    }
+    const events = await ExpoCalendar.listEvents(calendarIds, start, end);
+    return events
+      .map(event => ({
+        id: event.id,
+        title: event.title,
+        start: new Date(event.startDate).getTime(),
+        end: new Date(event.endDate).getTime(),
+        allDay: event.allDay,
+        location: event.location,
+      }))
+      .filter(event => Number.isFinite(event.start) && Number.isFinite(event.end))
+      .sort((a, b) => a.start - b.start);
   },
 };
 

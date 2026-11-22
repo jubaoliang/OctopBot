@@ -107,3 +107,20 @@ export function buildScheduleDigest(
     `_Generated ${stamp} from the device calendar._`,
   ].join('\n');
 }
+
+/**
+ * Truthful digest for a successfully-read but empty calendar. Unlike the
+ * `null` from buildScheduleDigest (which means "keep the previous digest"),
+ * this is written on a confirmed empty read so an empty calendar still counts
+ * as a successful sync and the server sees "no events", not stale ones.
+ */
+export function emptyScheduleDigest(now: Date = new Date(), days: number = DIGEST_DAYS): string {
+  const stamp = `${dayKey(now.getTime())} ${timeOfDay(now.getTime())}`;
+  return [
+    `# My schedule (next ${days} days, device-local time)`,
+    '',
+    `_No events in the next ${days} days._`,
+    '',
+    `_Generated ${stamp} from the device calendar._`,
+  ].join('\n');
+}

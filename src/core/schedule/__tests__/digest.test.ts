@@ -1,4 +1,4 @@
-import { buildScheduleDigest, type DigestEvent } from '../digest';
+import { buildScheduleDigest, emptyScheduleDigest, type DigestEvent } from '../digest';
 
 // Fixed "now": Wed 2026-03-04 10:30 local.
 const NOW = new Date(2026, 2, 4, 10, 30);
@@ -66,5 +66,12 @@ describe('buildScheduleDigest', () => {
     const digest = buildScheduleDigest(events, NOW);
     expect(digest).not.toContain('Past');
     expect(digest).toContain('Upcoming');
+  });
+
+  it('empty digest states no events and stamps generation', () => {
+    const digest = emptyScheduleDigest(NOW);
+    expect(digest).toContain('# My schedule (next 7 days, device-local time)');
+    expect(digest).toContain('_No events in the next 7 days._');
+    expect(digest).toMatch(/_Generated 2026-03-04 10:30 from the device calendar\._$/);
   });
 });
