@@ -11,15 +11,17 @@
 #   ANDROID_KEY_ALIAS          key alias
 #   ANDROID_KEY_PASSWORD       key password
 #
-#   keytool -genkeypair -v -keystore release.keystore -alias octopbot \
-#     -keyalg RSA -keysize 2048 -validity 10000
+# The keystore is a container, not the identity: the signing key lives in the PEM
+# pair (`release-key.pem` + `release-cert.pem`, both plain text). Rebuild the
+# container whenever a build needs it, then push the secrets:
+#   KEYSTORE_PASSWORD=... scripts/keystore-from-pem.sh --force
 #   base64 -i release.keystore | tr -d '\n' | gh secret set ANDROID_KEYSTORE_BASE64
 #   gh secret set ANDROID_KEYSTORE_PASSWORD
 #   gh secret set ANDROID_KEY_ALIAS
 #   gh secret set ANDROID_KEY_PASSWORD
 #
-# Back the keystore up somewhere durable. Losing it means never being able to update
-# this app under the same package name again.
+# Back the PEM pair up somewhere durable, as text. Never mint a new key pair:
+# a different key cannot update this app under the same package name again.
 name: Release
 
 on:

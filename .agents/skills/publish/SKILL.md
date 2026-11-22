@@ -50,7 +50,7 @@ for s in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS AND
 done
 ```
 
-keystore 只生成一次，命令写在 `{WORKFLOW_FILE}` 头部注释里。**务必备份**：丢了就再也无法用同一个包名更新这个应用。
+签名身份是 **一对 PEM 文本文件**（`release-key.pem` + `release-cert.pem`），`.keystore` 只是容器，随时可用 `scripts/keystore-from-pem.sh` 重建，不必留二进制。**必须备份 PEM 对**：丢了就再也没法用同一个包名更新这个应用。命令写在 `{WORKFLOW_FILE}` 头部注释里。
 
 ## 调用方式
 

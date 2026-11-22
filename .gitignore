@@ -23,6 +23,9 @@ android/
 *.keystore
 *.jks
 *.p12
+release-key.pem
+release-cert.pem
+release-signing.txt
 
 # Tests & coverage
 coverage/
