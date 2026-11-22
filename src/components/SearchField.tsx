@@ -86,6 +86,9 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     paddingHorizontal: 0,
     minHeight: 36,
+    // Android top-aligns text in a fixed-height field by default, which
+    // leaves the placeholder above the row-centered magnifier; center it.
+    textAlignVertical: 'center',
   },
   clear: {
     padding: 2,
