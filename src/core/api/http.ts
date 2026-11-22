@@ -1,4 +1,5 @@
 import { OctopApiError, parseApiError } from './errors';
+import { decodeUtf8 } from './utf8';
 
 export interface HttpClientOptions {
   baseUrl: string;
@@ -124,7 +125,7 @@ export class HttpClient {
       await this.options.onTokenRenewed(renewed);
     }
     if (!response.ok) {
-      const text = await response.text();
+      const text = decodeUtf8(new Uint8Array(await response.arrayBuffer()));
       const parsed: unknown = text ? safeJsonParse(text) : null;
       const error = parseApiError(response.status, parsed);
       if (error.isAuthFailure) {
@@ -233,7 +234,9 @@ export class HttpClient {
       return undefined as T;
     }
 
-    const text = await response.text();
+    // Decode raw bytes as UTF-8: response.text() can lossily decode a
+    // charset-less JSON body on Android, turning CJK into '?'.
+    const text = decodeUtf8(new Uint8Array(await response.arrayBuffer()));
     const parsed: unknown = text ? safeJsonParse(text) : null;
 
     if (!response.ok) {
