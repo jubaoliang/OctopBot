@@ -1,7 +1,8 @@
 # Best-effort teardown for routine-builder: delete any briefing rows left
 # behind by a mid-flow failure, so automation-starters (which requires the
 # E2E expert to have no jobs) is not poisoned. Every step is optional —
-# this hook must never fail, whatever screen the flow died on.
+# this hook must never fail, whatever screen the flow died on. Long-press
+# targets rows by id (the name Text is not independently long-clickable).
 appId: dev.octop.octopbot
 ---
 - tapOn:
@@ -9,13 +10,14 @@ appId: dev.octop.octopbot
     optional: true
 - runFlow:
     when:
-      visible: 'Morning briefing|早间简报'
+      visible:
+        id: 'automation-job-.*'
     commands:
       - longPressOn:
-          text: 'Morning briefing|早间简报'
+          id: 'automation-job-.*'
           optional: true
       - tapOn:
-          id: 'routine-actions-1'
+          id: 'routine-actions-0'
           optional: true
       - assertNotVisible:
           id: 'routine-actions'
@@ -25,13 +27,14 @@ appId: dev.octop.octopbot
           optional: true
 - runFlow:
     when:
-      visible: 'Evening briefing|晚间简报'
+      visible:
+        id: 'automation-job-.*'
     commands:
       - longPressOn:
-          text: 'Evening briefing|晚间简报'
+          id: 'automation-job-.*'
           optional: true
       - tapOn:
-          id: 'routine-actions-1'
+          id: 'routine-actions-0'
           optional: true
       - assertNotVisible:
           id: 'routine-actions'

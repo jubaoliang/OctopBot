@@ -41,45 +41,55 @@ onFlowError:
     timeout: 30000
 - assertVisible: 'Evening briefing|晚间简报'
 
-# Run the morning briefing now; the outcome is sticky on the row.
-- longPressOn: 'Morning briefing|早间简报'
+# Run a briefing now; the outcome is sticky on the row. Long-press targets
+# the row by id (the name Text is not independently long-clickable); the
+# sheet title is asserted to be a briefing so a stray roster row can never
+# be mutated. NOTE: ActionSheet sorts destructive items first, so
+# routine-actions-0 = Delete and routine-actions-1 = Run now.
+- longPressOn:
+    id: 'automation-job-.*'
 - extendedWaitUntil:
     visible:
       id: 'routine-actions'
     timeout: 15000
+- assertVisible: 'Morning briefing|早间简报|Evening briefing|晚间简报'
 - tapOn:
-    id: 'routine-actions-0'
+    id: 'routine-actions-1'
 - assertNotVisible:
     id: 'routine-actions'
 - extendedWaitUntil:
     visible: 'Run started|已触发运行'
     timeout: 15000
 
-# Delete morning, then evening. Wait the sheet out and assert the
-# confirmation alert before tapping its Delete button (same label as the
-# sheet row — the wait disambiguates the target).
-- longPressOn: 'Morning briefing|早间简报'
+# Delete both briefings. Wait the sheet out and assert the confirmation
+# alert before tapping its Delete button (same label as the sheet row —
+# the wait disambiguates the target).
+- longPressOn:
+    id: 'automation-job-.*'
 - extendedWaitUntil:
     visible:
       id: 'routine-actions'
     timeout: 15000
+- assertVisible: 'Morning briefing|早间简报|Evening briefing|晚间简报'
 - tapOn:
-    id: 'routine-actions-1'
+    id: 'routine-actions-0'
 - assertNotVisible:
     id: 'routine-actions'
-- assertVisible: 'Delete this routine?|删除这个定时任务？'
+- assertVisible: 'Delete this routine\?|删除这个定时任务？'
 - tapOn: 'Delete|删除'
-- assertNotVisible: 'Morning briefing|早间简报'
 
-- longPressOn: 'Evening briefing|晚间简报'
+- longPressOn:
+    id: 'automation-job-.*'
 - extendedWaitUntil:
     visible:
       id: 'routine-actions'
     timeout: 15000
+- assertVisible: 'Morning briefing|早间简报|Evening briefing|晚间简报'
 - tapOn:
-    id: 'routine-actions-1'
+    id: 'routine-actions-0'
 - assertNotVisible:
     id: 'routine-actions'
-- assertVisible: 'Delete this routine?|删除这个定时任务？'
+- assertVisible: 'Delete this routine\?|删除这个定时任务？'
 - tapOn: 'Delete|删除'
-- assertNotVisible: 'Evening briefing|晚间简报'
+- assertNotVisible:
+    id: 'automation-job-.*'

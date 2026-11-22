@@ -15,11 +15,15 @@ appId: com.tencent.octopbot
     id: 'composer-send'
 # After send the draft clears, so idle trailing control is the mic (not send).
 # While streaming, stop may appear; wait until the composer is idle again.
+# The stop→mic swap lags the streaming flag by a frame, so tolerate the
+# transition with a retrying notVisible wait rather than a one-shot assert.
 - extendedWaitUntil:
     visible:
       id: 'composer-voice'
     timeout: 120000
-- assertNotVisible:
-    id: 'composer-stop'
+- extendedWaitUntil:
+    notVisible:
+      id: 'composer-stop'
+    timeout: 30000
 - assertVisible:
     id: 'composer-input'
