@@ -9,8 +9,10 @@ const LEADING_INSET = 60;
 
 /**
  * Inset-grouped list, per the iOS grouped style: one rounded card on the
- * surface color, hairline separators between rows, an optional section
- * header and footer carrying the surrounding explanation.
+ * surface color with the shared hairline container edge (the bg/surface
+ * delta alone is too quiet to carry the card), hairline separators between
+ * rows, an optional section header and footer carrying the explanation.
+ * Same anatomy as SettingsSection — one card idiom across the app.
  */
 export function ListGroup({
   header,
@@ -29,7 +31,13 @@ export function ListGroup({
           {header}
         </Text>
       ) : null}
-      <View style={[styles.card, continuousCorners, { backgroundColor: t.surface }]}>
+      <View
+        style={[
+          styles.card,
+          continuousCorners,
+          { backgroundColor: t.surface, borderColor: t.borderSubtle },
+        ]}
+      >
         {children}
       </View>
       {footer ? <Text style={[styles.footer, { color: t.textTertiary }]}>{footer}</Text> : null}
@@ -111,7 +119,10 @@ export function ListRow({
           </Text>
           {subtitle ? (
             <Text
-              style={[styles.subtitle, { color: muted ? t.textPlaceholder : t.textSecondary }]}
+              // A muted row is still tappable, so its subtitle keeps the
+              // readable secondary tint; the recede comes from the title
+              // and the dimmed leading glyph, not from 30% text.
+              style={[styles.subtitle, { color: t.textSecondary }]}
               numberOfLines={2}
             >
               {subtitle}
@@ -156,6 +167,7 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
   rowBody: {

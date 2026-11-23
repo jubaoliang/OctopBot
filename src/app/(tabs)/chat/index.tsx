@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
   },
   body: {
     flexGrow: 1,
-    paddingHorizontal: 12,
+    paddingHorizontal: layout.screenMargin,
   },
   spacerTop: {
     flex: 78,
@@ -371,20 +371,18 @@ const styles = StyleSheet.create({
     height: 132,
     alignSelf: 'flex-start',
   },
-  // Greeting, selector and pills share one leading edge (12 + 8 = 20pt).
+  // Greeting, selector, pills and the composer share one leading edge:
+  // the 16pt screen margin, no extra insets.
   greeting: {
     marginTop: 6,
-    marginHorizontal: 8,
     ...typeScale.title2,
   },
   welcome: {
     marginTop: 4,
-    marginHorizontal: 8,
     ...typeScale.callout,
   },
   selector: {
     marginTop: 20,
-    marginLeft: 8,
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
@@ -418,7 +416,6 @@ const styles = StyleSheet.create({
   },
   pills: {
     marginTop: 20,
-    marginLeft: 8,
     // Design: 12 between suggestion pills.
     gap: 12,
     alignItems: 'flex-start',

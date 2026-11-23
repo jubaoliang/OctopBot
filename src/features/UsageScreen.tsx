@@ -475,7 +475,7 @@ function BreakdownRow({
       <View
         style={[
           styles.breakdownBody,
-          { borderBottomColor: tokens.borderSubtle },
+          { borderBottomColor: tokens.separator },
           last ? styles.breakdownBodyLast : null,
         ]}
       >
@@ -535,6 +535,9 @@ const styles = StyleSheet.create({
   },
   totalValue: {
     ...typeScale.largeTitle,
+    // Tabular figures: the count-up and the grid columns must not jitter
+    // as digits of different widths swap in.
+    fontVariant: ['tabular-nums'],
     flexShrink: 1,
   },
   totalUnit: {
@@ -557,6 +560,7 @@ const styles = StyleSheet.create({
   },
   statValue: {
     ...typeScale.headline,
+    fontVariant: ['tabular-nums'],
   },
   statLabel: {
     ...typeScale.caption1,
@@ -606,9 +610,11 @@ const styles = StyleSheet.create({
   breakdownValue: {
     ...typeScale.subheadline,
     fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
   breakdownShare: {
     ...typeScale.footnote,
+    fontVariant: ['tabular-nums'],
     minWidth: 36,
     textAlign: 'right',
   },

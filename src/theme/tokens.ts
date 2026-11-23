@@ -133,7 +133,7 @@ export type TypeStyleName =
   | 'caption1'
   | 'caption2';
 
-export type TypeScale = Record<TypeStyleName, TextStyle>;
+export type TypeScale = Record<TypeStyleName, TextStyle & { lineHeight: number }>;
 
 export const typeScale: TypeScale = {
   largeTitle: { fontFamily: UI_FONT, fontSize: 34, lineHeight: 41, fontWeight: '700' },
@@ -179,13 +179,15 @@ export const lightTokens: ThemeTokens = {
   textPrimary: '#111827',
   textBody: 'rgba(0,0,0,0.90)',
   textSecondary: 'rgba(0,0,0,0.60)',
-  textTertiary: 'rgba(0,0,0,0.50)',
+  // 55% clears 4.5:1 on both bg and surface (50% measured 3.9–4.0:1);
+  // tertiary carries real 11–17pt labels, not decoration.
+  textTertiary: 'rgba(0,0,0,0.55)',
   textPlaceholder: 'rgba(0,0,0,0.30)',
   textInverse: '#FFFFFF',
   accent: '#2F82D1', // overridden by the active palette
   accentSoft: 'rgba(47,130,209,0.12)',
-  danger: '#E5484D',
-  dangerSoft: 'rgba(229,72,77,0.12)',
+  danger: '#D63035',
+  dangerSoft: 'rgba(214,48,53,0.12)',
   brand: '#E5383B',
   splashGlow: '#FF701E',
   splashGlowCore: '#FFD3B4',
@@ -208,7 +210,8 @@ export const darkTokens: ThemeTokens = {
   textPrimary: '#F3F4F6',
   textBody: 'rgba(255,255,255,0.90)',
   textSecondary: 'rgba(255,255,255,0.60)',
-  textTertiary: 'rgba(255,255,255,0.50)',
+  // 55% keeps ≥4.5:1 on the raised dark surface too (50% measured 4.2:1).
+  textTertiary: 'rgba(255,255,255,0.55)',
   textPlaceholder: 'rgba(255,255,255,0.30)',
   textInverse: '#0E0F13',
   accent: '#5B9FDC',

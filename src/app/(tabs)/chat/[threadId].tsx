@@ -160,6 +160,7 @@ export default function ThreadScreen() {
         name: pending.name,
         input: pending.input,
         summary: pending.summary,
+        detail: pending.detail,
       });
     } else if (!pending && chat.hitl?.deviceCall) {
       dispatch({ type: 'hitlDecide' });
@@ -195,14 +196,18 @@ export default function ThreadScreen() {
   }, [strings]);
 
   // Markdown typography from the token system — no hardcoded colors.
+  // Body text rides `reading` (looser leading for CJK paragraphs); headings
+  // keep clear space above so sections separate from the prose they end.
   const mdStyles = useMemo(
     () => ({
       body: { color: tokens.textBody, ...typeScale.reading },
-      paragraph: { marginTop: 0, marginBottom: 10 },
+      paragraph: { marginTop: 0, marginBottom: 12 },
       strong: { color: tokens.textPrimary, fontWeight: '600' as const },
       em: { color: tokens.textBody },
       link: { color: tokens.accent },
       bullet_text_icon: { color: tokens.textSecondary },
+      bullet_list: { marginTop: 0, marginBottom: 12 },
+      ordered_list: { marginTop: 0, marginBottom: 12 },
       code_inline: {
         color: tokens.textBody,
         backgroundColor: tokens.overlaySubtle,
@@ -220,7 +225,7 @@ export default function ThreadScreen() {
         borderRadius: radius.pill,
         ...continuousCorners,
         padding: 12,
-        marginVertical: 6,
+        marginVertical: 8,
         ...typeScale.footnote,
         fontFamily: CODE_FONT,
       },
@@ -232,7 +237,7 @@ export default function ThreadScreen() {
         borderRadius: radius.pill,
         ...continuousCorners,
         padding: 12,
-        marginVertical: 6,
+        marginVertical: 8,
         ...typeScale.footnote,
         fontFamily: CODE_FONT,
       },
@@ -245,9 +250,24 @@ export default function ThreadScreen() {
         paddingVertical: 6,
       },
       blockquote_text: { color: tokens.textSecondary },
-      heading1: { color: tokens.textPrimary, ...typeScale.title2, marginTop: 8, marginBottom: 6 },
-      heading2: { color: tokens.textPrimary, ...typeScale.title3, marginTop: 8, marginBottom: 6 },
-      heading3: { color: tokens.textPrimary, ...typeScale.headline, marginTop: 6, marginBottom: 4 },
+      heading1: {
+        color: tokens.textPrimary,
+        ...typeScale.title2,
+        marginTop: 18,
+        marginBottom: 8,
+      },
+      heading2: {
+        color: tokens.textPrimary,
+        ...typeScale.title3,
+        marginTop: 14,
+        marginBottom: 8,
+      },
+      heading3: {
+        color: tokens.textPrimary,
+        ...typeScale.headline,
+        marginTop: 12,
+        marginBottom: 6,
+      },
       hr: { backgroundColor: tokens.borderSubtle, height: 1 },
       // Cells must not flex:1 — that crushes wide tables into the viewport.
       // Horizontal scroll lives on MarkdownTable; the grid sizes to content.

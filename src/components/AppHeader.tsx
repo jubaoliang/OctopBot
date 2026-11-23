@@ -162,7 +162,9 @@ export function LargeTitle({
         <Text
           accessibilityRole="header"
           style={[styles.largeTitle, { color: t.textPrimary }]}
-          numberOfLines={1}
+          // Two lines so Larger Text wraps the title instead of truncating
+          // it (typography.md › "Keep text truncation to a minimum").
+          numberOfLines={2}
         >
           {title}
         </Text>

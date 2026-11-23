@@ -1,13 +1,4 @@
-import {
-  ActivityIndicator,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  type TextInputProps,
-} from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRef, useState } from 'react';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Svg, Path, Rect } from 'react-native-svg';
@@ -20,6 +11,7 @@ import type { AttachSource, PendingAttachment } from '@/core/api/attachments';
 import type { TurnAttachment } from '@/core/api/types';
 import { useVoiceInput } from '@/features/useVoiceInput';
 import { useI18n } from '@/i18n/I18nProvider';
+import { INPUT_TEXT_METRICS } from '@/platform/font-metrics';
 import { haptics } from '@/platform/haptics';
 import { RemoteImage } from '@/platform/remote-image';
 import { continuousCorners, radius, typeScale, useTokens } from '@/theme';
@@ -58,13 +50,9 @@ const LINE_HEIGHT = typeScale.body.lineHeight ?? 22;
 /** Vertical breathing room inside the text box, above and below the line. */
 const INPUT_PAD_V = 3;
 
-/**
- * Android's EditText pads every line with font ascent/descent headroom. Once
- * the field hugs its text that padding is what clips the placeholder, so the
- * field opts out of it. Not in RN's TextInput types — it is a native prop.
- */
-const ANDROID_FONT_PADDING: TextInputProps & { includeFontPadding?: boolean } =
-  Platform.OS === 'android' ? { includeFontPadding: false } : {};
+// Android's EditText font padding is opted out behind the platform wrapper
+// (src/platform/font-metrics.ts) — inside the fixed-height pill it is what
+// clips the placeholder.
 
 /**
  * Chat composer: field + mic / send / stop. Voice uses hybrid STT
@@ -258,7 +246,7 @@ export function ChatInput({
             // the box measured for one line is taller than the line itself and
             // the placeholder gets clipped. The prop is native-only and missing
             // from RN's TS types.
-            {...ANDROID_FONT_PADDING}
+            {...INPUT_TEXT_METRICS}
             placeholder={
               voice.recording
                 ? strings.voice.listening

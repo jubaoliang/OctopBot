@@ -328,7 +328,11 @@ const styles = StyleSheet.create({
   },
   swatchRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    // Seven fixed rings do not fit a narrow phone in one row — wrap instead
+    // of overflowing the card (layout.md › Best practices).
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    gap: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },

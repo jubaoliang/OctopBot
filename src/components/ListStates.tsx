@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { useReducedMotion } from 'react-native-reanimated';
 import type { ReactNode } from 'react';
 
 import { PressableScale } from '@/components/PressableScale';
@@ -47,7 +47,8 @@ export function EmptyState({
   );
 }
 
-// Slow opacity pulse; Reanimated honors Reduce Motion and holds it still.
+// Slow opacity pulse; under Reduce Motion the skeleton stays still instead
+// of looping (accessibility.md › Motion — an infinite pulse never stops).
 const pulse = {
   animationName: {
     from: { opacity: 1 },
@@ -66,12 +67,13 @@ const pulse = {
 export function SkeletonList({ rows = 4 }: { rows?: number }) {
   const t = useTokens();
   const { t: strings } = useI18n();
+  const reduceMotion = useReducedMotion();
   return (
     <Animated.View
       accessible
       accessibilityRole="progressbar"
       accessibilityLabel={strings.common.loading}
-      style={[styles.skeletonList, pulse]}
+      style={[styles.skeletonList, reduceMotion ? null : pulse]}
     >
       {Array.from({ length: rows }, (_, index) => (
         <View key={index} style={[styles.skeletonRow, { backgroundColor: t.surface }]}>

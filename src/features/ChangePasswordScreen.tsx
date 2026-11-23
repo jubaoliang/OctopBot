@@ -26,7 +26,7 @@ export function ChangePasswordScreen() {
   const [newPassword, setNewPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
-  const [focused, setFocused] = useState<'old' | 'new' | 'confirm' | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const goBack = () => {
     if (router.canGoBack()) {
@@ -36,24 +36,29 @@ export function ChangePasswordScreen() {
     }
   };
 
-  const fieldStyle = (field: 'old' | 'new' | 'confirm') => [
+  // Same field anatomy as the sign-in screen: tinted fill, 1pt border,
+  // 52pt minimum so the row grows with Dynamic Type.
+  const fieldStyle = [
     styles.field,
     {
-      color: tokens.textPrimary,
-      backgroundColor: tokens.surface,
-      borderColor: focused === field ? tokens.accent : tokens.borderSubtle,
+      color: tokens.textBody,
+      backgroundColor: tokens.overlaySubtle,
+      borderColor: tokens.borderStrong,
     },
   ];
 
   const submit = async () => {
+    // Validation lands inline under the fields, like sign-in — an alert
+    // would interrupt for something the form itself can say (feedback.md).
     if (newPassword.length < MIN_LEN) {
-      Alert.alert(strings.password.title, strings.password.tooShort);
+      setError(strings.password.tooShort);
       return;
     }
     if (newPassword !== confirm) {
-      Alert.alert(strings.password.title, strings.password.mismatch);
+      setError(strings.password.mismatch);
       return;
     }
+    setError(null);
     setBusy(true);
     try {
       await changePassword(oldPassword, newPassword);
@@ -61,13 +66,10 @@ export function ChangePasswordScreen() {
       Alert.alert(strings.password.title, strings.password.success, [
         { text: strings.common.ok, onPress: goBack },
       ]);
-    } catch (error) {
+    } catch (cause) {
       haptics.notify('error');
-      const badOld = error instanceof OctopApiError && error.code === 'AUTH_FAILED';
-      Alert.alert(
-        strings.password.title,
-        badOld ? strings.password.badOld : strings.password.failed,
-      );
+      const badOld = cause instanceof OctopApiError && cause.code === 'AUTH_FAILED';
+      setError(badOld ? strings.password.badOld : strings.password.failed);
     } finally {
       setBusy(false);
     }
@@ -90,7 +92,10 @@ export function ChangePasswordScreen() {
           </Text>
           <TextInput
             value={oldPassword}
-            onChangeText={setOldPassword}
+            onChangeText={text => {
+              setOldPassword(text);
+              setError(null);
+            }}
             secureTextEntry
             autoCapitalize="none"
             autoCorrect={false}
@@ -98,16 +103,17 @@ export function ChangePasswordScreen() {
             textContentType="password"
             accessibilityLabel={strings.password.oldPassword}
             testID="password-old"
-            onFocus={() => setFocused('old')}
-            onBlur={() => setFocused(null)}
-            style={fieldStyle('old')}
+            style={fieldStyle}
           />
           <Text style={[styles.label, { color: tokens.textTertiary }]}>
             {strings.password.newPassword}
           </Text>
           <TextInput
             value={newPassword}
-            onChangeText={setNewPassword}
+            onChangeText={text => {
+              setNewPassword(text);
+              setError(null);
+            }}
             secureTextEntry
             autoCapitalize="none"
             autoCorrect={false}
@@ -115,16 +121,17 @@ export function ChangePasswordScreen() {
             textContentType="newPassword"
             accessibilityLabel={strings.password.newPassword}
             testID="password-new"
-            onFocus={() => setFocused('new')}
-            onBlur={() => setFocused(null)}
-            style={fieldStyle('new')}
+            style={fieldStyle}
           />
           <Text style={[styles.label, { color: tokens.textTertiary }]}>
             {strings.password.confirmPassword}
           </Text>
           <TextInput
             value={confirm}
-            onChangeText={setConfirm}
+            onChangeText={text => {
+              setConfirm(text);
+              setError(null);
+            }}
             secureTextEntry
             autoCapitalize="none"
             autoCorrect={false}
@@ -132,10 +139,17 @@ export function ChangePasswordScreen() {
             textContentType="newPassword"
             accessibilityLabel={strings.password.confirmPassword}
             testID="password-confirm"
-            onFocus={() => setFocused('confirm')}
-            onBlur={() => setFocused(null)}
-            style={fieldStyle('confirm')}
+            style={fieldStyle}
           />
+          {error ? (
+            <Text
+              accessibilityRole="alert"
+              accessibilityLiveRegion="polite"
+              style={[styles.error, { color: tokens.danger }]}
+            >
+              {error}
+            </Text>
+          ) : null}
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel={strings.password.submit}
@@ -144,17 +158,21 @@ export function ChangePasswordScreen() {
             scaleTo={0.98}
             style={[
               styles.submit,
-              {
-                backgroundColor: tokens.accent,
-                opacity: canSubmit ? 1 : 0.4,
-              },
+              // An inactive control reads as inactive by fill, not by
+              // fading the accent into an unreadable gray (as on sign-in).
+              { backgroundColor: canSubmit ? tokens.accent : tokens.fill },
             ]}
             onPress={() => void submit()}
           >
             {busy ? (
-              <ActivityIndicator color={tokens.textInverse} />
+              <ActivityIndicator color={tokens.textSecondary} />
             ) : (
-              <Text style={[styles.submitLabel, { color: tokens.textInverse }]}>
+              <Text
+                style={[
+                  styles.submitLabel,
+                  { color: canSubmit ? tokens.textInverse : tokens.textTertiary },
+                ]}
+              >
                 {strings.password.submit}
               </Text>
             )}
@@ -181,12 +199,16 @@ const styles = StyleSheet.create({
     ...typeScale.body,
     // A set lineHeight clips the caret in single-line iOS fields.
     lineHeight: undefined,
-    minHeight: layout.hitTarget,
-    borderWidth: StyleSheet.hairlineWidth,
+    minHeight: 52,
+    borderWidth: 1,
     borderRadius: radius.input,
     ...continuousCorners,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  error: {
+    ...typeScale.footnote,
+    marginTop: 4,
   },
   submit: {
     marginTop: 24,

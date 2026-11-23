@@ -178,8 +178,10 @@ export default function AutomationScreen() {
     });
   };
 
+  // Rows and the action sheet truncate visually — a hard string slice reads
+  // as a complete sentence with no sign it continues.
   const jobTitle = (job: CronJob): string =>
-    job.name && job.name.trim().length > 0 ? job.name : job.prompt.slice(0, 40);
+    job.name && job.name.trim().length > 0 ? job.name : job.prompt;
 
   const nextRunLabel = (job: CronJob): string => {
     if (runNowFlash?.id === job.id) {
@@ -252,8 +254,7 @@ export default function AutomationScreen() {
                 ]}
               >
                 {jobs.map((job, index) => {
-                  const name =
-                    job.name && job.name.trim().length > 0 ? job.name : job.prompt.slice(0, 24);
+                  const name = job.name && job.name.trim().length > 0 ? job.name : job.prompt;
                   return (
                     <View
                       key={job.id}

@@ -56,6 +56,8 @@ const styles = StyleSheet.create({
   label: {
     ...typeScale.caption2,
     fontWeight: '600',
+    // Tabular figures keep the capsule width stable as the count changes.
+    fontVariant: ['tabular-nums'],
   },
   dot: {
     width: 8,

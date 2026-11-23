@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { useReducedMotion } from 'react-native-reanimated';
 
 import { useTokens } from '@/theme';
 
@@ -20,10 +20,12 @@ const DELAYS = [0, 160, 320] as const;
 
 /**
  * "The expert is replying" indicator shown between the user's turn and the
- * first streamed token. Opacity only — it stays gentle under Reduce Motion.
+ * first streamed token. Under Reduce Motion the dots hold a steady dim — an
+ * opacity wave that never ends is exactly the motion the setting removes.
  */
 export function TypingDots({ label }: { label: string }) {
   const t = useTokens();
+  const reduceMotion = useReducedMotion();
   return (
     <View accessible accessibilityRole="progressbar" accessibilityLabel={label} style={styles.row}>
       {DELAYS.map(delay => (
@@ -32,7 +34,7 @@ export function TypingDots({ label }: { label: string }) {
           style={[
             styles.dot,
             { backgroundColor: t.textSecondary },
-            wave,
+            reduceMotion ? styles.dotStill : wave,
             { animationDelay: delay },
           ]}
         />
@@ -52,5 +54,9 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 3.5,
+  },
+  // Reduce Motion stand-in: a fixed mid-opacity, no wave.
+  dotStill: {
+    opacity: 0.55,
   },
 });

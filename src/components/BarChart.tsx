@@ -310,6 +310,8 @@ const styles = StyleSheet.create({
     right: 0,
     ...typeScale.caption2,
     lineHeight: TICK_LINE,
+    // Numeric ticks align by glyph, not by digit width.
+    fontVariant: ['tabular-nums'],
   },
   axisRow: {
     height: AXIS_ROW,

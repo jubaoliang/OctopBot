@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { CircleX, Search } from 'lucide-react-native';
 
 import { haptics } from '@/platform/haptics';
@@ -30,9 +30,11 @@ interface SearchFieldProps {
  *    (pointer-transparent so taps focus the input beneath it), not the
  *    native hint;
  *  - the TextInput is pinned to the text line-height (caret = text height)
- *    and centred inside a fixed-height wrapper;
+ *    and centred inside the wrapper;
  *  - the magnifier is centred by the row's alignItems.
  * All three then share the field's vertical centre. Keep it this way.
+ * The line-height and field height scale with the system font size, so
+ * Larger Text grows the field instead of clipping the query.
  */
 export function SearchField({
   value,
@@ -43,12 +45,18 @@ export function SearchField({
   autoFocus,
 }: SearchFieldProps) {
   const t = useTokens();
+  const { fontScale } = useWindowDimensions();
+  const lineHeight = Math.round(typeScale.body.lineHeight * fontScale);
+  // 36pt at the default size: the text line plus 7pt of air above and below.
+  const fieldHeight = Math.max(36, lineHeight + 14);
   return (
-    <View style={[styles.field, continuousCorners, { backgroundColor: t.fill }]}>
+    <View
+      style={[styles.field, continuousCorners, { height: fieldHeight, backgroundColor: t.fill }]}
+    >
       <Search size={16} color={t.textTertiary} strokeWidth={2.4} />
-      <View style={styles.inputWrap}>
+      <View style={[styles.inputWrap, { height: fieldHeight }]}>
         <TextInput
-          style={[styles.input, { color: t.textBody }]}
+          style={[styles.input, { height: lineHeight, color: t.textBody }]}
           value={value}
           onChangeText={onChangeText}
           placeholder=""
@@ -97,22 +105,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    height: 36,
     borderRadius: radius.field,
     paddingHorizontal: 8,
   },
   inputWrap: {
     flex: 1,
-    height: 36,
     justifyContent: 'center',
   },
   input: {
     ...typeScale.body,
     padding: 0,
     // The caret spans the input's height on Android; pin it to the text
-    // line-height so the cursor is text-height, and let inputWrap centre
-    // that line in the 36pt field.
-    height: typeScale.body.lineHeight,
+    // line-height (scaled above) so the cursor is text-height, and let
+    // inputWrap centre that line in the field.
     textAlignVertical: 'center',
   },
   hint: {
