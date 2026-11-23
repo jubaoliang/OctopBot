@@ -1,5 +1,6 @@
 import { serializeUserTurn } from '../api/attachments';
 import type { ClientFrame, ServerFrame, UserTurnFrame } from '../api/types';
+import { logConnection, type ConnectionSocket } from '../connection-log';
 
 export type ChatConnectionStatus =
   'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed' | 'unauthorized';
@@ -15,24 +16,47 @@ export interface ChatSocketOptions {
   socketFactory?: (url: string) => WebSocket;
   reconnectDelaysMs?: number[];
   heartbeatMs?: number;
+  /** How long a ping may go unanswered before the socket is treated as dead. */
+  pongTimeoutMs?: number;
+  /** Retries for a socket that has never opened (blip at connect, server restarting). */
+  initialAttempts?: number;
+  /** Label used in the connection diagnostics log; defaults to the chat socket. */
+  name?: ConnectionSocket;
 }
 
 const DEFAULT_RECONNECT_DELAYS = [1000, 2000, 5000, 10000, 30000];
 const AUTH_CLOSE_CODE = 4001;
-const HEARTBEAT_MS = 30_000;
+// 20s/8s keeps detection well inside any reverse proxy's idle limit (60s is
+// the common default) while noticing a dead socket within ~28s.
+const HEARTBEAT_MS = 20_000;
+const PONG_TIMEOUT_MS = 8_000;
+const INITIAL_ATTEMPTS = 6;
 
 /**
  * Chat WebSocket with application-level heartbeat and backoff reconnect.
  * Pure orchestration — the platform layer supplies the WebSocket itself.
  * Disconnecting does NOT cancel a turn server-side; the UI sends `cancel`
  * explicitly when the user asks for a stop.
+ *
+ * Robustness contract: a socket that never opened retries in the background
+ * (the caller's connect() still rejects so the UI is not blocked), a missed
+ * pong is detected within `pongTimeoutMs` instead of the next tick, and
+ * `resume()` probes or reconnects immediately when the app returns to the
+ * foreground rather than waiting out a backoff timer.
  */
 export class ChatSocket {
-  private readonly options: Required<Pick<ChatSocketOptions, 'reconnectDelaysMs' | 'heartbeatMs'>> &
+  private readonly options: Required<
+    Pick<
+      ChatSocketOptions,
+      'reconnectDelaysMs' | 'heartbeatMs' | 'pongTimeoutMs' | 'initialAttempts' | 'name'
+    >
+  > &
     ChatSocketOptions;
   private socket: WebSocket | null = null;
   private attempt = 0;
+  private initialAttempts = 0;
   private heartbeat: ReturnType<typeof setInterval> | null = null;
+  private pongTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   /** Set after a ping; cleared on pong. True at the next tick ⇒ dead socket. */
   private awaitingPong = false;
@@ -47,8 +71,44 @@ export class ChatSocket {
     this.options = {
       reconnectDelaysMs: DEFAULT_RECONNECT_DELAYS,
       heartbeatMs: HEARTBEAT_MS,
+      pongTimeoutMs: PONG_TIMEOUT_MS,
+      initialAttempts: INITIAL_ATTEMPTS,
+      name: 'chat',
       ...options,
     };
+  }
+
+  /**
+   * Resolves true once the socket is open, false when `timeoutMs` elapses or
+   * the socket is in a terminal state. Lets a send ride out a brief blip
+   * instead of failing on the first dropped frame.
+   */
+  waitUntilOpen(timeoutMs: number): Promise<boolean> {
+    if (this.state === 'open') {
+      return Promise.resolve(true);
+    }
+    if (this.state !== 'connecting' && this.state !== 'reconnecting') {
+      return Promise.resolve(false);
+    }
+    return new Promise(resolve => {
+      const started = Date.now();
+      const poll = () => {
+        if (this.state === 'open') {
+          resolve(true);
+          return;
+        }
+        if (this.state !== 'connecting' && this.state !== 'reconnecting') {
+          resolve(false);
+          return;
+        }
+        if (Date.now() - started >= timeoutMs) {
+          resolve(false);
+          return;
+        }
+        setTimeout(poll, 200);
+      };
+      poll();
+    });
   }
 
   get status(): ChatConnectionStatus {
@@ -144,6 +204,10 @@ export class ChatSocket {
         if (frame.type === 'pong') {
           // The heartbeat answer — the connection is alive.
           this.awaitingPong = false;
+          if (this.pongTimer !== null) {
+            clearTimeout(this.pongTimer);
+            this.pongTimer = null;
+          }
         }
         this.options.onFrame(frame);
       }
@@ -163,30 +227,33 @@ export class ChatSocket {
       if (this.state === 'closed' || generation !== this.connectGeneration) {
         return;
       }
-      if (!this.everOpened) {
-        // Handshake rejected (auth/agent/agent-not-found surface as HTTP
-        // rejections, the close code is a generic 1006) — retrying the same
-        // URL cannot succeed, so fail the attempt terminally.
-        const reason = event.code === AUTH_CLOSE_CODE ? 'token rejected' : 'connection refused';
-        if (event.code === AUTH_CLOSE_CODE) {
-          this.setStatus('unauthorized', reason);
-        } else {
-          this.setStatus('closed', reason);
-        }
-        settleFail(new Error(reason));
-        return;
-      }
       if (event.code === AUTH_CLOSE_CODE) {
+        // The token was rejected — no retry can succeed before a new sign-in.
         this.setStatus('unauthorized', 'token rejected');
+        settleFail(new Error('token rejected'));
         return;
       }
       // Agent-level rejections (4003 forbidden, 4404 not found) never recover
       // on retry — surface them as terminal instead of reconnect-looping.
       if (event.code === 4003 || event.code === 4404) {
-        this.setStatus('closed', `server closed the connection: ${event.code}`);
+        const reason = `server closed the connection: ${event.code}`;
+        this.setStatus('closed', reason);
+        settleFail(new Error(reason));
         return;
       }
-      this.scheduleReconnect();
+      if (!this.everOpened && this.initialAttempts >= this.options.initialAttempts) {
+        // Handshake rejected and the background retries ran out (HTTP
+        // rejections surface as a generic 1006): stop hammering the server.
+        this.setStatus('closed', 'connection refused');
+        settleFail(new Error('connection refused'));
+        return;
+      }
+      // A refused first handshake is usually transient (radio coming up,
+      // network switch, server restarting): reject the caller so the UI is
+      // not blocked, but keep retrying in the background so the thread
+      // recovers on its own.
+      settleFail(new Error('connection refused'));
+      this.scheduleReconnect(closeDetail(event));
     });
 
     socket.addEventListener('error', () => {
@@ -246,6 +313,36 @@ export class ChatSocket {
     }
     this.socket?.close(1000, 'client closed');
     this.socket = null;
+    // A later connect() on this instance is a fresh session: a refused
+    // handshake must get the full initial-retry budget again.
+    this.everOpened = false;
+    this.initialAttempts = 0;
+    this.attempt = 0;
+  }
+
+  /**
+   * App returned to the foreground: probe an open socket right away and
+   * reconnect immediately instead of waiting out a pending backoff. Timers
+   * are throttled in the background, so without this a socket killed by
+   * the OS would only be noticed on the next heartbeat tick.
+   */
+  resume(): void {
+    if (this.state === 'open') {
+      this.awaitingPong = false;
+      if (this.ping()) {
+        this.awaitingPong = true;
+        this.armPongTimeout();
+      }
+      return;
+    }
+    if (this.state !== 'reconnecting' && this.state !== 'connecting') {
+      return;
+    }
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    void this.connect().catch(() => undefined);
   }
 
   private rawSend(frame: ClientFrame): boolean {
@@ -256,13 +353,19 @@ export class ChatSocket {
     return true;
   }
 
-  private scheduleReconnect(): void {
+  private scheduleReconnect(reason?: string): void {
     const delay =
       this.options.reconnectDelaysMs[
         Math.min(this.attempt, this.options.reconnectDelaysMs.length - 1)
       ];
     this.attempt += 1;
-    this.setStatus('reconnecting', `attempt ${this.attempt} in ${delay}ms`);
+    if (!this.everOpened) {
+      this.initialAttempts += 1;
+    }
+    const detail = reason
+      ? `attempt ${this.attempt} in ${delay}ms · ${reason}`
+      : `attempt ${this.attempt} in ${delay}ms`;
+    this.setStatus('reconnecting', detail);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       // Internal attempt: no caller holds the promise, and terminal
@@ -289,8 +392,31 @@ export class ChatSocket {
       }
       if (this.ping()) {
         this.awaitingPong = true;
+        this.armPongTimeout();
       }
     }, this.options.heartbeatMs);
+  }
+
+  /**
+   * Bound the wait for a pong independently of the heartbeat interval:
+   * otherwise a socket that dies right after a tick is only noticed at the
+   * next one (a full interval later).
+   */
+  private armPongTimeout(): void {
+    if (this.pongTimer !== null) {
+      clearTimeout(this.pongTimer);
+    }
+    this.pongTimer = setTimeout(() => {
+      this.pongTimer = null;
+      if (!this.awaitingPong) {
+        return;
+      }
+      try {
+        this.socket?.close();
+      } catch {
+        // ignore
+      }
+    }, this.options.pongTimeoutMs);
   }
 
   private stopHeartbeat(): void {
@@ -298,18 +424,40 @@ export class ChatSocket {
       clearInterval(this.heartbeat);
       this.heartbeat = null;
     }
+    if (this.pongTimer !== null) {
+      clearTimeout(this.pongTimer);
+      this.pongTimer = null;
+    }
   }
 
   private setStatus(status: ChatConnectionStatus, detail?: string): void {
     this.state = status;
+    logConnection({ socket: this.options.name, status, detail });
     this.options.onStatus(status, detail);
   }
 
   private wsUrl(baseUrl: string, path: string, token: string): string {
     const http = new URL(baseUrl);
     const scheme = http.protocol === 'http:' ? 'ws' : 'wss';
-    return `${scheme}://${http.host}${path}?token=${encodeURIComponent(token)}`;
+    // Keep a deployment sub-path (https://corp.example.com/octop/): the
+    // socket lives under the same prefix as the REST API.
+    const prefix = http.pathname.replace(/\/+$/, '');
+    return `${scheme}://${http.host}${prefix}${path}?token=${encodeURIComponent(token)}`;
   }
+}
+
+/**
+ * Close code and reason for diagnostics when the platform supplies them
+ * (an abnormal drop surfaces as 1006 with no reason; proxies that send a
+ * reason make field reports far more actionable).
+ */
+function closeDetail(event: { code?: number; reason?: string }): string | undefined {
+  const code = typeof event.code === 'number' ? event.code : undefined;
+  const reason = typeof event.reason === 'string' ? event.reason.trim() : '';
+  if (code === undefined && !reason) {
+    return undefined;
+  }
+  return reason ? `close ${code ?? ''} (${reason})` : `close ${code}`;
 }
 
 /** Parses an inbound frame; unknown frame types pass through (forward-compat), garbage drops. */

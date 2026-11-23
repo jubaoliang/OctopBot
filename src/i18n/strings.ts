@@ -128,6 +128,13 @@ const zh = {
     licensesFooter: '以下为应用打包的 npm 依赖及其许可证。',
     about: '关于',
     version: '版本',
+    connectionDiagnostics: '连接诊断',
+    connectionDiagnosticsHint:
+      '记录最近的连接状态变化（不含消息内容、令牌或服务器地址）。反馈连接问题时可复制附上。',
+    copyDiagnostics: '复制诊断信息',
+    clearDiagnostics: '清空记录',
+    diagnosticsEmpty: '暂无记录',
+    diagnosticsCopied: '已复制',
   },
   notifications: {
     defaultTitle: 'Octop 提醒',
@@ -519,6 +526,13 @@ const en: Dict = {
     licensesFooter: 'Open-source npm packages shipped with this app and their licenses.',
     about: 'About',
     version: 'Version',
+    connectionDiagnostics: 'Connection diagnostics',
+    connectionDiagnosticsHint:
+      'Recent connection transitions — no message content, tokens or server addresses. Copy this when reporting a connection problem.',
+    copyDiagnostics: 'Copy diagnostics',
+    clearDiagnostics: 'Clear log',
+    diagnosticsEmpty: 'Nothing recorded yet',
+    diagnosticsCopied: 'Copied',
   },
   notifications: {
     defaultTitle: 'Octop alert',

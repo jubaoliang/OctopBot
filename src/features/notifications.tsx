@@ -249,6 +249,7 @@ export function NotificationsProvider({
     const socket = new ChatSocket({
       baseUrl,
       path: '/api/notifications/ws',
+      name: 'notifications',
       tokenFactory: () => Promise.resolve(tokenRef.current),
       onFrame: frame => {
         const push = parseDashboardPush(frame);
@@ -282,8 +283,13 @@ export function NotificationsProvider({
       if (state === 'active') {
         void refreshPermission();
         const socket = socketRef.current;
-        if (socket && (socket.status === 'closed' || socket.status === 'reconnecting')) {
-          void socket.connect().catch(() => undefined);
+        if (socket) {
+          // Probe a live socket (catches one the OS killed while we were
+          // away) or reconnect now instead of waiting out the backoff.
+          socket.resume();
+          if (socket.status === 'closed') {
+            void socket.connect().catch(() => undefined);
+          }
         }
       }
     });

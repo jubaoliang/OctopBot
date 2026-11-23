@@ -531,6 +531,12 @@ export default function ThreadScreen() {
       // slow WebSocket connect (proxy latency, backoff) must not leave the
       // thread blank while the HTTP history snapshot is already available.
       // Connection state still surfaces through onStatus.
+      if (threadRef.current) {
+        // Record the thread before connecting: subscribe() keeps the id and
+        // replays it on every (re)open, so a refused first handshake that the
+        // socket later recovers from still streams into this thread.
+        socket.subscribe(threadRef.current);
+      }
       const connecting = socket.connect().catch(() => undefined);
       if (threadRef.current) {
         // Socket was rebuilt for the same thread — re-attach.
@@ -539,7 +545,6 @@ export default function ThreadScreen() {
           return null;
         }
         dispatch({ type: 'threadReady', threadId: threadRef.current });
-        socket.subscribe(threadRef.current);
         setActiveChat({ agentId, threadId: threadRef.current });
         return threadRef.current;
       }
@@ -758,10 +763,17 @@ export default function ThreadScreen() {
 
   // App resume: the screen was focused the whole time, so no focus event
   // fires — ack any pushes that arrived while backgrounded. Frozen blurred
-  // screens keep their listeners, so only ack when actually focused.
+  // screens keep their listeners, so only ack when actually focused. The
+  // socket is probed/resumed on every return to the foreground: the OS
+  // kills idle sockets in the background and throttles the timers that
+  // would otherwise notice.
   useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
-      if (state === 'active' && navigation.isFocused()) {
+      if (state !== 'active') {
+        return;
+      }
+      socketRef.current?.resume();
+      if (navigation.isFocused()) {
         ackThreadRead();
       }
     });
@@ -772,6 +784,12 @@ export default function ThreadScreen() {
     dispatch({ type: 'userSend', text, attachments });
     void (async () => {
       const threadId = await ensureThreadRef.current?.();
+      const socket = socketRef.current;
+      // Ride out a brief reconnect instead of failing the send on a blip;
+      // a genuinely dead socket still lands on the retry affordance.
+      if (socket && (socket.status === 'reconnecting' || socket.status === 'connecting')) {
+        await socket.waitUntilOpen(5_000);
+      }
       if (
         threadId &&
         socketRef.current?.sendUserTurn({
@@ -1032,16 +1050,24 @@ export default function ThreadScreen() {
 
   // Only an abnormal connection earns a subtitle: the signed-in account is
   // not conversation context, and a healthy link needs no announcement.
+  // A blip that recovers within the grace window is not an outage either —
+  // flashing "reconnecting" on every one-second recovery is what makes a
+  // working connection read as unstable. Auth loss shows at once: it needs
+  // the user to act.
+  const connectionIssue = useDelayedFlag(
+    connection === 'reconnecting' || connection === 'closed',
+    3_000,
+  );
   const headerSubtitle = useMemo(() => {
-    if (connection === 'reconnecting') {
-      return strings.chat.reconnecting;
-    }
-    if (connection === 'unauthorized' || connection === 'closed') {
+    if (connection === 'unauthorized') {
       return strings.chat.disconnected;
     }
-    return undefined;
+    if (!connectionIssue) {
+      return undefined;
+    }
+    return connection === 'reconnecting' ? strings.chat.reconnecting : strings.chat.disconnected;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connection]);
+  }, [connection, connectionIssue]);
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.bg }]}>
@@ -1129,7 +1155,10 @@ export default function ThreadScreen() {
               initialText={draftText ?? undefined}
               canSend={
                 !chat.busy &&
-                (connection === 'open' || connection === 'connecting' || connection === 'idle')
+                (connection === 'open' ||
+                  connection === 'connecting' ||
+                  connection === 'reconnecting' ||
+                  connection === 'idle')
               }
             />
           </View>
@@ -1137,6 +1166,22 @@ export default function ThreadScreen() {
       </SafeAreaView>
     </View>
   );
+}
+
+/** True once `active` has held for `delayMs`; resets the moment it clears. */
+function useDelayedFlag(active: boolean, delayMs: number): boolean {
+  const [held, setHeld] = useState(false);
+  useEffect(() => {
+    if (!active) {
+      return undefined;
+    }
+    const timer = setTimeout(() => setHeld(true), delayMs);
+    return () => {
+      clearTimeout(timer);
+      setHeld(false);
+    };
+  }, [active, delayMs]);
+  return active && held;
 }
 
 /** The user turn an answer replies to; null when the history starts mid-way. */

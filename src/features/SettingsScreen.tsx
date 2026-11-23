@@ -302,6 +302,13 @@ export function SettingsScreen() {
               testID="settings-version"
             />
             <SettingsRow
+              title={strings.settings.connectionDiagnostics}
+              disclosure
+              last={false}
+              testID="settings-diagnostics"
+              onPress={() => router.push('/connection')}
+            />
+            <SettingsRow
               title={strings.settings.licenses}
               disclosure
               last

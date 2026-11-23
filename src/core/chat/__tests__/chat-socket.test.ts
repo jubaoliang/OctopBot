@@ -65,6 +65,9 @@ function makeSocket() {
     onStatus: (status, detail) => statuses.push({ status, detail }),
     socketFactory: url => new FakeSocket(url) as unknown as WebSocket,
     reconnectDelaysMs: [10, 20],
+    // Pinned so the scenarios below do not depend on production defaults.
+    heartbeatMs: 30_000,
+    pongTimeoutMs: 10_000,
   });
   return { socket, statuses, frames };
 }
@@ -199,6 +202,49 @@ describe('ChatSocket', () => {
     socket.close();
   });
 
+  it('records the close code in the reconnect status for diagnostics', async () => {
+    jest.useFakeTimers();
+    const { socket, statuses } = makeSocket();
+    const connecting = socket.connect();
+    await Promise.resolve();
+    FakeSocket.created[0].open();
+    await connecting;
+    FakeSocket.created[0].serverClose(1006);
+    expect(statuses.at(-1)).toMatchObject({
+      status: 'reconnecting',
+      detail: 'attempt 1 in 10ms · close 1006',
+    });
+    socket.close();
+  });
+
+  it('waitUntilOpen rides out a reconnect and gives up after the timeout', async () => {
+    jest.useFakeTimers();
+    const { socket } = makeSocket();
+    const connecting = socket.connect();
+    await Promise.resolve();
+    FakeSocket.created[0].open();
+    await connecting;
+    FakeSocket.created[0].serverClose(1006);
+
+    // Reconnect in 10ms: a send waiting up to 5s sees the socket come back
+    // on the next 200ms poll.
+    const waiting = socket.waitUntilOpen(5_000);
+    await jest.advanceTimersByTimeAsync(10);
+    FakeSocket.created[1].open();
+    await jest.advanceTimersByTimeAsync(200);
+    await expect(waiting).resolves.toBe(true);
+
+    // A socket that never returns: the wait resolves false at the deadline.
+    FakeSocket.created[1].serverClose(1006);
+    const timingOut = socket.waitUntilOpen(1_000);
+    await jest.advanceTimersByTimeAsync(1_100);
+    await expect(timingOut).resolves.toBe(false);
+
+    // Terminal states answer at once instead of waiting.
+    socket.close();
+    await expect(socket.waitUntilOpen(5_000)).resolves.toBe(false);
+  });
+
   it('marks unauthorized on close 4001 and does not reconnect', async () => {
     const { socket, statuses } = makeSocket();
     const connecting = socket.connect();
@@ -244,15 +290,64 @@ describe('ChatSocket', () => {
     expect(socket.status).toBe('closed');
   });
 
-  it('rejects connect and stays terminal when the handshake is refused', async () => {
+  it('rejects connect on a refused handshake but keeps retrying in the background until the budget runs out', async () => {
+    jest.useFakeTimers();
     const { socket, statuses } = makeSocket();
     const connecting = socket.connect();
     await Promise.resolve();
     // Handshake rejection: close fires without any open (generic 1006).
     FakeSocket.created[0].serverClose(1006);
     await expect(connecting).rejects.toThrow('connection refused');
-    expect(statuses.at(-1)).toMatchObject({ status: 'closed' });
-    expect(FakeSocket.created).toHaveLength(1);
+    // The caller is unblocked, the socket is not given up on.
+    expect(statuses.at(-1)).toMatchObject({ status: 'reconnecting' });
+
+    // Every retry is refused too: 6 background attempts, then terminal.
+    for (let attempt = 1; attempt <= 6; attempt += 1) {
+      await jest.advanceTimersByTimeAsync(30);
+      expect(FakeSocket.created).toHaveLength(attempt + 1);
+      FakeSocket.created[attempt].serverClose(1006);
+    }
+    expect(statuses.at(-1)).toMatchObject({ status: 'closed', detail: 'connection refused' });
+    await jest.advanceTimersByTimeAsync(60_000);
+    expect(FakeSocket.created).toHaveLength(7);
+    expect(socket.status).toBe('closed');
+  });
+
+  it('recovers from a refused first handshake and re-subscribes on the late open', async () => {
+    jest.useFakeTimers();
+    const { socket, statuses } = makeSocket();
+    // The screen records the thread before connecting, as the thread route does.
+    socket.subscribe('thr-1');
+    const connecting = socket.connect().catch((error: Error) => error.message);
+    await Promise.resolve();
+    FakeSocket.created[0].serverClose(1006);
+    expect(await connecting).toBe('connection refused');
+
+    // Server comes back (restart, radio up): the retry opens and the thread attaches.
+    await jest.advanceTimersByTimeAsync(10);
+    const second = FakeSocket.created[1];
+    second.open();
+    expect(statuses.at(-1)?.status).toBe('open');
+    expect(JSON.parse(second.sent[0])).toMatchObject({ type: 'subscribe', thread_id: 'thr-1' });
+    socket.close();
+  });
+
+  it('keeps a deployment sub-path in the socket URL', async () => {
+    const socket = new ChatSocket({
+      baseUrl: 'https://corp.example.com/octop/',
+      path: '/api/agents/a1/chat/ws',
+      tokenFactory: () => Promise.resolve('t'),
+      onFrame: () => undefined,
+      onStatus: () => undefined,
+      socketFactory: url => new FakeSocket(url) as unknown as WebSocket,
+    });
+    const connecting = socket.connect().catch(() => undefined);
+    await Promise.resolve();
+    expect(FakeSocket.created[0].url).toBe(
+      'wss://corp.example.com/octop/api/agents/a1/chat/ws?token=t',
+    );
+    socket.close();
+    await connecting;
   });
 });
 
@@ -280,11 +375,13 @@ describe('ChatSocket heartbeat', () => {
     // First tick answers nothing yet — sends the ping.
     await jest.advanceTimersByTimeAsync(30_000);
     expect(JSON.parse(FakeSocket.created[0].sent.at(-1) ?? '{}')).toMatchObject({ type: 'ping' });
-    // Next tick with no pong: half-open socket is force-closed, reconnect runs.
-    await jest.advanceTimersByTimeAsync(30_000);
+    // No pong within the pong timeout: half-open socket is force-closed,
+    // reconnect is scheduled.
+    await jest.advanceTimersByTimeAsync(10_000);
     expect(statuses.at(-1)?.status).toBe('reconnecting');
     // Reconnect delay is 10ms — let it fire.
     await jest.advanceTimersByTimeAsync(10);
+    await Promise.resolve();
     expect(FakeSocket.created).toHaveLength(2);
     socket.close();
   });
@@ -297,6 +394,28 @@ describe('ChatSocket heartbeat', () => {
     }
     expect(FakeSocket.created).toHaveLength(1);
     expect(statuses.at(-1)?.status).toBe('open');
+    socket.close();
+  });
+
+  it('detects a dead socket within the pong timeout, not at the next tick', async () => {
+    const { socket, statuses } = await openFirstSocket();
+    await jest.advanceTimersByTimeAsync(30_000); // ping goes out
+    // 10s of silence is enough — no need to wait for the next 30s tick.
+    await jest.advanceTimersByTimeAsync(10_000);
+    expect(statuses.at(-1)?.status).toBe('reconnecting');
+    socket.close();
+  });
+
+  it('resume() probes an open socket and skips the backoff while reconnecting', async () => {
+    const { socket, statuses } = await openFirstSocket();
+    socket.resume();
+    expect(JSON.parse(FakeSocket.created[0].sent.at(-1) ?? '{}')).toMatchObject({ type: 'ping' });
+
+    FakeSocket.created[0].serverClose(1006);
+    expect(statuses.at(-1)?.status).toBe('reconnecting');
+    socket.resume(); // foreground return: reconnect now, not after the 10ms delay
+    await Promise.resolve(); // the token lookup precedes socket creation
+    expect(FakeSocket.created).toHaveLength(2);
     socket.close();
   });
 

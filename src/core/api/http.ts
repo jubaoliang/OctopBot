@@ -1,4 +1,5 @@
 import { OctopApiError, parseApiError } from './errors';
+import { logConnection } from '../connection-log';
 import { decodeUtf8 } from './utf8';
 
 export interface HttpClientOptions {
@@ -26,6 +27,9 @@ interface RequestOptions {
 }
 
 const DEFAULT_TIMEOUT_MS = 15_000;
+const TIMEOUT_MESSAGE = 'request timed out';
+/** Pause before the single retry an idempotent read gets after a dropped connection. */
+const GET_RETRY_DELAY_MS = 400;
 
 /**
  * JSON client for the Octop API. Pure TS on fetch — the platform layer owns
@@ -35,11 +39,45 @@ export class HttpClient {
   private readonly options: Required<Pick<HttpClientOptions, 'timeoutMs'>> & HttpClientOptions;
 
   constructor(options: HttpClientOptions) {
-    this.options = { timeoutMs: DEFAULT_TIMEOUT_MS, ...options };
+    // "https://host/octop/" + "/api/…" would request "//api/…", which some
+    // proxies and redirects reject — one canonical base for every caller.
+    this.options = {
+      timeoutMs: DEFAULT_TIMEOUT_MS,
+      ...options,
+      baseUrl: options.baseUrl.replace(/\/+$/, ''),
+    };
   }
 
-  get<T>(path: string, options: { anonymous?: boolean; signal?: AbortSignal } = {}): Promise<T> {
-    return this.request<T>(path, { method: 'GET', ...options });
+  /**
+   * Idempotent read with one quiet retry: a refused or reset connection is
+   * often just the radio waking up or a network switch. Timeouts already
+   * waited their turn and anonymous calls (the sign-in health check) must
+   * fail fast on a mistyped address, so neither is retried.
+   */
+  async get<T>(
+    path: string,
+    options: { anonymous?: boolean; signal?: AbortSignal } = {},
+  ): Promise<T> {
+    try {
+      return await this.request<T>(path, { method: 'GET', ...options });
+    } catch (error) {
+      const retryable =
+        !options.anonymous &&
+        !options.signal?.aborted &&
+        error instanceof OctopApiError &&
+        error.code === 'NETWORK_ERROR' &&
+        error.message !== TIMEOUT_MESSAGE;
+      if (!retryable) {
+        throw error;
+      }
+      logConnection({
+        socket: 'http',
+        status: 'retry',
+        detail: `${path.split('?')[0]} · ${error.message}`,
+      });
+      await new Promise(resolve => setTimeout(resolve, GET_RETRY_DELAY_MS));
+      return this.request<T>(path, { method: 'GET', ...options });
+    }
   }
 
   post<T>(
@@ -218,7 +256,13 @@ export class HttpClient {
       if (signal?.aborted) {
         throw new OctopApiError(0, 'ABORTED', 'request aborted');
       }
-      throw new OctopApiError(0, 'NETWORK_ERROR', describeNetworkError(cause));
+      const message = describeNetworkError(cause);
+      logConnection({
+        socket: 'http',
+        status: 'error',
+        detail: `${method} ${path.split('?')[0]} · ${message}`,
+      });
+      throw new OctopApiError(0, 'NETWORK_ERROR', message);
     } finally {
       clearTimeout(timeout);
       signal?.removeEventListener('abort', onExternalAbort);
@@ -262,7 +306,7 @@ function safeJsonParse(text: string): unknown {
 
 function describeNetworkError(cause: unknown): string {
   if (cause instanceof DOMException && cause.name === 'AbortError') {
-    return 'request timed out';
+    return TIMEOUT_MESSAGE;
   }
   if (cause instanceof Error) {
     return cause.message;

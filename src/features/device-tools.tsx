@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { AppState } from 'react-native';
 
 import { ChatSocket, type ChatConnectionStatus } from '@/core/chat/chat-socket';
 import { formatDeviceToolCall } from '@/core/device-tool-summary';
@@ -136,6 +137,7 @@ export function DeviceToolsProvider({ children }: { children: ReactNode }) {
     const socket = new ChatSocket({
       path: '/api/devices/ws',
       baseUrl,
+      name: 'devices',
       tokenFactory: () => Promise.resolve(token),
       onFrame: frame => handleFrameRef.current(frame),
       onStatus: next => setStatus(next),
@@ -147,6 +149,26 @@ export function DeviceToolsProvider({ children }: { children: ReactNode }) {
       socketRef.current = null;
     };
   }, [ready, user, baseUrl, token]);
+
+  // Foreground resume: the OS suspends idle sockets in the background, so a
+  // phone that comes back would otherwise look offline until the heartbeat
+  // notices. Probe or reconnect immediately, like the chat socket does.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      if (state !== 'active') {
+        return;
+      }
+      const socket = socketRef.current;
+      if (!socket) {
+        return;
+      }
+      socket.resume();
+      if (socket.status === 'closed') {
+        void socket.connect().catch(() => undefined);
+      }
+    });
+    return () => subscription.remove();
+  }, []);
 
   // (Re)advertise the consented tool set on open and whenever consent changes.
   useEffect(() => {

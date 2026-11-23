@@ -44,6 +44,65 @@ describe('HttpClient', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer token-1');
   });
 
+  it('normalizes trailing slashes off the base URL', async () => {
+    const { client } = makeClient({ baseUrl: 'https://octop.example.com//' });
+    (globalThis.fetch as jest.Mock).mockResolvedValue(jsonResponse(200, { ok: true }));
+
+    await client.get('/api/health');
+
+    expect((globalThis.fetch as jest.Mock).mock.calls[0][0]).toBe(
+      'https://octop.example.com/api/health',
+    );
+  });
+
+  it('retries an authenticated GET once after a dropped connection', async () => {
+    const { client } = makeClient();
+    const fetchMock = globalThis.fetch as jest.Mock;
+    fetchMock.mockRejectedValueOnce(new TypeError('Network request failed'));
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { ok: true }));
+
+    await expect(client.get('/api/agents')).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('never retries anonymous reads or writes', async () => {
+    const { client } = makeClient();
+    const fetchMock = globalThis.fetch as jest.Mock;
+    // Anonymous read (the sign-in health check) must fail fast on a wrong address.
+    fetchMock.mockRejectedValueOnce(new TypeError('Network request failed'));
+    await expect(client.get('/api/health', { anonymous: true })).rejects.toMatchObject({
+      code: 'NETWORK_ERROR',
+    });
+    // A retried write could duplicate the mutation.
+    fetchMock.mockRejectedValueOnce(new TypeError('Network request failed'));
+    await expect(client.post('/api/agents/a1/threads', {})).rejects.toMatchObject({
+      code: 'NETWORK_ERROR',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry a request that timed out', async () => {
+    jest.useFakeTimers();
+    const { client } = makeClient();
+    const fetchMock = globalThis.fetch as jest.Mock;
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          );
+        }),
+    );
+    const pending = client.get('/api/agents');
+    const assertion = expect(pending).rejects.toMatchObject({
+      code: 'NETWORK_ERROR',
+      message: 'request timed out',
+    });
+    await jest.advanceTimersByTimeAsync(15_000);
+    await assertion;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('skips the Authorization header on anonymous requests', async () => {
     const { client } = makeClient();
     (globalThis.fetch as jest.Mock).mockImplementation(() => jsonResponse(200, { ok: true }));
