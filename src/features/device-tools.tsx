@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AppState } from 'react-native';
 
-import { ChatSocket, type ChatConnectionStatus } from '@/core/chat/chat-socket';
 import { formatDeviceToolCall } from '@/core/device-tool-summary';
 import { deviceToolRegisterPayload, dispatchDeviceTool } from '@/core/device-tools';
-import { useAuth } from '@/features/auth';
+import { useSessionSocket } from '@/features/session-socket-context';
 import { useCalendarSync } from '@/features/calendar-sync-context';
 import {
   DeviceToolsContext,
@@ -25,9 +23,8 @@ import { haptics } from '@/platform/haptics';
  */
 export function DeviceToolsProvider({ children }: { children: ReactNode }) {
   const { t: strings } = useI18n();
-  const { baseUrl, token, user, ready } = useAuth();
   const { consent } = useCalendarSync();
-  const [status, setStatus] = useState<ChatConnectionStatus>('idle');
+  const { status, send, subscribe } = useSessionSocket();
   const [pending, setPending] = useState<DeviceConfirmRequest | null>(null);
 
   const stringsRef = useRef(strings);
@@ -65,15 +62,17 @@ export function DeviceToolsProvider({ children }: { children: ReactNode }) {
     toolsRef.current = tools;
   }, [tools]);
 
-  const socketRef = useRef<ChatSocket | null>(null);
   const pendingRef = useRef(pending);
   useEffect(() => {
     pendingRef.current = pending;
   }, [pending]);
 
-  const sendResult = useCallback((callId: string, result: { output?: unknown; error?: string }) => {
-    socketRef.current?.sendDeviceToolResult(callId, result);
-  }, []);
+  const sendResult = useCallback(
+    (callId: string, result: { output?: unknown; error?: string }) => {
+      send({ type: 'device_tool_result', call_id: callId, ...result });
+    },
+    [send],
+  );
 
   const execute = useCallback(
     async (callId: string, name: string, input: unknown) => {
@@ -128,54 +127,24 @@ export function DeviceToolsProvider({ children }: { children: ReactNode }) {
     handleFrameRef.current = handleFrame;
   }, [handleFrame]);
 
-  // One presence socket per signed-in session; reconnect/heartbeat come from
-  // ChatSocket so a dropped link re-registers automatically on reopen.
-  useEffect(() => {
-    if (!ready || !user || !baseUrl) {
-      return;
-    }
-    const socket = new ChatSocket({
-      path: '/api/devices/ws',
-      baseUrl,
-      name: 'devices',
-      tokenFactory: () => Promise.resolve(token),
-      onFrame: frame => handleFrameRef.current(frame),
-      onStatus: next => setStatus(next),
-    });
-    socketRef.current = socket;
-    void socket.connect().catch(() => undefined);
-    return () => {
-      socket.close();
-      socketRef.current = null;
-    };
-  }, [ready, user, baseUrl, token]);
-
-  // Foreground resume: the OS suspends idle sockets in the background, so a
-  // phone that comes back would otherwise look offline until the heartbeat
-  // notices. Probe or reconnect immediately, like the chat socket does.
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', state => {
-      if (state !== 'active') {
-        return;
-      }
-      const socket = socketRef.current;
-      if (!socket) {
-        return;
-      }
-      socket.resume();
-      if (socket.status === 'closed') {
-        void socket.connect().catch(() => undefined);
-      }
-    });
-    return () => subscription.remove();
-  }, []);
+  // Routed calls arrive on the shared session socket; reconnect/heartbeat and
+  // foreground resume are owned by SessionSocketProvider.
+  useEffect(
+    () =>
+      subscribe(frame => {
+        if (frame.type === 'device_tool_call') {
+          handleFrameRef.current(frame);
+        }
+      }),
+    [subscribe],
+  );
 
   // (Re)advertise the consented tool set on open and whenever consent changes.
   useEffect(() => {
     if (status === 'open') {
-      socketRef.current?.sendDeviceToolsRegister(deviceToolRegisterPayload(tools));
+      send({ type: 'device_tools.register', tools: deviceToolRegisterPayload(tools) });
     }
-  }, [status, tools]);
+  }, [status, tools, send]);
 
   const approve = useCallback(() => {
     const request = pendingRef.current;

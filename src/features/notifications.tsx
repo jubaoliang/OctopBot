@@ -3,12 +3,12 @@ import { Alert, AppState } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { parseDashboardPush } from '@/core/notifications/push-frame';
-import { ChatSocket } from '@/core/chat/chat-socket';
 import type { SecureStorage } from '@/platform/secure-storage';
 import { localNotifications, type NotificationPermissionState } from '@/platform/notifications';
 
 import { useAuth } from '@/features/auth';
 import { useAppShell } from '@/features/app-shell';
+import { useSessionSocket } from '@/features/session-socket-context';
 import { countUnreadThreads } from '@/utils/count-unread';
 import { replyPreview } from '@/utils/reply-preview';
 import { useI18n } from '@/i18n/I18nProvider';
@@ -28,31 +28,23 @@ export function NotificationsProvider({
 }) {
   const router = useRouter();
   const { t: strings } = useI18n();
-  const { baseUrl, token, user, ready, sessionGeneration, dropSession } = useAuth();
+  const { user, ready, dropSession } = useAuth();
   const { reload, getActiveChat, drawerGroups } = useAppShell();
 
   const [enabled, setEnabledState] = useState(true);
   const [permission, setPermission] = useState<NotificationPermissionState>('undetermined');
   const [liveUnread, setLiveUnread] = useState(false);
-  const socketRef = useRef<ChatSocket | null>(null);
-  // Mirrors the auth token so every (re)connect reads the latest value —
-  // sliding renewal must not require a socket rebuild (auth.tsx pattern).
-  const tokenRef = useRef<string | null>(token);
   const lastReloadAtRef = useRef(0);
   const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const askedOnceRef = useRef(false);
   // The cold-start tap is consumed exactly once, and only once a navigator
   // can actually route (see the tap effect below).
   const initialTapHandledRef = useRef(false);
-  // Latest push handler; the socket effect reads it through the ref so a
-  // re-render never tears the connection down.
+  // Latest push handler; the socket subscription reads it through the ref so
+  // a re-render never tears the subscription down.
   const handlePushRef = useRef<
     (agentId: string, threadId: string | null, text: string, agentName: string | null) => void
   >(() => undefined);
-
-  useEffect(() => {
-    tokenRef.current = token;
-  }, [token]);
 
   // Hydrate the persisted switch once per mount. Storage failure keeps the
   // default (enabled) — the OS permission still gates presentation.
@@ -271,62 +263,39 @@ export function NotificationsProvider({
     handlePushRef.current = handlePush;
   }, [handlePush]);
 
-  // One notifications socket per signed-in session; rebuilt on account or
-  // server changes, torn down on logout or when the user disables it.
-  const sessionKey = `${user?.id ?? 'anon'}:${sessionGeneration}:${baseUrl ?? ''}:${enabled}`;
-  useEffect(() => {
-    if (!ready || !user || !baseUrl || !enabled) {
-      return;
-    }
-    const socket = new ChatSocket({
-      baseUrl,
-      path: '/api/notifications/ws',
-      name: 'notifications',
-      tokenFactory: () => Promise.resolve(tokenRef.current),
-      onFrame: frame => {
+  // Pushes arrive on the shared session socket; the master switch gates
+  // presentation only — the socket stays up for device presence either way.
+  const { status: sessionStatus, subscribe, resume } = useSessionSocket();
+
+  useEffect(
+    () =>
+      subscribe(frame => {
         const push = parseDashboardPush(frame);
-        if (push) {
+        if (push && enabled) {
           handlePushRef.current(push.agent_id, push.thread_id, push.text, push.agent_name);
         }
-      },
-      onStatus: status => {
-        if (status === 'unauthorized') {
-          dropSession();
-        }
-      },
-    });
-    socketRef.current = socket;
-    void socket.connect().catch(() => {
-      // Reconnect backoff owns retrying; nothing to surface here.
-    });
-    return () => {
-      socketRef.current = null;
-      socket.close();
-    };
-    // sessionKey encodes user/generation/baseUrl/enabled — the deps the
-    // socket identity depends on.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionKey, ready, dropSession]);
+      }),
+    // handlePush is read through its ref; `enabled` re-registers the filter.
+    [subscribe, enabled],
+  );
 
-  // Foreground resume: a long background suspends the socket (nudge it) and
-  // the OS permission may have changed in system settings (re-read it).
+  useEffect(() => {
+    if (sessionStatus === 'unauthorized') {
+      dropSession();
+    }
+  }, [sessionStatus, dropSession]);
+
+  // Foreground resume: the OS permission may have changed in system
+  // settings (re-read it); the socket itself is probed by its own provider.
   useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
       if (state === 'active') {
         void refreshPermission();
-        const socket = socketRef.current;
-        if (socket) {
-          // Probe a live socket (catches one the OS killed while we were
-          // away) or reconnect now instead of waiting out the backoff.
-          socket.resume();
-          if (socket.status === 'closed') {
-            void socket.connect().catch(() => undefined);
-          }
-        }
+        resume();
       }
     });
     return () => subscription.remove();
-  }, [refreshPermission]);
+  }, [refreshPermission, resume]);
 
   // App-icon badge = conversations with server-reported unread; the live
   // signal only adds one when nothing in the drawer reports unread yet.

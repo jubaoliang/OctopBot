@@ -7,7 +7,6 @@ import { CalendarDays, ChevronRight, MessageSquare, Phone, Users } from 'lucide-
 import { AppHeader } from '@/components/AppHeader';
 import { useTabBarFootprint } from '@/platform/tab-bar';
 import { useCalendarSync } from '@/features/calendar-sync-context';
-import { useDeviceTools } from '@/features/device-tools-context';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
 import { openAppSettings } from '@/platform/linking';
@@ -28,7 +27,6 @@ export function ConnectAppsScreen() {
   const tabBarFootprint = useTabBarFootprint();
   const { consent, setConsent, permission, contactsPermission, smsPermission, calendars } =
     useCalendarSync();
-  const { online } = useDeviceTools();
 
   const toggle = useCallback(
     (patch: Parameters<typeof setConsent>[0]) => {
@@ -56,10 +54,6 @@ export function ConnectAppsScreen() {
           showsVerticalScrollIndicator={false}
           showsHorizontalScrollIndicator={false}
         >
-          <Text style={[styles.hint, { color: online ? tokens.textTertiary : tokens.danger }]}>
-            {online ? strings.deviceTools.online : strings.deviceTools.offline}
-          </Text>
-
           {/* Calendar — read + create, on demand */}
           <View
             style={[
@@ -166,9 +160,6 @@ export function ConnectAppsScreen() {
                 <ChevronRight size={16} color={tokens.textPlaceholder} />
               </Pressable>
             ) : null}
-            <Text style={[styles.cardBodyText, { color: tokens.textSecondary }]}>
-              {strings.connectApps.contactsDetail}
-            </Text>
           </View>
 
           {/* SMS — read on demand, send after the in-conversation card */}
@@ -223,9 +214,6 @@ export function ConnectAppsScreen() {
                   <ChevronRight size={16} color={tokens.textPlaceholder} />
                 </Pressable>
               ) : null}
-              <Text style={[styles.cardBodyText, { color: tokens.textSecondary }]}>
-                {strings.connectApps.smsDetail}
-              </Text>
             </View>
           ) : null}
 
@@ -260,9 +248,6 @@ export function ConnectAppsScreen() {
                 testID="connect-actions-switch"
               />
             </View>
-            <Text style={[styles.cardBodyText, { color: tokens.textSecondary }]}>
-              {strings.connectApps.phoneDetail}
-            </Text>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -311,9 +296,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   cardScope: {
-    ...typeScale.footnote,
-  },
-  cardBodyText: {
     ...typeScale.footnote,
   },
   syncRow: {

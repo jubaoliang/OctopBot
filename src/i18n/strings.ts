@@ -154,16 +154,10 @@ const zh = {
     denied: '在系统设置中开启权限',
     contacts: '通讯录',
     contactsScope: '允许助手在对话中查找本机联系人',
-    contactsDetail:
-      '开启后，助手可在对话中按需读取本机通讯录；创建日程、拨号等操作会先在对话中以卡片形式征得你的同意。数据不会上传到服务器。',
     sms: '短信',
     smsScope: '允许助手在对话中读取和发送本机短信',
-    smsDetail:
-      '开启后，助手可按需读取最近的短信；发送短信会先在对话中的卡片上展示号码和全文，经你同意后直接发出。数据不会上传到服务器。',
     phone: '电话与邮件',
     phoneScope: '允许助手在对话中拨打电话、编写短信或邮件',
-    phoneDetail:
-      '拨号、短信或邮件会先在对话中以卡片形式征得你的同意；视设备能力，助手随后直接执行，或交给系统的电话、短信或邮件应用。',
     neverSynced: '尚未同步',
     syncFailed: '同步失败',
   },
@@ -390,7 +384,20 @@ const zh = {
     oversize: (names: string, maxMb: number) => `${names} 超过 ${maxMb} MB 的上传上限`,
     uploadFailed: (names: string) => `${names} 上传失败，请重试`,
   },
-  common: { pendingDesign: '该页面待设计', cancel: '取消', loading: '加载中', ok: '好' },
+  code: {
+    plain: '代码',
+    copy: '复制代码',
+    copied: '已复制',
+    showAll: '查看完整代码',
+    wrap: '自动换行',
+  },
+  common: {
+    pendingDesign: '该页面待设计',
+    cancel: '取消',
+    close: '关闭',
+    loading: '加载中',
+    ok: '好',
+  },
 };
 
 export type Dict = typeof zh;
@@ -556,16 +563,10 @@ const en: Dict = {
     denied: 'Enable access in system settings',
     contacts: 'Contacts',
     contactsScope: 'Let the assistant look up contacts on this device during conversation',
-    contactsDetail:
-      "When on, the assistant can read this device's address book on demand during conversation; creating events or placing calls first asks your approval via a card in the conversation. Nothing is uploaded to the server.",
     sms: 'SMS',
     smsScope: 'Let the assistant read and send SMS on this device during conversation',
-    smsDetail:
-      'When on, the assistant can read recent messages on demand; sending an SMS first shows the number and full body on a card in the conversation and only sends after you approve. Nothing is uploaded to the server.',
     phone: 'Phone & email',
     phoneScope: 'Let the assistant place calls and draft texts or emails during conversation',
-    phoneDetail:
-      'Calls, texts and emails first ask your approval via a card in the conversation; depending on the device, the assistant then acts directly or hands off to the system phone, messaging or mail app.',
     neverSynced: 'Not synced yet',
     syncFailed: 'Sync failed',
   },
@@ -799,9 +800,17 @@ const en: Dict = {
     oversize: (names: string, maxMb: number) => `${names} exceeds the ${maxMb} MB upload limit`,
     uploadFailed: (names: string) => `${names} could not be uploaded — try again`,
   },
+  code: {
+    plain: 'Code',
+    copy: 'Copy code',
+    copied: 'Copied',
+    showAll: 'View full code',
+    wrap: 'Wrap lines',
+  },
   common: {
     pendingDesign: 'Screen design pending',
     cancel: 'Cancel',
+    close: 'Close',
     loading: 'Loading',
     ok: 'OK',
   },

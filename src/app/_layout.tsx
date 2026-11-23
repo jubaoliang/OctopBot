@@ -23,6 +23,7 @@ import { AppShellProvider, useAppShell } from '@/features/app-shell';
 import { CalendarSyncProvider } from '@/features/calendar-sync';
 import { DeviceToolsProvider } from '@/features/device-tools';
 import { NotificationsProvider } from '@/features/notifications';
+import { SessionSocketProvider } from '@/features/session-socket';
 import { registerLastAgentStore } from '@/features/last-agent-store';
 import { I18nProvider, useI18n } from '@/i18n/I18nProvider';
 import { NATIVE_HEADERS } from '@/platform/screen-header';
@@ -218,13 +219,15 @@ function RootWithBoundary() {
     >
       <AuthProvider storage={expoSecureStorage}>
         <AppShellProvider>
-          <NotificationsProvider storage={expoSecureStorage}>
-            <CalendarSyncProvider storage={expoSecureStorage}>
-              <DeviceToolsProvider>
-                <RootNavigator />
-              </DeviceToolsProvider>
-            </CalendarSyncProvider>
-          </NotificationsProvider>
+          <SessionSocketProvider>
+            <NotificationsProvider storage={expoSecureStorage}>
+              <CalendarSyncProvider storage={expoSecureStorage}>
+                <DeviceToolsProvider>
+                  <RootNavigator />
+                </DeviceToolsProvider>
+              </CalendarSyncProvider>
+            </NotificationsProvider>
+          </SessionSocketProvider>
         </AppShellProvider>
       </AuthProvider>
     </ErrorBoundary>

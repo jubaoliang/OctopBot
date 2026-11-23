@@ -217,6 +217,28 @@ describe('ChatSocket', () => {
     socket.close();
   });
 
+  it('sendFrame carries any client frame verbatim (session socket multiplexing)', async () => {
+    jest.useFakeTimers();
+    const { socket, frames } = makeSocket();
+    const connecting = socket.connect();
+    await Promise.resolve();
+    const first = FakeSocket.created[0];
+    first.open();
+    await connecting;
+
+    expect(socket.sendFrame({ type: 'device_tools.register', tools: [] })).toBe(true);
+    expect(JSON.parse(first.sent.at(-1) ?? '{}')).toEqual({
+      type: 'device_tools.register',
+      tools: [],
+    });
+    expect(
+      socket.sendFrame({ type: 'device_tool_result', call_id: 'c1', error: 'cancelled' }),
+    ).toBe(true);
+    socket.close();
+    expect(socket.sendFrame({ type: 'ping' })).toBe(false);
+    expect(frames).toEqual([]);
+  });
+
   it('waitUntilOpen rides out a reconnect and gives up after the timeout', async () => {
     jest.useFakeTimers();
     const { socket } = makeSocket();

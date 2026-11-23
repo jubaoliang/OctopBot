@@ -302,6 +302,12 @@ export class ChatSocket {
     return this.rawSend({ type: 'ping' });
   }
 
+  /** Sends any client frame verbatim — the session socket multiplexes several
+   *  concerns (pushes, device presence) over one connection by frame type. */
+  sendFrame(frame: ClientFrame): boolean {
+    return this.rawSend(frame);
+  }
+
   close(): void {
     this.connectGeneration += 1;
     this.connectPromise = null;

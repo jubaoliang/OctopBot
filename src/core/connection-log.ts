@@ -7,7 +7,7 @@
  * content, tokens, or server URLs are ever recorded.
  */
 
-export type ConnectionSocket = 'chat' | 'notifications' | 'devices' | 'http';
+export type ConnectionSocket = 'chat' | 'session' | 'http';
 
 export interface ConnectionEvent {
   /** Epoch milliseconds. */
