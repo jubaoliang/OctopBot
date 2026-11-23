@@ -1,6 +1,6 @@
 # Sign-in journey: server address → connection check → credentials → chat home.
 # Credentials come from the environment, never the flow file:
-#   OCTOP_URL=http://127.0.0.1:8088 OCTOP_USER=… OCTOP_PASS=… maestro test .maestro/login.yaml
+#   maestro --device <id> test --env OCTOP_URL=… --env OCTOP_USER=… --env OCTOP_PASS=… .maestro/login.yaml
 appId: com.tencent.octopbot
 ---
 - launchApp
@@ -10,7 +10,9 @@ appId: com.tencent.octopbot
     timeout: 60000
 - tapOn:
     id: 'login-url'
+- eraseText: 120
 - inputText: ${OCTOP_URL}
+- hideKeyboard
 - tapOn:
     id: 'login-next'
 - extendedWaitUntil:
@@ -19,10 +21,13 @@ appId: com.tencent.octopbot
     timeout: 30000
 - tapOn:
     id: 'login-username'
+- eraseText: 120
 - inputText: ${OCTOP_USER}
 - tapOn:
     id: 'login-password'
+- eraseText: 120
 - inputText: ${OCTOP_PASS}
+- hideKeyboard
 - tapOn:
     id: 'login-submit'
 - extendedWaitUntil:
