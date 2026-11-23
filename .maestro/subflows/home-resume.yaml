@@ -1,7 +1,7 @@
 # Reach the chat home from any restored tab or thread. The tab bar exists
 # on every tab, so waiting for it covers cold-start bundle load; the chat
 # tab then reaches home from any tab (and returns to the list from a thread).
-appId: dev.octop.octopbot
+appId: com.tencent.octopbot
 ---
 - extendedWaitUntil:
     visible:

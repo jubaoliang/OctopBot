@@ -4,7 +4,7 @@
 # mid-flow failure cannot poison automation-starters. Requires the E2E
 # expert (KMC325). All mutations are scoped to the two briefing rows by
 # name — never to arbitrary roster rows.
-appId: dev.octop.octopbot
+appId: com.tencent.octopbot
 onFlowComplete:
   - runFlow:
       file: subflows/cleanup-briefings.yaml

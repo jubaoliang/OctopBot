@@ -23,6 +23,13 @@ appId: com.tencent.octopbot
     id: 'connect-phone-card'
 - tapOn:
     id: 'connect-calendar-switch'
+# Android 13+/16 runtime prompts: grant when they appear (emulator/phone).
+- tapOn:
+    text: 'While using the app'
+    optional: true
+- tapOn:
+    text: 'Allow'
+    optional: true
 - extendedWaitUntil:
     visible:
       id: 'connect-calendar-sync-now'

@@ -1,7 +1,7 @@
 # Suggested routines: an expert with no cron jobs but server task_examples
 # gets a suggestions section; a tap drafts the natural-language schedule in
 # a chat with that expert. Requires the E2E expert (KMC325) with no jobs.
-appId: dev.octop.octopbot
+appId: com.tencent.octopbot
 ---
 - launchApp
 - runFlow:

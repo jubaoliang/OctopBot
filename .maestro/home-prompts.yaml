@@ -1,7 +1,7 @@
 # Per-expert welcome prompts: the E2E expert's own pills replace the generic
 # fallback, and a tap drafts the prompt body into the composer without
 # sending. Requires the E2E expert (KMC325) on the server.
-appId: dev.octop.octopbot
+appId: com.tencent.octopbot
 ---
 - launchApp
 - runFlow:

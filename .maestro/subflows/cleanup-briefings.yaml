@@ -3,7 +3,7 @@
 # E2E expert to have no jobs) is not poisoned. Every step is optional —
 # this hook must never fail, whatever screen the flow died on. Long-press
 # targets rows by id (the name Text is not independently long-clickable).
-appId: dev.octop.octopbot
+appId: com.tencent.octopbot
 ---
 - tapOn:
     id: 'tab-automation'

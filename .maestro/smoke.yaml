@@ -27,8 +27,11 @@ appId: com.tencent.octopbot
     visible:
       id: 'settings-version'
     timeout: 30000
-- assertVisible:
-    id: 'settings-licenses'
+- scrollUntilVisible:
+    element:
+      id: 'settings-licenses'
+    direction: DOWN
+    timeout: 20000
 # Back to chat home (pushed Settings sits above tabs)
 - tapOn:
     id: 'header-back'
