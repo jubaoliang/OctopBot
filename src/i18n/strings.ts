@@ -136,6 +136,12 @@ const zh = {
     clearDiagnostics: '清空记录',
     diagnosticsEmpty: '暂无记录',
     diagnosticsCopied: '已复制',
+    testConnection: '测试连接',
+    testingConnection: '测试中…',
+    backgroundTitle: '后台运行与通知',
+    backgroundHint:
+      '回复通知依赖应用在后台保持运行。部分手机系统会在应用退到后台后冻结或限制其运行，请在系统设置中允许本应用后台运行（如小米、华为：省电策略设为「无限制」并允许自启动）。',
+    openSystemSettings: '打开应用设置',
   },
   notifications: {
     defaultTitle: 'Octop 提醒',
@@ -534,6 +540,12 @@ const en: Dict = {
     clearDiagnostics: 'Clear log',
     diagnosticsEmpty: 'Nothing recorded yet',
     diagnosticsCopied: 'Copied',
+    testConnection: 'Test connection',
+    testingConnection: 'Testing…',
+    backgroundTitle: 'Background running & notifications',
+    backgroundHint:
+      'Reply notifications need the app to keep running in the background. Some phone systems freeze or restrict apps once you leave them — in system settings, allow this app to run in the background (Xiaomi/Huawei: battery saver → No restrictions, plus auto-start).',
+    openSystemSettings: 'Open app settings',
   },
   notifications: {
     defaultTitle: 'Octop alert',

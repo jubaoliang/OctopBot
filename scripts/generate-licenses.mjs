@@ -101,25 +101,34 @@ function walk(deps, seen, out) {
     const key = version ? `${name}@${version}` : name;
     if (!seen.has(key)) {
       seen.add(key);
+      // `pnpm list` reports a virtual-store path even under `nodeLinker: hoisted`,
+      // where `.pnpm/` is never materialised — trust that path only when its
+      // package.json exists, otherwise resolve through the hoisted tree.
       const pkgDir =
-        typeof node.path === 'string' && node.path
+        typeof node.path === 'string' &&
+        node.path &&
+        existsSync(join(node.path, 'package.json'))
           ? node.path
           : resolvePkgDir(name, version || undefined);
       let license = 'UNKNOWN';
       let licenseText;
-      if (pkgDir) {
-        try {
-          const pkg = readJson(join(pkgDir, 'package.json'));
-          const raw = pkg.license;
-          if (typeof raw === 'string') {
-            license = raw;
-          } else if (raw && typeof raw === 'object' && typeof raw.type === 'string') {
-            license = raw.type;
-          }
-          licenseText = licenseTextFor(pkgDir);
-        } catch {
-          // Keep UNKNOWN when package.json is unreadable.
+      if (!pkgDir) {
+        // In the lockfile but not installed on this platform (optional
+        // OS/arch binaries): nothing of it ships, so nothing to acknowledge.
+        walk(node.dependencies, seen, out);
+        continue;
+      }
+      try {
+        const pkg = readJson(join(pkgDir, 'package.json'));
+        const raw = pkg.license;
+        if (typeof raw === 'string') {
+          license = raw;
+        } else if (raw && typeof raw === 'object' && typeof raw.type === 'string') {
+          license = raw.type;
         }
+        licenseText = licenseTextFor(pkgDir);
+      } catch {
+        // Keep UNKNOWN when package.json is unreadable.
       }
       /** @type {{ name: string; version: string; license: string; licenseText?: string }} */
       const entry = { name, version: version || 'unknown', license };
