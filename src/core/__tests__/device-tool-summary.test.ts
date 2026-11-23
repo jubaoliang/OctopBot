@@ -44,12 +44,14 @@ describe('formatDeviceToolCall', () => {
   });
 
   it('renders event creation with a local time range, location and notes', () => {
+    // Offset-less ISO parses as device-local, so the wall clock is the same
+    // on any runner timezone — the card must show the user's local time.
     const text = formatDeviceToolCall(
       'calendar.create_event',
       {
         title: 'Device Tool Test',
-        start: '2026-11-24T15:00:00+08:00',
-        end: '2026-11-24T16:00:00+08:00',
+        start: '2026-11-24T15:00:00',
+        end: '2026-11-24T16:00:00',
         location: 'Office',
         notes: 'bring laptop',
       },
@@ -64,7 +66,7 @@ describe('formatDeviceToolCall', () => {
   it('marks all-day events without a clock', () => {
     const text = formatDeviceToolCall(
       'calendar.create_event',
-      { title: 'Holiday', start: '2026-12-01T00:00:00+08:00', allDay: true },
+      { title: 'Holiday', start: '2026-12-01T00:00:00', allDay: true },
       copy,
     );
     expect(text.detail).toBe('Time: 2026-12-01 (all day)');
@@ -73,7 +75,7 @@ describe('formatDeviceToolCall', () => {
   it('lists only the changed fields for an update', () => {
     const text = formatDeviceToolCall(
       'calendar.update_event',
-      { id: '349', title: 'Moved', start: '2026-11-24T17:00:00+08:00' },
+      { id: '349', title: 'Moved', start: '2026-11-24T17:00:00' },
       copy,
     );
     expect(text.summary).toBe('Update event 349');
