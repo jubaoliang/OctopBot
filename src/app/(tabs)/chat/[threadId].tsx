@@ -22,7 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { Check, ChevronDown, Copy, RefreshCw } from 'lucide-react-native';
-import Markdown from 'react-native-markdown-display';
+import Markdown, { MarkdownIt } from 'react-native-markdown-display';
 
 import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
 import { useTabBarFootprint } from '@/platform/tab-bar';
@@ -63,7 +63,6 @@ import { copyText } from '@/platform/clipboard';
 import { haptics } from '@/platform/haptics';
 import { KeyboardInsetView } from '@/platform/keyboard';
 import { confirmOpenAppActionUrl, confirmOpenHttpUrl } from '@/platform/linking';
-import { CODE_FONT } from '@/theme/code-font';
 import { continuousCorners, layout, radius, typeScale, useTheme } from '@/theme';
 import { balanceStreamingMarkdown } from '@/utils/streaming-markdown';
 
@@ -89,6 +88,8 @@ const STOP_TIMEOUT_MS = 45_000;
 /** A HITL resume request is abandoned after this long. */
 const HITL_TIMEOUT_MS = 120_000;
 const TOKEN_FLUSH_MS = 120;
+/** Bare URLs in replies must read as links (accent, tappable), not prose. */
+const mdParser = MarkdownIt({ typographer: true, linkify: true });
 
 /**
  * 主聊天 — a real chat turn over the WebSocket contract: create thread,
@@ -208,39 +209,6 @@ export default function ThreadScreen() {
       bullet_text_icon: { color: tokens.textSecondary },
       bullet_list: { marginTop: 0, marginBottom: 12 },
       ordered_list: { marginTop: 0, marginBottom: 12 },
-      code_inline: {
-        color: tokens.textBody,
-        backgroundColor: tokens.overlaySubtle,
-        borderWidth: 0,
-        borderRadius: radius.chip,
-        paddingHorizontal: 6,
-        paddingVertical: 1,
-        fontFamily: CODE_FONT,
-      },
-      fence: {
-        color: tokens.textBody,
-        backgroundColor: tokens.overlaySubtle,
-        borderColor: tokens.borderSubtle,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderRadius: radius.pill,
-        ...continuousCorners,
-        padding: 12,
-        marginVertical: 8,
-        ...typeScale.footnote,
-        fontFamily: CODE_FONT,
-      },
-      code_block: {
-        color: tokens.textBody,
-        backgroundColor: tokens.overlaySubtle,
-        borderColor: tokens.borderSubtle,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderRadius: radius.pill,
-        ...continuousCorners,
-        padding: 12,
-        marginVertical: 8,
-        ...typeScale.footnote,
-        fontFamily: CODE_FONT,
-      },
       blockquote: {
         backgroundColor: tokens.overlaySubtle,
         borderLeftColor: tokens.borderStrong,
@@ -1325,7 +1293,7 @@ const AssistantTurnItem = memo(function AssistantTurnItem({
           onToggle={onProcessToggle}
         />
       ) : null}
-      <Markdown style={mdStyles} rules={mdRules} onLinkPress={onLinkPress}>
+      <Markdown style={mdStyles} rules={mdRules} onLinkPress={onLinkPress} markdownit={mdParser}>
         {streaming ? `${balanceStreamingMarkdown(text)} ▍` : text}
       </Markdown>
       {showActions ? (
