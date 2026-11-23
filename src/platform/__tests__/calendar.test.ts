@@ -8,6 +8,7 @@ jest.mock('expo-calendar', () => ({
   getCalendars: jest.fn(),
   listEvents: jest.fn(),
   EntityTypes: { EVENT: 'EVENT' },
+  ExpoCalendarEvent: { get: jest.fn() },
 }));
 
 const expo = jest.mocked(ExpoCalendar);
@@ -151,5 +152,39 @@ describe('calendarReader', () => {
       calendarReader.createEvent({ title: 'Standup', start: '2026-11-23T09:00:00' }),
     ).resolves.toEqual({ id: 'visible' });
     expect(hidden).not.toHaveBeenCalled();
+  });
+
+  it('updates only the provided fields, with ISO date strings', async () => {
+    const update = jest.fn().mockResolvedValue(undefined);
+    (expo.ExpoCalendarEvent.get as jest.Mock).mockResolvedValue({ update });
+    await expect(
+      calendarReader.updateEvent({
+        id: 'e1',
+        title: 'Moved',
+        start: '2026-11-24T09:00:00',
+        allDay: false,
+      }),
+    ).resolves.toEqual({ id: 'e1' });
+    expect(expo.ExpoCalendarEvent.get).toHaveBeenCalledWith('e1');
+    expect(update).toHaveBeenCalledWith({
+      title: 'Moved',
+      startDate: new Date('2026-11-24T09:00:00').toISOString(),
+      allDay: false,
+    });
+  });
+
+  it('deletes an event by id', async () => {
+    const deleteFn = jest.fn().mockResolvedValue(undefined);
+    (expo.ExpoCalendarEvent.get as jest.Mock).mockResolvedValue({ delete: deleteFn });
+    await expect(calendarReader.deleteEvent('e1')).resolves.toEqual({ id: 'e1' });
+    expect(deleteFn).toHaveBeenCalled();
+  });
+
+  it('propagates a missing-event failure on update/delete', async () => {
+    (expo.ExpoCalendarEvent.get as jest.Mock).mockRejectedValue(new Error('event not found'));
+    await expect(calendarReader.updateEvent({ id: 'gone', title: 'X' })).rejects.toThrow(
+      'event not found',
+    );
+    await expect(calendarReader.deleteEvent('gone')).rejects.toThrow('event not found');
   });
 });

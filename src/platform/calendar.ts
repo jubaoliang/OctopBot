@@ -51,6 +51,17 @@ export interface CalendarReader {
     location?: string;
     notes?: string;
   }) => Promise<{ id: string }>;
+  /** Updates only the provided fields of an existing event; throws when missing. */
+  updateEvent: (input: {
+    id: string;
+    title?: string;
+    start?: string;
+    end?: string;
+    allDay?: boolean;
+    location?: string;
+    notes?: string;
+  }) => Promise<{ id: string }>;
+  deleteEvent: (id: string) => Promise<{ id: string }>;
 }
 
 const supported = Platform.OS === 'ios' || Platform.OS === 'android';
@@ -71,6 +82,12 @@ const noopReader: CalendarReader = {
   getReadableCalendars: async () => [],
   listEvents: async () => [],
   createEvent: async () => {
+    throw new Error('calendar unsupported on this platform');
+  },
+  updateEvent: async () => {
+    throw new Error('calendar unsupported on this platform');
+  },
+  deleteEvent: async () => {
     throw new Error('calendar unsupported on this platform');
   },
 };
@@ -149,6 +166,43 @@ const expoReader: CalendarReader = {
       notes: input.notes ?? '',
     });
     return { id: created.id };
+  },
+  updateEvent: async input => {
+    const event = await ExpoCalendar.ExpoCalendarEvent.get(input.id);
+    const details: {
+      title?: string;
+      startDate?: string;
+      endDate?: string;
+      allDay?: boolean;
+      location?: string;
+      notes?: string;
+    } = {};
+    if (input.title !== undefined) {
+      details.title = input.title;
+    }
+    // Same SDK 58 Android bridge collapse as createEvent — ISO strings only.
+    if (input.start !== undefined) {
+      details.startDate = new Date(input.start).toISOString();
+    }
+    if (input.end !== undefined) {
+      details.endDate = new Date(input.end).toISOString();
+    }
+    if (input.allDay !== undefined) {
+      details.allDay = input.allDay;
+    }
+    if (input.location !== undefined) {
+      details.location = input.location;
+    }
+    if (input.notes !== undefined) {
+      details.notes = input.notes;
+    }
+    await event.update(details);
+    return { id: input.id };
+  },
+  deleteEvent: async id => {
+    const event = await ExpoCalendar.ExpoCalendarEvent.get(id);
+    await event.delete();
+    return { id };
   },
 };
 

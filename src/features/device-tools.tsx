@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { ChatSocket, type ChatConnectionStatus } from '@/core/chat/chat-socket';
+import { formatDeviceToolCall } from '@/core/device-tool-summary';
 import { deviceToolRegisterPayload, dispatchDeviceTool } from '@/core/device-tools';
 import { useAuth } from '@/features/auth';
 import { useCalendarSync } from '@/features/calendar-sync-context';
@@ -52,6 +53,9 @@ export function DeviceToolsProvider({ children }: { children: ReactNode }) {
       if (tool.name === 'contacts.search') {
         return consent.contacts;
       }
+      if (tool.name === 'sms.read' || tool.name === 'sms.send') {
+        return consent.sms;
+      }
       return consent.actions;
     });
   }, [consent, copy]);
@@ -82,24 +86,6 @@ export function DeviceToolsProvider({ children }: { children: ReactNode }) {
     [sendResult],
   );
 
-  const summarize = (name: string, input: unknown): string => {
-    const s = stringsRef.current.deviceTools;
-    const label =
-      name === 'calendar.create_event'
-        ? s.toolCreateEvent
-        : name === 'contacts.search'
-          ? s.toolSearchContacts
-          : name === 'phone.dial'
-            ? s.toolDial
-            : name === 'sms.compose'
-              ? s.toolSms
-              : name === 'mail.compose'
-                ? s.toolMail
-                : s.toolReadCalendar;
-    const preview = JSON.stringify(input ?? {});
-    return `${label} · ${preview.length > 120 ? `${preview.slice(0, 120)}…` : preview}`;
-  };
-
   const handleFrame = useCallback(
     (frame: { type: string; [key: string]: unknown }) => {
       if (frame.type !== 'device_tool_call') {
@@ -117,11 +103,17 @@ export function DeviceToolsProvider({ children }: { children: ReactNode }) {
       }
       if (tool.requiresConfirmation) {
         haptics.notify('warning');
+        const text = formatDeviceToolCall(
+          tool.name,
+          frame.input,
+          stringsRef.current.deviceTools.card,
+        );
         setPending({
           callId,
           name,
           input: frame.input,
-          summary: summarize(name, frame.input),
+          summary: text.summary,
+          detail: text.detail,
           threadId: typeof frame.thread_id === 'string' ? frame.thread_id : null,
         });
       } else {

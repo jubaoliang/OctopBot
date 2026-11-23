@@ -229,7 +229,7 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
           {/* The wordmark is the brand asset, not styled text: it keeps the
               custom letterforms and the red dot over the "t". */}
           <View accessible accessibilityRole="header" accessibilityLabel={strings.appName}>
-            <LogoHeader width={72} height={24} color={tokens.textPrimary} />
+            <LogoHeader width={108} height={36} color={tokens.textPrimary} />
           </View>
         </View>
 
@@ -237,6 +237,9 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
           <Animated.View key="server" entering={stepEntering} style={styles.form}>
             <Text accessibilityRole="header" style={[styles.title, { color: tokens.textPrimary }]}>
               {strings.login.serverTitle}
+            </Text>
+            <Text style={[styles.subtitle, { color: tokens.textSecondary }]}>
+              {strings.login.serverSubtitle}
             </Text>
 
             <TextInput
@@ -376,6 +379,9 @@ export function LoginScreen({ storage }: { storage?: SecureStorage }) {
             >
               {strings.login.credentialsTitle}
             </Text>
+            <Text style={[styles.subtitle, { color: tokens.textSecondary }]}>
+              {strings.login.credentialsSubtitle}
+            </Text>
 
             <Text style={[styles.label, { color: tokens.textSecondary }]}>
               {strings.login.username}
@@ -504,18 +510,23 @@ const styles = StyleSheet.create({
   brand: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    alignSelf: 'center',
+    gap: 12,
   },
   logo: {
-    width: 40,
-    height: 38,
+    width: 56,
+    height: 53,
   },
   form: {
-    marginTop: 36,
+    marginTop: 40,
     gap: 12,
   },
   title: {
     ...typeScale.title2,
+    marginBottom: 8,
+  },
+  subtitle: {
+    ...typeScale.subheadline,
     marginBottom: 8,
   },
   titleInset: {

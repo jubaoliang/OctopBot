@@ -13,9 +13,14 @@
 export type DeviceToolName =
   | 'calendar.list_events'
   | 'calendar.create_event'
+  | 'calendar.update_event'
+  | 'calendar.delete_event'
   | 'contacts.search'
   | 'phone.dial'
+  | 'phone.call'
   | 'sms.compose'
+  | 'sms.read'
+  | 'sms.send'
   | 'mail.compose';
 
 export interface ListEventsInput {
@@ -31,6 +36,33 @@ export interface CreateEventInput {
   allDay?: boolean;
   location?: string;
   notes?: string;
+}
+
+export interface UpdateEventInput {
+  /** Event id from calendar.list_events. */
+  id: string;
+  title?: string;
+  start?: string;
+  end?: string;
+  allDay?: boolean;
+  location?: string;
+  notes?: string;
+}
+
+export interface DeleteEventInput {
+  id: string;
+}
+
+export interface ReadSmsInput {
+  /** Case-insensitive substring of the sender number or message body. */
+  query?: string;
+  /** Newest-first cap, 1..100. Defaults to 20. */
+  limit?: number;
+}
+
+export interface SendSmsInput {
+  number: string;
+  body: string;
 }
 
 export interface SearchContactsInput {
@@ -69,6 +101,16 @@ export interface DeviceContact {
   emails: string[];
 }
 
+export interface DeviceSmsMessage {
+  id: string;
+  /** Sender (inbox) or recipient (sent) number. */
+  address: string;
+  body: string;
+  /** Epoch milliseconds. */
+  date: number;
+  type: 'inbox' | 'sent';
+}
+
 /** OS hand-off result; dial/compose never execute silently. */
 export interface DeviceActionResult {
   status: 'opened' | 'cancelled' | 'unsupported';
@@ -81,6 +123,12 @@ export interface DeviceToolHandlers {
   dial: (input: DialInput) => Promise<DeviceActionResult>;
   composeSms: (input: ComposeSmsInput) => Promise<DeviceActionResult>;
   composeMail: (input: ComposeMailInput) => Promise<DeviceActionResult>;
+  /** Optional capabilities — a missing handler drops the tool from the registry. */
+  updateEvent?: (input: UpdateEventInput) => Promise<{ id: string }>;
+  deleteEvent?: (input: DeleteEventInput) => Promise<{ id: string }>;
+  readSms?: (input: ReadSmsInput) => Promise<DeviceSmsMessage[]>;
+  sendSms?: (input: SendSmsInput) => Promise<{ status: 'sent' }>;
+  call?: (input: DialInput) => Promise<{ status: 'placed' }>;
 }
 
 export interface DeviceToolSpec {
@@ -127,6 +175,31 @@ export const DEVICE_TOOL_SPECS: DeviceToolSpec[] = [
     requiresConfirmation: true,
   },
   {
+    name: 'calendar.update_event',
+    description:
+      "Update an existing event on the user's device calendar by the id returned from calendar.list_events. Only the provided fields change. The thread shows an inline approval card before it runs.",
+    inputSchema: schema(
+      {
+        id: STRING,
+        title: STRING,
+        start: STRING,
+        end: STRING,
+        allDay: BOOLEAN,
+        location: STRING,
+        notes: STRING,
+      },
+      ['id'],
+    ),
+    requiresConfirmation: true,
+  },
+  {
+    name: 'calendar.delete_event',
+    description:
+      "Delete an event from the user's device calendar by the id returned from calendar.list_events. The thread shows an inline approval card before it runs.",
+    inputSchema: schema({ id: STRING }, ['id']),
+    requiresConfirmation: true,
+  },
+  {
     name: 'contacts.search',
     description:
       "Search the user's device address book by name substring; returns name, phone numbers and emails. Read-only.",
@@ -144,10 +217,34 @@ export const DEVICE_TOOL_SPECS: DeviceToolSpec[] = [
     requiresConfirmation: true,
   },
   {
+    name: 'phone.call',
+    description:
+      "Place a phone call directly from the user's device (Android only). The thread shows an inline approval card with the number before the call is placed.",
+    inputSchema: schema({ number: STRING }, ['number']),
+    requiresConfirmation: true,
+  },
+  {
     name: 'sms.compose',
     description:
       'Open the OS messaging composer pre-filled with a number and optional body; the user sends it. Inline approval card first.',
     inputSchema: schema({ number: STRING, body: STRING }, ['number']),
+    requiresConfirmation: true,
+  },
+  {
+    name: 'sms.read',
+    description:
+      "Read recent SMS messages on the user's device (Android only), newest first, across inbox and sent. Optional query filters by sender number or body substring. Returns address, body, epoch-ms date and inbox/sent type. Read-only.",
+    inputSchema: schema({
+      query: STRING,
+      limit: { ...NUMBER, minimum: 1, maximum: 100 },
+    }),
+    requiresConfirmation: false,
+  },
+  {
+    name: 'sms.send',
+    description:
+      "Send an SMS directly from the user's device (Android only). The thread shows an inline approval card with the number and full body before it is sent.",
+    inputSchema: schema({ number: STRING, body: STRING }, ['number', 'body']),
     requiresConfirmation: true,
   },
   {
@@ -207,11 +304,48 @@ export function validateDeviceToolInput(name: DeviceToolName, input: unknown): s
       }
       return null;
     }
+    case 'calendar.update_event': {
+      if (!str(rec.id)) {
+        return 'id is required';
+      }
+      if (rec.start !== undefined) {
+        const start = str(rec.start);
+        if (!start || Number.isNaN(Date.parse(start))) {
+          return 'start must be a parseable ISO date';
+        }
+      }
+      if (rec.end !== undefined) {
+        const end = str(rec.end);
+        if (!end || Number.isNaN(Date.parse(end))) {
+          return 'end must be a parseable ISO date';
+        }
+      }
+      return null;
+    }
+    case 'calendar.delete_event':
+      if (!str(rec.id)) {
+        return 'id is required';
+      }
+      return null;
     case 'contacts.search':
       if (rec.limit !== undefined && num(rec.limit, 1, 50) === null) {
         return 'limit must be a number in 1..50';
       }
       return null;
+    case 'sms.read':
+      if (rec.limit !== undefined && num(rec.limit, 1, 100) === null) {
+        return 'limit must be a number in 1..100';
+      }
+      return null;
+    case 'sms.send':
+      if (!str(rec.number)) {
+        return 'number is required';
+      }
+      if (!str(rec.body)) {
+        return 'body is required';
+      }
+      return null;
+    case 'phone.call':
     case 'phone.dial':
     case 'sms.compose':
       if (!str(rec.number)) {
@@ -242,6 +376,28 @@ export function createDeviceToolRegistry(handlers: DeviceToolHandlers): DeviceTo
           location: str(rec.location) ?? undefined,
           notes: str(rec.notes) ?? undefined,
         });
+      case 'calendar.update_event': {
+        const handler = handlers.updateEvent;
+        if (!handler) {
+          throw new Error('calendar.update_event unsupported on this platform');
+        }
+        return handler({
+          id: str(rec.id) ?? '',
+          title: str(rec.title) ?? undefined,
+          start: str(rec.start) ?? undefined,
+          end: str(rec.end) ?? undefined,
+          allDay: rec.allDay === undefined ? undefined : rec.allDay === true,
+          location: str(rec.location) ?? undefined,
+          notes: str(rec.notes) ?? undefined,
+        });
+      }
+      case 'calendar.delete_event': {
+        const handler = handlers.deleteEvent;
+        if (!handler) {
+          throw new Error('calendar.delete_event unsupported on this platform');
+        }
+        return handler({ id: str(rec.id) ?? '' });
+      }
       case 'contacts.search':
         return handlers.searchContacts({
           query: str(rec.query) ?? undefined,
@@ -249,11 +405,35 @@ export function createDeviceToolRegistry(handlers: DeviceToolHandlers): DeviceTo
         });
       case 'phone.dial':
         return handlers.dial({ number: str(rec.number) ?? '' });
+      case 'phone.call': {
+        const handler = handlers.call;
+        if (!handler) {
+          throw new Error('phone.call unsupported on this platform');
+        }
+        return handler({ number: str(rec.number) ?? '' });
+      }
       case 'sms.compose':
         return handlers.composeSms({
           number: str(rec.number) ?? '',
           body: str(rec.body) ?? undefined,
         });
+      case 'sms.read': {
+        const handler = handlers.readSms;
+        if (!handler) {
+          throw new Error('sms.read unsupported on this platform');
+        }
+        return handler({
+          query: str(rec.query) ?? undefined,
+          limit: num(rec.limit, 1, 100) ?? undefined,
+        });
+      }
+      case 'sms.send': {
+        const handler = handlers.sendSms;
+        if (!handler) {
+          throw new Error('sms.send unsupported on this platform');
+        }
+        return handler({ number: str(rec.number) ?? '', body: str(rec.body) ?? '' });
+      }
       case 'mail.compose':
         return handlers.composeMail({
           to: str(rec.to) ?? '',
@@ -262,7 +442,23 @@ export function createDeviceToolRegistry(handlers: DeviceToolHandlers): DeviceTo
         });
     }
   };
-  return DEVICE_TOOL_SPECS.map(spec => ({
+  const hasHandler = (name: DeviceToolName): boolean => {
+    switch (name) {
+      case 'calendar.update_event':
+        return handlers.updateEvent !== undefined;
+      case 'calendar.delete_event':
+        return handlers.deleteEvent !== undefined;
+      case 'sms.read':
+        return handlers.readSms !== undefined;
+      case 'sms.send':
+        return handlers.sendSms !== undefined;
+      case 'phone.call':
+        return handlers.call !== undefined;
+      default:
+        return true;
+    }
+  };
+  return DEVICE_TOOL_SPECS.filter(spec => hasHandler(spec.name)).map(spec => ({
     ...spec,
     execute: async (input: unknown) => {
       const error = validateDeviceToolInput(spec.name, input);

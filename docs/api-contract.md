@@ -101,6 +101,19 @@ Server → client (broadcast frames carry `thread_id`):
 
 `WS /api/notifications/ws?token=<JWT>` — user-scoped; inbound `ping` only; pushes `dashboard_push {agent_id, thread_id, text, agent_name}` (cron reminders, proactive care). Same close codes as chat WS.
 
+## Device presence WebSocket (`src/octop/api/routers/devices.py`) — `feat/device-tools` branch
+
+Not in upstream 1.0.3b4 yet; served by the `feat/device-tools` branch (hub: `src/octop/infra/devices/hub.py`, expert bridge: `src/octop/infra/agents/acp/device_mcp.py` + `src/octop/infra/devices/langchain.py`). The phone is a capability node: it advertises consented device tools; any of the user's sessions can delegate calls to it.
+
+- `WS /api/devices/ws?token=<JWT>` — user-scoped, one socket per phone. Same auth/close codes as chat WS (`4001` missing/invalid token).
+- Client → server:
+  - `device_tools.register {tools: [{name, description, input_schema, requires_confirmation}]}` — replaces the phone's advertised set; sent on connect and whenever consent changes. Names are dotted (`calendar.list_events`, `sms.send`, …); schemas are JSON Schema objects.
+  - `device_tool_result {call_id, output? , error?}` — answer to a routed call; `error` set means failure/cancel.
+  - `ping` → `pong`.
+- Server → client: `device_tool_call {call_id, name, input, thread_id?}` — `thread_id` is the owning conversation so the client can render the inline approval card in that thread. Calls with `requires_confirmation: true` park on the phone until the user approves/denies; the server waits up to 300 s (`CALL_TIMEOUT_SECONDS`) and then returns a timeout error to the expert.
+- Expert side: managed ACP turns get a loopback MCP server `octop-device` (`/api/internal/mcp/device?token=<scope>`, scoped per user/agent/thread) whose `tools/list` is the live advertised set; native harness experts get the same tools injected in-process as `device_<name with dots → underscores>` (LLM-safe names). Disconnect/unregister refreshes both paths.
+- Consent and OS permissions are enforced on the phone only; the server never sees device data except as tool results.
+
 ## Knowledge bases (`src/octop/api/routers/knowledge_bases.py`)
 
 - `GET /api/knowledge-bases` → visible KBs (`{knowledge_base_id, name, description, visibility fields, owner_username…}`).

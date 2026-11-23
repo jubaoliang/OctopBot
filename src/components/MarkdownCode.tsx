@@ -63,15 +63,19 @@ export function InlineCode({
   // Strip the paragraph face/weight so Android cannot keep the body font.
   const base = StyleSheet.flatten(inheritedStyle) ?? {};
   const { fontFamily: _dropFace, fontWeight: _dropWeight, ...lineMetrics } = base;
+  // A chip fill on wrapping text paints ragged slabs across lines; long or
+  // multi-word spans read better as plain monospace secondary text.
+  const chip = text.length <= 24 && !/\s/.test(text);
   return (
     <Text
       selectable
       style={[
         lineMetrics,
         styles.inline,
+        chip ? styles.inlineChip : null,
         {
           color: tokens.textSecondary,
-          backgroundColor: tokens.overlayPressed,
+          backgroundColor: chip ? tokens.overlayPressed : undefined,
           fontFamily: CODE_FONT,
           fontWeight: '400',
           fontStyle: 'normal',
@@ -107,6 +111,8 @@ const styles = StyleSheet.create({
   },
   inline: {
     ...typeScale.subheadline,
+  },
+  inlineChip: {
     paddingHorizontal: 5,
     paddingVertical: 1,
   },

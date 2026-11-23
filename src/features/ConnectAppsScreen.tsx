@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { CalendarDays, ChevronRight, Phone, Users } from 'lucide-react-native';
+import { CalendarDays, ChevronRight, MessageSquare, Phone, Users } from 'lucide-react-native';
 
 import { AppHeader } from '@/components/AppHeader';
 import { useTabBarFootprint } from '@/platform/tab-bar';
@@ -11,6 +11,7 @@ import { useDeviceTools } from '@/features/device-tools-context';
 import { useI18n } from '@/i18n/I18nProvider';
 import { haptics } from '@/platform/haptics';
 import { openAppSettings } from '@/platform/linking';
+import { telephony } from '@/platform/telephony';
 import { continuousCorners, layout, radius, typeScale, useTokens } from '@/theme';
 
 /**
@@ -25,7 +26,8 @@ export function ConnectAppsScreen() {
   const { t: strings } = useI18n();
   const router = useRouter();
   const tabBarFootprint = useTabBarFootprint();
-  const { consent, setConsent, permission, contactsPermission, calendars } = useCalendarSync();
+  const { consent, setConsent, permission, contactsPermission, smsPermission, calendars } =
+    useCalendarSync();
   const { online } = useDeviceTools();
 
   const toggle = useCallback(
@@ -169,7 +171,65 @@ export function ConnectAppsScreen() {
             </Text>
           </View>
 
-          {/* Phone & mail — OS hand-off, always confirmed */}
+          {/* SMS — read on demand, send after the in-conversation card */}
+          {telephony.supported ? (
+            <View
+              style={[
+                styles.card,
+                { backgroundColor: tokens.surface, borderColor: tokens.borderSubtle },
+              ]}
+              testID="connect-sms-card"
+            >
+              <View style={styles.cardHeader}>
+                <View style={[styles.cardIcon, { backgroundColor: tokens.accentSoft }]}>
+                  <MessageSquare size={20} color={tokens.accent} />
+                </View>
+                <View style={styles.cardTitles}>
+                  <Text style={[styles.cardName, { color: tokens.textPrimary }]}>
+                    {strings.connectApps.sms}
+                  </Text>
+                  <Text
+                    style={[styles.cardScope, { color: tokens.textSecondary }]}
+                    numberOfLines={2}
+                  >
+                    {strings.connectApps.smsScope}
+                  </Text>
+                </View>
+                <Switch
+                  accessibilityRole="switch"
+                  accessibilityLabel={strings.connectApps.sms}
+                  value={consent.sms}
+                  onValueChange={next => toggle({ sms: next })}
+                  trackColor={{ true: tokens.accent, false: tokens.overlayPressed }}
+                  thumbColor={tokens.surfaceRaised}
+                  ios_backgroundColor={tokens.overlayPressed}
+                  testID="connect-sms-switch"
+                />
+              </View>
+              {consent.sms && smsPermission === 'denied' ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={strings.connectApps.denied}
+                  testID="connect-sms-denied"
+                  style={({ pressed }) => [
+                    styles.syncRow,
+                    pressed ? { backgroundColor: tokens.overlayPressed } : null,
+                  ]}
+                  onPress={() => openAppSettings()}
+                >
+                  <Text style={[styles.syncMeta, { color: tokens.danger }]}>
+                    {strings.connectApps.denied}
+                  </Text>
+                  <ChevronRight size={16} color={tokens.textPlaceholder} />
+                </Pressable>
+              ) : null}
+              <Text style={[styles.cardBodyText, { color: tokens.textSecondary }]}>
+                {strings.connectApps.smsDetail}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Phone & mail — confirmed in conversation, direct or OS hand-off */}
           <View
             style={[
               styles.card,

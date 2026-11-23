@@ -8,13 +8,16 @@ import {
 import { calendarReader } from './calendar';
 import { contactsReader } from './contacts';
 import { requestAppAction, type LinkConfirmCopy } from './linking';
+import { telephony } from './telephony';
 
 /**
  * Concrete device-tool handlers — the ONLY place the device-tool registry
  * meets platform capabilities (AGENTS.md wrapper hygiene). Reads check the
  * OS permission at call time so a revoked grant fails the tool instead of
  * silently returning empty; writes/actions hand off to the OS composer or
- * dialer through the confirmed linking wrapper (never silent).
+ * dialer through the confirmed linking wrapper (never silent) — except the
+ * direct SMS/call tools, which exist only where the telephony wrapper
+ * supports them and run after the in-conversation approval card.
  */
 export function buildDeviceTools(copy: LinkConfirmCopy): DeviceTool[] {
   const requireCalendar = async () => {
@@ -27,6 +30,15 @@ export function buildDeviceTools(copy: LinkConfirmCopy): DeviceTool[] {
     const state = await contactsReader.getPermissionStatus();
     if (state !== 'granted') {
       throw new Error('contacts permission not granted on the device');
+    }
+  };
+  const requireTelephony = async (kind: 'sms' | 'call') => {
+    let state = await telephony.getPermissionStatus(kind);
+    if (state === 'undetermined') {
+      state = await telephony.requestPermissions(kind);
+    }
+    if (state !== 'granted') {
+      throw new Error(`${kind} permission not granted on the device`);
     }
   };
   const action = (url: string): Promise<DeviceActionResult> =>
@@ -47,6 +59,14 @@ export function buildDeviceTools(copy: LinkConfirmCopy): DeviceTool[] {
     createEvent: async input => {
       await requireCalendar();
       return calendarReader.createEvent(input);
+    },
+    updateEvent: async input => {
+      await requireCalendar();
+      return calendarReader.updateEvent(input);
+    },
+    deleteEvent: async ({ id }) => {
+      await requireCalendar();
+      return calendarReader.deleteEvent(id);
     },
     searchContacts: async ({ query, limit }) => {
       await requireContacts();
@@ -71,6 +91,22 @@ export function buildDeviceTools(copy: LinkConfirmCopy): DeviceTool[] {
       const qs = params.toString();
       return action(`mailto:${encodeURIComponent(to)}${qs ? `?${qs}` : ''}`);
     },
+    ...(telephony.supported
+      ? {
+          readSms: async (input: { query?: string; limit?: number }) => {
+            await requireTelephony('sms');
+            return telephony.readSms(input);
+          },
+          sendSms: async (input: { number: string; body: string }) => {
+            await requireTelephony('sms');
+            return telephony.sendSms(input);
+          },
+          call: async (input: { number: string }) => {
+            await requireTelephony('call');
+            return telephony.call(input);
+          },
+        }
+      : {}),
   };
   return createDeviceToolRegistry(handlers);
 }

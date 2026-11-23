@@ -4,6 +4,7 @@ import { AppState } from 'react-native';
 import { calendarReader, type DeviceCalendar } from '@/platform/calendar';
 import { contactsReader, type ContactsPermissionState } from '@/platform/contacts';
 import type { SecureStorage } from '@/platform/secure-storage';
+import { telephony, type TelephonyPermissionState } from '@/platform/telephony';
 
 import {
   CalendarSyncContext,
@@ -14,6 +15,7 @@ import {
 const CALENDAR_KEY = 'calendar.enabled';
 const CONTACTS_KEY = 'contacts.enabled';
 const ACTIONS_KEY = 'actions.enabled';
+const SMS_KEY = 'sms.enabled';
 
 /**
  * Device-capability consent. The Connect switches decide which device tools
@@ -32,12 +34,14 @@ export function CalendarSyncProvider({
     calendar: false,
     contacts: false,
     actions: true,
+    sms: false,
   });
   const [permission, setPermission] = useState<'granted' | 'denied' | 'undetermined'>(
     'undetermined',
   );
   const [contactsPermission, setContactsPermission] =
     useState<ContactsPermissionState>('undetermined');
+  const [smsPermission, setSmsPermission] = useState<TelephonyPermissionState>('undetermined');
   const [calendars, setCalendars] = useState<DeviceCalendar[]>([]);
 
   // Hydrate persisted consent once per mount.
@@ -47,8 +51,9 @@ export function CalendarSyncProvider({
       storage.get(CALENDAR_KEY),
       storage.get(CONTACTS_KEY),
       storage.get(ACTIONS_KEY),
+      storage.get(SMS_KEY),
     ])
-      .then(([calendarValue, contactsValue, actionsValue]) => {
+      .then(([calendarValue, contactsValue, actionsValue, smsValue]) => {
         if (cancelled) {
           return;
         }
@@ -56,6 +61,7 @@ export function CalendarSyncProvider({
           calendar: calendarValue === 'true',
           contacts: contactsValue === 'true',
           actions: actionsValue !== 'false',
+          sms: smsValue === 'true',
         });
       })
       .catch(() => undefined);
@@ -65,12 +71,14 @@ export function CalendarSyncProvider({
   }, [storage]);
 
   const refreshPermission = useCallback(async () => {
-    const [calendarState, contactsState] = await Promise.all([
+    const [calendarState, contactsState, smsState] = await Promise.all([
       calendarReader.getPermissionStatus(),
       contactsReader.getPermissionStatus(),
+      telephony.getPermissionStatus('sms'),
     ]);
     setPermission(calendarState);
     setContactsPermission(contactsState);
+    setSmsPermission(smsState);
   }, []);
 
   const requestCalendarPermissions = useCallback(
@@ -86,6 +94,15 @@ export function CalendarSyncProvider({
     () =>
       contactsReader.requestPermissions().then(state => {
         setContactsPermission(state);
+        return state;
+      }),
+    [],
+  );
+
+  const requestSmsPermissions = useCallback(
+    () =>
+      telephony.requestPermissions('sms').then(state => {
+        setSmsPermission(state);
         return state;
       }),
     [],
@@ -135,6 +152,9 @@ export function CalendarSyncProvider({
         if (patch.actions !== undefined) {
           void storage.set(ACTIONS_KEY, String(next.actions)).catch(() => undefined);
         }
+        if (patch.sms !== undefined) {
+          void storage.set(SMS_KEY, String(next.sms)).catch(() => undefined);
+        }
         return next;
       });
       if (patch.calendar === true) {
@@ -143,8 +163,11 @@ export function CalendarSyncProvider({
       if (patch.contacts === true) {
         void requestContactsPermissions();
       }
+      if (patch.sms === true) {
+        void requestSmsPermissions();
+      }
     },
-    [storage, requestCalendarPermissions, requestContactsPermissions],
+    [storage, requestCalendarPermissions, requestContactsPermissions, requestSmsPermissions],
   );
 
   // App resume: permissions can change in OS Settings while we're backgrounded.
@@ -167,9 +190,11 @@ export function CalendarSyncProvider({
       setConsent,
       permission,
       contactsPermission,
+      smsPermission,
       refreshPermission,
       requestCalendarPermissions,
       requestContactsPermissions,
+      requestSmsPermissions,
       calendars,
     }),
     [
@@ -177,9 +202,11 @@ export function CalendarSyncProvider({
       setConsent,
       permission,
       contactsPermission,
+      smsPermission,
       refreshPermission,
       requestCalendarPermissions,
       requestContactsPermissions,
+      requestSmsPermissions,
       calendars,
     ],
   );

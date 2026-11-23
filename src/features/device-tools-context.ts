@@ -6,6 +6,7 @@ export interface DeviceConfirmRequest {
   name: string;
   input: unknown;
   summary: string;
+  detail?: string;
   /** Thread the call belongs to; the inline approval card renders there. */
   threadId: string | null;
 }

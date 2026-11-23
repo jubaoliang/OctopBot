@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react';
 
 import type { CalendarPermissionState, DeviceCalendar } from '@/platform/calendar';
 import type { ContactsPermissionState } from '@/platform/contacts';
+import type { TelephonyPermissionState } from '@/platform/telephony';
 
 /**
  * Isolated from `calendar-sync.tsx` so Fast Refresh of provider logic does
@@ -13,6 +14,7 @@ export interface DeviceConsent {
   calendar: boolean;
   contacts: boolean;
   actions: boolean;
+  sms: boolean;
 }
 
 export interface CalendarSyncValue {
@@ -20,9 +22,11 @@ export interface CalendarSyncValue {
   setConsent: (patch: Partial<DeviceConsent>) => void;
   permission: CalendarPermissionState;
   contactsPermission: ContactsPermissionState;
+  smsPermission: TelephonyPermissionState;
   refreshPermission: () => Promise<void>;
   requestCalendarPermissions: () => Promise<CalendarPermissionState>;
   requestContactsPermissions: () => Promise<ContactsPermissionState>;
+  requestSmsPermissions: () => Promise<TelephonyPermissionState>;
   /** Device calendars holding events (loaded when permission is granted). */
   calendars: DeviceCalendar[];
 }
