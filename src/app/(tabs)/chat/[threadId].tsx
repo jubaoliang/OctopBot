@@ -307,11 +307,11 @@ export default function ThreadScreen() {
       // Wrap inside maxWidth — ellipsis is hard to reveal on a phone.
       th_text: {
         color: tokens.textPrimary,
-        ...typeScale.footnote,
+        ...typeScale.subheadline,
         fontWeight: '600' as const,
         flexShrink: 1,
       },
-      td_text: { color: tokens.textBody, ...typeScale.footnote, flexShrink: 1 },
+      td_text: { color: tokens.textBody, ...typeScale.subheadline, flexShrink: 1 },
     }),
     [tokens],
   );

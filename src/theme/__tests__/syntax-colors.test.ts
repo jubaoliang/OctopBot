@@ -16,28 +16,35 @@ describe('isNearGray', () => {
 });
 
 describe('resolveSyntaxColors', () => {
-  it('uses danger/success for semantic roles in both modes', () => {
+  it('uses fixed calm hues for keywords and function names', () => {
     const light = resolveSyntaxColors(lightTokens, 'light');
     const dark = resolveSyntaxColors(darkTokens, 'dark');
-    expect(light.keyword).toBe(lightTokens.danger);
-    expect(light.string).toBe(lightTokens.success);
-    expect(dark.keyword).toBe(darkTokens.danger);
-    expect(dark.deletion).toBe(darkTokens.danger);
+    expect(light.keyword).toBe('#0064D8');
+    expect(dark.keyword).toBe('#7EB6FF');
+    expect(light.title).toBe('#C2185B');
+    expect(dark.title).toBe('#F48FB1');
   });
 
-  it('follows a chromatic palette accent for identity roles', () => {
+  it('uses danger/success only for diff semantics', () => {
+    const light = resolveSyntaxColors(lightTokens, 'light');
+    expect(light.string).toBe(lightTokens.success);
+    expect(light.addition).toBe(lightTokens.success);
+    expect(light.deletion).toBe(lightTokens.danger);
+  });
+
+  it('follows a chromatic palette accent for numeric roles', () => {
     const tokens = resolveTokens('light', 'violet');
     const colors = resolveSyntaxColors(tokens, 'light');
     expect(colors.built_in).toBe(tokens.accent);
     expect(colors.number).toBe(tokens.accent);
-    expect(colors.title).toBe(tokens.accent);
+    expect(colors.literal).toBe(tokens.accent);
   });
 
-  it('does not use ink accent for identity roles', () => {
+  it('swaps the ink accent for purple numerals', () => {
     const tokens = resolveTokens('light', 'ink');
     const colors = resolveSyntaxColors(tokens, 'light');
     expect(colors.built_in).not.toBe(tokens.accent);
-    expect(colors.built_in).toBe('#2F82D1');
+    expect(colors.built_in).toBe('#7048E8');
     expect(isNearGray(colors.built_in)).toBe(false);
   });
 
