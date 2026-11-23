@@ -2,12 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Copy, Settings, Trash2, Zap } from 'lucide-react-native';
+import { Copy, Trash2, Zap } from 'lucide-react-native';
 
 import { PressableScale } from '@/components/PressableScale';
 import { ScreenHeader, TOP_EDGES } from '@/platform/screen-header';
 import { copyText } from '@/platform/clipboard';
-import { openAppSettings } from '@/platform/linking';
 import { HttpClient } from '@/core/api/http';
 import { OctopApiError } from '@/core/api/errors';
 import {
@@ -75,11 +74,15 @@ export function ConnectionDiagnosticsScreen() {
 
   // The same anonymous health check the sign-in screen runs, recorded with
   // its round-trip time so a flaky network shows up as numbers, not vibes.
+  // A new test replaces the previous log: the screen answers "how is the
+  // connection right now", not "what happened earlier".
   const testConnection = useCallback(async () => {
     if (!baseUrl || testing) {
       return;
     }
     setTesting(true);
+    clearConnectionEvents();
+    setEvents(recentConnectionEvents());
     const started = Date.now();
     const client = new HttpClient({
       baseUrl,
@@ -201,35 +204,6 @@ export function ConnectionDiagnosticsScreen() {
               ))}
             </View>
           )}
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: tokens.surface, borderColor: tokens.borderSubtle },
-            ]}
-            testID="diagnostics-background-hint"
-          >
-            <Text style={[styles.cardTitle, { color: tokens.textPrimary }]}>
-              {strings.settings.backgroundTitle}
-            </Text>
-            <Text style={[styles.cardBody, { color: tokens.textSecondary }]}>
-              {strings.settings.backgroundHint}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={strings.settings.openSystemSettings}
-              onPress={() => void openAppSettings()}
-              style={({ pressed }) => [
-                styles.cardLink,
-                pressed ? { backgroundColor: tokens.overlayPressed } : null,
-              ]}
-              testID="diagnostics-open-settings"
-            >
-              <Settings size={16} color={tokens.accent} />
-              <Text style={[styles.cardLinkText, { color: tokens.accent }]}>
-                {strings.settings.openSystemSettings}
-              </Text>
-            </Pressable>
-          </View>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -271,25 +245,4 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   line: { ...typeScale.caption1 },
-  card: {
-    borderRadius: radius.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    ...continuousCorners,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
-  },
-  cardTitle: { ...typeScale.headline },
-  cardBody: { ...typeScale.footnote },
-  cardLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    minHeight: layout.hitTarget,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    marginLeft: -8,
-    borderRadius: radius.chip,
-  },
-  cardLinkText: { ...typeScale.subheadline, fontWeight: '500' },
 });

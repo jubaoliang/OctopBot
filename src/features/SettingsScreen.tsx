@@ -256,15 +256,26 @@ export function SettingsScreen() {
                   });
                 }
               }}
-              last={!(notificationsEnabled && permission === 'denied')}
+              last={!notificationsEnabled}
               testID="settings-notifications"
             />
             {notificationsEnabled && permission === 'denied' ? (
               <SettingsRow
                 title={strings.settings.notificationsSystem}
                 disclosure
-                last
+                last={false}
                 testID="settings-notifications-system"
+                onPress={() => openAppSettings()}
+              />
+            ) : null}
+            {notificationsEnabled ? (
+              // Reply notifications need the process alive in the background;
+              // ROMs that freeze backgrounded apps can only be lifted here.
+              <SettingsRow
+                title={strings.settings.backgroundSettings}
+                disclosure
+                last
+                testID="settings-background"
                 onPress={() => openAppSettings()}
               />
             ) : null}

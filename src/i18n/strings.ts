@@ -121,7 +121,7 @@ const zh = {
     notificationsAllow: '允许通知',
     notificationsSystem: '在系统设置中开启通知',
     notificationsFooter:
-      '应用运行期间，专家回复完成或定时任务触发时会发送系统通知，点击直达对应会话。',
+      '应用运行期间，专家回复完成或定时任务触发时会发送系统通知，点击直达对应会话。回复通知依赖应用在后台保持运行：部分手机系统会在应用退到后台后冻结或限制其运行，请在系统设置中允许本应用后台运行（如小米、华为：省电策略设为「无限制」并允许自启动）。',
     calendarSyncNone: '未找到可同步的日历',
     calendarSyncNow: '立即同步',
     calendarSyncLast: (time: string) => `上次同步：${time}`,
@@ -138,10 +138,7 @@ const zh = {
     diagnosticsCopied: '已复制',
     testConnection: '测试连接',
     testingConnection: '测试中…',
-    backgroundTitle: '后台运行与通知',
-    backgroundHint:
-      '回复通知依赖应用在后台保持运行。部分手机系统会在应用退到后台后冻结或限制其运行，请在系统设置中允许本应用后台运行（如小米、华为：省电策略设为「无限制」并允许自启动）。',
-    openSystemSettings: '打开应用设置',
+    backgroundSettings: '允许后台运行',
   },
   notifications: {
     defaultTitle: 'Octop 提醒',
@@ -525,7 +522,7 @@ const en: Dict = {
     notificationsAllow: 'Allow notifications',
     notificationsSystem: 'Enable notifications in system settings',
     notificationsFooter:
-      'While the app is running, finished expert replies and scheduled tasks post a system notification; tapping one opens the conversation.',
+      'While the app is running, finished expert replies and scheduled tasks post a system notification; tapping one opens the conversation. Reply notifications need the app to keep running in the background: some phone systems freeze or restrict apps once you leave them — in system settings, allow this app to run in the background (Xiaomi/Huawei: battery saver → No restrictions, plus auto-start).',
     calendarSyncNone: 'No syncable calendars found',
     calendarSyncNow: 'Sync now',
     calendarSyncLast: (time: string) => `Last sync: ${time}`,
@@ -542,10 +539,7 @@ const en: Dict = {
     diagnosticsCopied: 'Copied',
     testConnection: 'Test connection',
     testingConnection: 'Testing…',
-    backgroundTitle: 'Background running & notifications',
-    backgroundHint:
-      'Reply notifications need the app to keep running in the background. Some phone systems freeze or restrict apps once you leave them — in system settings, allow this app to run in the background (Xiaomi/Huawei: battery saver → No restrictions, plus auto-start).',
-    openSystemSettings: 'Open app settings',
+    backgroundSettings: 'Allow background running',
   },
   notifications: {
     defaultTitle: 'Octop alert',
