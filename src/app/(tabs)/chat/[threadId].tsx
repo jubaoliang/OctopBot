@@ -99,7 +99,7 @@ export default function ThreadScreen() {
   const { tokens } = useTheme();
   const { t: strings } = useI18n();
   const { setActiveChat, clearActiveChatIf, markThreadRead } = useAppShell();
-  const { clearLiveUnread } = useNotifications();
+  const { clearLiveUnread, notifyReply, askPermissionInContext } = useNotifications();
   const deviceTools = useDeviceTools();
   const router = useRouter();
   const { baseUrl, token, httpClient, user, dropSession, sessionGeneration } = useAuth();
@@ -393,6 +393,13 @@ export default function ThreadScreen() {
   // re-render the whole screen (incl. full markdown re-parse) at model
   // speed and visibly jank scrolling/animations.
   const pendingTokensRef = useRef('');
+  // Tail of the current turn's assistant text, for a system notification
+  // when the turn ends while the app is in the background.
+  const replyTextRef = useRef('');
+  const replyTitleRef = useRef<string | null>(null);
+  useEffect(() => {
+    replyTitleRef.current = typeof params.title === 'string' ? params.title : null;
+  }, [params.title]);
   const flushTokens = useCallback(() => {
     const delta = pendingTokensRef.current;
     if (delta) {
@@ -449,9 +456,24 @@ export default function ThreadScreen() {
         typeof frameThread === 'string' &&
         threadRef.current !== null &&
         frameThread !== threadRef.current;
+      if (!foreign && frame.type === 'turn.started') {
+        replyTextRef.current = '';
+      }
+      if (!foreign && frame.type === 'turn.ended') {
+        // Streamed to completion while the app is backgrounded: the server
+        // does not push (this socket is the subscriber), so the device
+        // announces the finished answer itself.
+        const finished = frame.failed !== true && frame.hitl_paused !== true;
+        const text = replyTextRef.current;
+        replyTextRef.current = '';
+        if (finished && text.trim() && AppState.currentState !== 'active') {
+          notifyReply(agentId, threadRef.current ?? '', text, replyTitleRef.current);
+        }
+      }
       if (frame.type === 'token') {
         if (!foreign && typeof frame.content === 'string') {
           pendingTokensRef.current += frame.content;
+          replyTextRef.current = (replyTextRef.current + frame.content).slice(-4096);
           // First token still marks busy; later tokens only buffer text.
           if (!streamingRef.current) {
             dispatch({
@@ -489,7 +511,7 @@ export default function ThreadScreen() {
         },
       });
     },
-    [flushTokens],
+    [flushTokens, notifyReply, agentId],
   );
 
   // httpClient flows through a ref: identity changes (logout, URL switch)
@@ -782,6 +804,9 @@ export default function ThreadScreen() {
 
   const send = (text: string, attachments?: TurnAttachment[]) => {
     dispatch({ type: 'userSend', text, attachments });
+    // The user now has a reason to want notifications (an answer is coming)
+    // — the one-shot permission ask belongs here, not at launch.
+    askPermissionInContext();
     void (async () => {
       const threadId = await ensureThreadRef.current?.();
       const socket = socketRef.current;

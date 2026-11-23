@@ -10,6 +10,7 @@ import { localNotifications, type NotificationPermissionState } from '@/platform
 import { useAuth } from '@/features/auth';
 import { useAppShell } from '@/features/app-shell';
 import { countUnreadThreads } from '@/utils/count-unread';
+import { replyPreview } from '@/utils/reply-preview';
 import { useI18n } from '@/i18n/I18nProvider';
 import { NotificationsContext, type NotificationsValue } from '@/features/notifications-context';
 
@@ -93,6 +94,35 @@ export function NotificationsProvider({
       return state;
     });
   }, []);
+
+  // Contextual ask, not a launch prompt — and only while the app is
+  // foregrounded: an Alert fired in the background is invisible yet would
+  // burn the one-shot ask.
+  const askPermissionInContext = useCallback(() => {
+    void (async () => {
+      const status = await localNotifications.getPermissionStatus();
+      setPermission(status);
+      if (status !== 'undetermined') {
+        return;
+      }
+      if (askedOnceRef.current || AppState.currentState !== 'active') {
+        return;
+      }
+      askedOnceRef.current = true;
+      Alert.alert(strings.notifications.askTitle, strings.notifications.askBody, [
+        { text: strings.notifications.notNow, style: 'cancel' },
+        {
+          text: strings.notifications.enable,
+          onPress: () => {
+            // A hard denial leaves recovery to the Settings row that opens
+            // system settings; surprising the user with a settings jump here
+            // would read as punishment for answering.
+            void requestPermission();
+          },
+        },
+      ]);
+    })();
+  }, [requestPermission, strings.notifications]);
 
   const clearLiveUnread = useCallback(() => {
     setLiveUnread(false);
@@ -193,30 +223,7 @@ export function NotificationsProvider({
           return;
         }
         if (status === 'undetermined') {
-          // Contextual ask, not a launch prompt — and only while the app is
-          // foregrounded: an Alert fired in the background is invisible yet
-          // would burn the one-shot ask.
-          if (askedOnceRef.current || AppState.currentState !== 'active') {
-            return;
-          }
-          askedOnceRef.current = true;
-          Alert.alert(strings.notifications.askTitle, strings.notifications.askBody, [
-            { text: strings.notifications.notNow, style: 'cancel' },
-            {
-              text: strings.notifications.enable,
-              onPress: () => {
-                void requestPermission().then(state => {
-                  if (state === 'granted') {
-                    void localNotifications.presentLocal({
-                      title: agentName ?? strings.notifications.defaultTitle,
-                      body: text,
-                      data: { agentId, threadId, title: agentName ?? '' },
-                    });
-                  }
-                });
-              },
-            },
-          ]);
+          askPermissionInContext();
           return;
         }
         // A push without a thread has nothing to deep-link to — the drawer
@@ -231,7 +238,32 @@ export function NotificationsProvider({
         });
       })();
     },
-    [getActiveChat, reload, requestPermission, strings.notifications],
+    [getActiveChat, reload, askPermissionInContext, strings.notifications],
+  );
+
+  // A reply this device streamed itself finished while the app was in the
+  // background (the server does not push in that case — the socket is the
+  // subscriber). Never prompts: a permission dialog cannot be answered
+  // from the background, so an ungranted permission simply stays silent.
+  const notifyReply = useCallback(
+    (agentId: string, threadId: string, markdown: string, title?: string | null) => {
+      if (!enabled) {
+        return;
+      }
+      void (async () => {
+        const status = await localNotifications.getPermissionStatus();
+        setPermission(status);
+        if (status !== 'granted') {
+          return;
+        }
+        await localNotifications.presentLocal({
+          title: title?.trim() || strings.notifications.defaultTitle,
+          body: replyPreview(markdown),
+          data: { agentId, threadId, title: title ?? '' },
+        });
+      })();
+    },
+    [enabled, strings.notifications],
   );
 
   // Latest handler into the ref after commit — never during render.
@@ -313,6 +345,8 @@ export function NotificationsProvider({
       requestPermission,
       liveUnread,
       clearLiveUnread,
+      notifyReply,
+      askPermissionInContext,
     }),
     [
       enabled,
@@ -322,6 +356,8 @@ export function NotificationsProvider({
       requestPermission,
       liveUnread,
       clearLiveUnread,
+      notifyReply,
+      askPermissionInContext,
     ],
   );
 

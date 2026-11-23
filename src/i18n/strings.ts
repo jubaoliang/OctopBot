@@ -120,7 +120,8 @@ const zh = {
     notificationsTitle: '通知',
     notificationsAllow: '允许通知',
     notificationsSystem: '在系统设置中开启通知',
-    notificationsFooter: '应用运行期间接收专家提醒与定时任务通知，点击通知直达对应会话。',
+    notificationsFooter:
+      '应用运行期间，专家回复完成或定时任务触发时会发送系统通知，点击直达对应会话。',
     calendarSyncNone: '未找到可同步的日历',
     calendarSyncNow: '立即同步',
     calendarSyncLast: (time: string) => `上次同步：${time}`,
@@ -518,7 +519,7 @@ const en: Dict = {
     notificationsAllow: 'Allow notifications',
     notificationsSystem: 'Enable notifications in system settings',
     notificationsFooter:
-      'Receive expert alerts and scheduled-task notifications while the app is running; tapping one opens the conversation.',
+      'While the app is running, finished expert replies and scheduled tasks post a system notification; tapping one opens the conversation.',
     calendarSyncNone: 'No syncable calendars found',
     calendarSyncNow: 'Sync now',
     calendarSyncLast: (time: string) => `Last sync: ${time}`,
