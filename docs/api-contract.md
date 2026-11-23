@@ -99,20 +99,18 @@ Server → client (broadcast frames carry `thread_id`):
 
 ## Notifications WebSocket (`src/octop/api/routers/chat/notify_ws.py`)
 
-`WS /api/notifications/ws?token=<JWT>` — user-scoped; inbound `ping` only; pushes `dashboard_push {agent_id, thread_id, text, agent_name}` (cron reminders, proactive care). Same close codes as chat WS.
+`WS /api/notifications/ws?token=<JWT>` — the **session socket**: user-scoped, one per app while signed in. Pushes `dashboard_push {agent_id, thread_id, text, agent_name}` (cron reminders, proactive care, and — on the `feat/device-tools` branch — a preview of a reply that finished with nobody subscribed to the thread). Inbound `ping` → `pong`. Since `feat/device-tools` it also carries device presence (below), so the app holds one background connection instead of one per concern. Same close codes as chat WS.
 
-## Device presence WebSocket (`src/octop/api/routers/devices.py`) — `feat/device-tools` branch
+## Device presence — multiplexed on the session socket — `feat/device-tools` branch
 
-Not in upstream 1.0.3b4 yet; served by the `feat/device-tools` branch (hub: `src/octop/infra/devices/hub.py`, expert bridge: `src/octop/infra/agents/acp/device_mcp.py` + `src/octop/infra/devices/langchain.py`). The phone is a capability node: it advertises consented device tools; any of the user's sessions can delegate calls to it.
+Not in upstream 1.0.3b4 yet; served by the `feat/device-tools` branch (hub: `src/octop/infra/devices/hub.py`, expert bridge: `src/octop/infra/agents/acp/device_mcp.py` + `src/octop/infra/devices/langchain.py`). The phone is a capability node: it advertises consented device tools; any of the user's sessions can delegate calls to it. Frames ride `WS /api/notifications/ws` (there is no separate device endpoint).
 
-- `WS /api/devices/ws?token=<JWT>` — user-scoped, one socket per phone. Same auth/close codes as chat WS (`4001` missing/invalid token).
 - Client → server:
-  - `device_tools.register {tools: [{name, description, input_schema, requires_confirmation}]}` — replaces the phone's advertised set; sent on connect and whenever consent changes. Names are dotted (`calendar.list_events`, `sms.send`, …); schemas are JSON Schema objects.
+  - `device_tools.register {tools: [{name, description, input_schema, requires_confirmation}]}` — replaces this connection's advertised set; sent whenever the socket opens and whenever consent changes. Names are dotted (`calendar.list_events`, `sms.send`, …); schemas are JSON Schema objects. A payload whose `tools` is not a list is ignored (it never clears the advertised set).
   - `device_tool_result {call_id, output? , error?}` — answer to a routed call; `error` set means failure/cancel.
-  - `ping` → `pong`.
-- Server → client: `device_tool_call {call_id, name, input, thread_id?}` — `thread_id` is the owning conversation so the client can render the inline approval card in that thread. Calls with `requires_confirmation: true` park on the phone until the user approves/denies; the server waits up to 300 s (`CALL_TIMEOUT_SECONDS`) and then returns a timeout error to the expert.
+- Server → client: `device_tool_call {call_id, name, input, thread_id?}` — `thread_id` is the owning conversation so the client can render the inline approval card in that thread. Calls with `requires_confirmation: true` park on the phone until the user approves/denies; the server waits up to 300 s (`CALL_TIMEOUT_SECONDS`) and then returns a timeout error to the expert. A client that never registered tools (plain dashboard) closes without touching any agent.
 - Expert side: managed ACP turns get a loopback MCP server `octop-device` (`/api/internal/mcp/device?token=<scope>`, scoped per user/agent/thread) whose `tools/list` is the live advertised set; native harness experts get the same tools injected in-process as `device_<name with dots → underscores>` (LLM-safe names). Disconnect/unregister refreshes both paths.
-- Consent and OS permissions are enforced on the phone only; the server never sees device data except as tool results.
+- Consent and OS permissions are enforced on the phone only; the server never sees device data except as tool results. The branch's default security policy sets `pii.mask_phones=false` so the numbers users type or receive reach the model intact (API keys and resident IDs stay masked); this needs `octop-harness` ≥ 1.0.12 — older builds ignore the flag and keep masking mobile numbers.
 
 ## Knowledge bases (`src/octop/api/routers/knowledge_bases.py`)
 
