@@ -60,9 +60,6 @@ enableFreeze(true);
 
 /** Maps the current path to the drawer row that should read as selected. */
 function drawerRouteFor(pathname: string): DrawerRoute | null {
-  if (pathname.startsWith('/today')) {
-    return 'today';
-  }
   if (pathname.startsWith('/knowledge')) {
     return 'knowledge';
   }

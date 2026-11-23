@@ -16,7 +16,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { Blocks, BookOpen, CalendarDays, Settings } from 'lucide-react-native';
+import { Blocks, BookOpen, Settings } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -97,11 +97,9 @@ export interface DrawerTaskGroup {
   color?: string | null;
 }
 
-/** The Today page stays live (deep-link reachable); its drawer entry is
- *  hidden for now. Flip to re-surface it without touching the page. */
-const SHOW_TODAY_IN_DRAWER = false;
-
-export type DrawerRoute = 'today' | 'knowledge' | 'usage' | 'settings' | 'connect';
+/** The Today surface is removed until the server grows the APIs it needs
+ *  (no entry anywhere; git history has the screen and digest). */
+export type DrawerRoute = 'knowledge' | 'usage' | 'settings' | 'connect';
 
 interface AppDrawerProps {
   /** Requested state; the drawer animates toward it. */
@@ -242,17 +240,6 @@ export function AppDrawer({
         </View>
 
         <View style={styles.menuList}>
-          {/* Hidden for now, not removed: the Today page and its route stay
-              live (deep-link reachable); only the drawer entry is gated. */}
-          {SHOW_TODAY_IN_DRAWER ? (
-            <NavRow
-              icon={<CalendarDays size={20} color={t.textBody} />}
-              label={strings.drawer.today}
-              active={activeRoute === 'today'}
-              testID="drawer-today"
-              onPress={() => onNavigate('today')}
-            />
-          ) : null}
           <NavRow
             icon={<Blocks size={20} color={t.textBody} />}
             label={strings.drawer.connectApps}
